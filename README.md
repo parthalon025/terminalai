@@ -6,7 +6,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/parthalon025/terminalai/releases"><img src="https://img.shields.io/badge/version-1.3.0-blue?style=flat-square" alt="Version 1.3.0"></a>
+  <a href="https://github.com/parthalon025/terminalai/releases"><img src="https://img.shields.io/badge/version-1.4.2-blue?style=flat-square" alt="Version 1.4.2"></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.10+-blue?style=flat-square&logo=python&logoColor=white" alt="Python 3.10+"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License"></a>
   <a href="https://developer.nvidia.com/maxine"><img src="https://img.shields.io/badge/NVIDIA-Maxine-76B900?style=flat-square&logo=nvidia&logoColor=white" alt="NVIDIA Maxine"></a>
@@ -93,6 +93,24 @@ Opens automatically at **http://localhost:7860**
 | 🎨 **HDR Output** | Convert to HDR10 or HLG format |
 | 💻 **Works Without NVIDIA** | Real-ESRGAN supports AMD/Intel GPUs, FFmpeg for CPU-only |
 
+### What's New in v1.4.x
+
+- **Smart Advanced Options** (v1.4.0):
+  - Conditional menus that show only relevant options based on your tool selection
+  - Real-ESRGAN options appear only when Real-ESRGAN engine is selected
+  - HDR options appear only when HDR mode is enabled
+  - Audio/Surround options appear only when enhancement is enabled
+  - Demucs AI options appear only when Demucs upmix is selected
+- **Beginner-Friendly Tooltips** (v1.4.1):
+  - Plain-English explanations for all options
+  - No jargon - every setting explained in simple terms
+  - Examples like "lanczos=sharpest (recommended), bicubic=smoother"
+- **Content-Based Guidance** (v1.4.2):
+  - "When to Use Each Option" help panel in the sidebar
+  - Every tooltip includes USE/SKIP recommendations based on content type
+  - Guidance for VHS, DVD, anime, clean sources, and more
+  - Examples: "USE 0.7-1.0 for VHS (heavy noise), 0.3-0.5 for DVD"
+
 ### What's New in v1.3.0
 
 - **Audio Enhancement** (all FREE, no GPU required):
@@ -133,16 +151,18 @@ The modern Gradio web interface provides:
 
 | Tab | Function |
 |-----|----------|
-| 📹 **Single Video** | Upload file or enter URL with full options |
+| 📹 **Single Video** | Upload file or enter URL with full options + smart advanced menus |
 | 📚 **Batch Processing** | Add multiple URLs at once |
 | 📋 **Queue** | Monitor progress with stats dashboard |
 | 📜 **Logs** | Real-time activity logging |
 | ⚙️ **Settings** | Output directory, dark mode toggle |
 | ℹ️ **About** | System info and alternatives |
 
+**New in v1.4:** Conditional advanced options appear based on your selections - no clutter from irrelevant settings. Each option includes beginner-friendly explanations and "when to use" guidance based on your content type (VHS, DVD, anime, etc.).
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  🎬 VHS Video Upscaler                           v1.1.0     │
+│  🎬 VHS Video Upscaler                           v1.4.2     │
 │  AI-Powered Video Enhancement with NVIDIA Maxine            │
 ├─────────────────────────────────────────────────────────────┤
 │  📹 Single │ 📚 Batch │ 📋 Queue │ 📜 Logs │ ⚙️ Settings    │
@@ -152,14 +172,39 @@ The modern Gradio web interface provides:
 │  │  Resolution: 1920x1080 │ └───────────────────────────┘   │
 │  │  Duration: 0:05:30     │                                 │
 │  │  Codec: h264 @ 30fps   │  Preset: [vhs ▼]               │
-│  └────────────────────────┘  Resolution: [1080p ▼]         │
-│                                                             │
+│  └────────────────────────┘  Engine: [realesrgan ▼]        │
+│                              Resolution: [1080p ▼]         │
+│  ┌─ Real-ESRGAN Options ─┐  ┌─ When to Use ───────────┐   │
+│  │  Model: [x4plus ▼]    │  │ VHS → Real-ESRGAN       │   │
+│  │  Denoise: [0.7]       │  │ DVD → Maxine/FFmpeg     │   │
+│  └───────────────────────┘  │ Anime → anime model     │   │
+│                              └─────────────────────────┘   │
 │  [➕ Add to Queue]                                          │
 │                                                             │
 │  ┌─ Stats ──────────────────────────────────────────────┐  │
 │  │ Pending: 2 │ Processing: 1 │ Completed: 5 │ Failed: 0│  │
 │  └──────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────┘
+```
+
+### Processing Pipeline
+
+See how your video flows through each enhancement stage:
+
+```
+┌──────────────┐     ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
+│   INPUT      │     │  PREPROCESS  │     │  AI UPSCALE  │     │   ENCODE     │
+│              │────▶│              │────▶│              │────▶│              │
+│ VHS/DVD/MP4  │     │ Deinterlace  │     │ Maxine/ESRGAN│     │ HEVC/H.264   │
+│ YouTube URL  │     │ Denoise      │     │ or FFmpeg    │     │ HDR (opt.)   │
+└──────────────┘     └──────────────┘     └──────────────┘     └──────────────┘
+                                                                      │
+┌──────────────┐     ┌──────────────┐     ┌──────────────┐            │
+│   OUTPUT     │     │ AUDIO ENCODE │     │ AUDIO PROC   │◀───────────┘
+│              │◀────│              │◀────│              │
+│ Final Video  │     │ AAC/AC3/FLAC │     │ Enhance/Upmix│
+│ Ready to Use │     │ 5.1/7.1 Mix  │     │ Demucs AI    │
+└──────────────┘     └──────────────┘     └──────────────┘
 ```
 
 ---
@@ -196,6 +241,76 @@ python -m vhs_upscaler.vhs_upscale -i video.mp4 -o out_hdr.mp4 --hdr hdr10
 # CPU-only mode (no GPU required)
 python -m vhs_upscaler.vhs_upscale -i video.mp4 -o out.mp4 --engine ffmpeg --encoder libx265
 ```
+
+### Real-World Examples
+
+**Example 1: Old Family VHS Tape**
+```bash
+# Best settings for grainy VHS home videos with dialogue
+python -m vhs_upscaler.vhs_upscale \
+  -i "family_christmas_1995.mp4" \
+  -o "family_christmas_1995_restored.mp4" \
+  --preset vhs \
+  --engine realesrgan \
+  --realesrgan-denoise 0.8 \
+  --audio-enhance voice \
+  -r 1080
+```
+*Result: Removes VHS noise, enhances dialogue clarity, upscales to 1080p*
+
+**Example 2: DVD Movie Backup**
+```bash
+# Clean up a DVD rip for home theater with surround sound
+python -m vhs_upscaler.vhs_upscale \
+  -i "movie_dvd_rip.mkv" \
+  -o "movie_hd.mkv" \
+  --preset dvd \
+  --engine maxine \
+  --audio-upmix demucs \
+  --audio-layout 5.1 \
+  --audio-format eac3 \
+  -r 1080
+```
+*Result: Upscales to HD, creates AI-powered 5.1 surround from stereo*
+
+**Example 3: Anime Collection**
+```bash
+# Upscale old anime with appropriate model
+python -m vhs_upscaler.vhs_upscale \
+  -i "anime_episode.mp4" \
+  -o "anime_episode_4k.mp4" \
+  --preset clean \
+  --engine realesrgan \
+  --realesrgan-model realesrgan-x4plus-anime \
+  -r 2160
+```
+*Result: 4K upscale optimized for animated content*
+
+**Example 4: YouTube Archive for HDR TV**
+```bash
+# Download and enhance for HDR playback
+python -m vhs_upscaler.vhs_upscale \
+  -i "https://youtube.com/watch?v=example" \
+  -o "video_hdr.mp4" \
+  --preset youtube \
+  --hdr hdr10 \
+  --hdr-brightness 600 \
+  -r 2160
+```
+*Result: Downloads, upscales to 4K HDR10 for modern TVs*
+
+**Example 5: No GPU / Laptop Processing**
+```bash
+# Process on any computer without GPU
+python -m vhs_upscaler.vhs_upscale \
+  -i "video.mp4" \
+  -o "video_upscaled.mp4" \
+  --preset vhs \
+  --engine ffmpeg \
+  --encoder libx265 \
+  -r 720
+```
+*Result: CPU-only processing, works on any system*
 
 ### CLI Options
 
@@ -256,6 +371,70 @@ python -m vhs_upscaler.vhs_upscale -i video.mp4 -o out.mp4 --engine ffmpeg --enc
 | `webcam` | Low-quality webcam | ❌ No | Strong | Old webcam footage |
 | `youtube` | YouTube downloads | ❌ No | Light | Downloaded videos |
 | `clean` | Already clean | ❌ No | None | High-quality sources |
+
+---
+
+## 🎯 Quick Decision Guide
+
+**What type of video do you have?** Follow the flowchart:
+
+```
+                        ┌─────────────────────┐
+                        │  What's your source? │
+                        └──────────┬──────────┘
+                                   │
+        ┌──────────────┬───────────┼───────────┬──────────────┐
+        ▼              ▼           ▼           ▼              ▼
+   ┌─────────┐   ┌─────────┐ ┌─────────┐ ┌─────────┐   ┌─────────┐
+   │   VHS   │   │   DVD   │ │  Anime  │ │ YouTube │   │  Clean  │
+   │  Tape   │   │  Rip    │ │ Cartoon │ │ Download│   │  HD/4K  │
+   └────┬────┘   └────┬────┘ └────┬────┘ └────┬────┘   └────┬────┘
+        │              │           │           │              │
+        ▼              ▼           ▼           ▼              ▼
+┌──────────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐
+│preset: vhs   │ │preset:dvd│ │preset:   │ │preset:   │ │preset:   │
+│engine:       │ │engine:   │ │clean     │ │youtube   │ │clean     │
+│ realesrgan   │ │ maxine   │ │engine:   │ │engine:   │ │engine:   │
+│denoise: 0.8  │ │          │ │realesrgan│ │ auto     │ │ maxine   │
+│audio: voice  │ │          │ │model:    │ │          │ │          │
+└──────────────┘ └──────────┘ │ anime    │ └──────────┘ └──────────┘
+                              └──────────┘
+```
+
+### Quick Reference Card
+
+| Your Content | Preset | Engine | Audio | Resolution |
+|--------------|--------|--------|-------|------------|
+| VHS home videos | `vhs` | `realesrgan` | `voice` | 1080p |
+| VHS music/concert | `vhs` | `realesrgan` | `music` | 1080p |
+| DVD movie | `dvd` | `maxine` or `auto` | `demucs` + 5.1 | 1080p |
+| Old anime | `clean` | `realesrgan` (anime model) | `none` | 2160p |
+| YouTube download | `youtube` | `auto` | `none` | 1080p |
+| Already HD/clean | `clean` | `maxine` | `none` | same or 2160p |
+| No GPU available | any | `ffmpeg` | any | 720p-1080p |
+
+### Expected Quality Improvements
+
+```
+Source Quality          After Processing         Improvement
+─────────────────────────────────────────────────────────────
+VHS (240-480i)    ──▶   1080p HD               ████████░░ 80%
+├─ Noise/grain    ──▶   Clean, sharp           ████████░░ 80%
+├─ Muffled audio  ──▶   Clear dialogue         ███████░░░ 70%
+└─ Interlacing    ──▶   Smooth motion          █████████░ 90%
+
+DVD (480p)        ──▶   1080p/4K               ███████░░░ 70%
+├─ Compression    ──▶   Reduced artifacts      ██████░░░░ 60%
+└─ Stereo audio   ──▶   5.1 Surround           ████████░░ 80%
+
+YouTube (720p)    ──▶   1080p/4K               █████░░░░░ 50%
+└─ Already OK     ──▶   Slightly sharper       ████░░░░░░ 40%
+
+Clean HD          ──▶   4K                     ███░░░░░░░ 30%
+└─ Upscale only   ──▶   Larger resolution      ███░░░░░░░ 30%
+```
+
+*Higher bars = more noticeable improvement. VHS benefits most from processing.*
 
 ---
 
