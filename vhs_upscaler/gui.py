@@ -981,46 +981,46 @@ def create_gui() -> gr.Blocks:
 
                             # === Conditional: Real-ESRGAN Options ===
                             with gr.Group(visible=False) as realesrgan_options:
-                                gr.Markdown("**🎨 Real-ESRGAN Settings** - AI upscaling that works on AMD, Intel, and NVIDIA GPUs")
+                                gr.Markdown("**🎨 Real-ESRGAN Settings** - AI upscaling that works on AMD, Intel, and NVIDIA GPUs. Best for VHS/noisy footage.")
                                 with gr.Row():
                                     realesrgan_model = gr.Dropdown(
                                         choices=["realesrgan-x4plus", "realesrgan-x4plus-anime",
                                                  "realesr-animevideov3", "realesrnet-x4plus"],
                                         value="realesrgan-x4plus",
                                         label="AI Model",
-                                        info="x4plus=real-world video (best for VHS), anime=cartoons/animation, animevideo=animated shows"
+                                        info="USE: x4plus for VHS/real video, anime for cartoons, animevideo for anime series. SKIP anime models for live action."
                                     )
                                     realesrgan_denoise = gr.Slider(
                                         minimum=0, maximum=1, value=0.5, step=0.1,
                                         label="Noise Reduction",
-                                        info="How much grain/static to remove. 0=keep original noise, 0.5=balanced, 1=maximum smoothing (may look artificial)"
+                                        info="USE 0.7-1.0 for VHS (heavy noise), 0.3-0.5 for DVD, 0 for clean sources. High values may remove film grain you want to keep."
                                     )
 
                             # === Conditional: FFmpeg Upscale Options ===
                             with gr.Group(visible=False) as ffmpeg_options:
-                                gr.Markdown("**🔧 FFmpeg Upscale Settings** - CPU-based upscaling (no GPU required, slower but works everywhere)")
+                                gr.Markdown("**🔧 FFmpeg Upscale Settings** - CPU-based upscaling. USE when no GPU available or for already-clean sources.")
                                 with gr.Row():
                                     ffmpeg_scale_algo = gr.Dropdown(
                                         choices=["lanczos", "bicubic", "bilinear", "spline", "neighbor"],
                                         value="lanczos",
                                         label="Upscale Method",
-                                        info="lanczos=sharpest (recommended), bicubic=smoother, bilinear=fastest, neighbor=pixelated retro look"
+                                        info="USE lanczos for most content, bicubic for soft/vintage look, neighbor ONLY for pixel art/retro games. SKIP bilinear (blurry)."
                                     )
 
                             # === Conditional: HDR Options ===
                             with gr.Group(visible=False) as hdr_options:
-                                gr.Markdown("**🎨 HDR Settings** - Makes colors brighter and more vivid on HDR TVs/monitors")
+                                gr.Markdown("**🎨 HDR Settings** - USE for playback on HDR TVs/monitors. SKIP for phones, web uploads, or older displays.")
                                 with gr.Row():
                                     hdr_brightness = gr.Slider(
                                         minimum=100, maximum=1000, value=400, step=50,
                                         label="Peak Brightness",
-                                        info="How bright highlights can get (in nits). 400=most TVs, 600+=premium TVs, 1000=top-end displays"
+                                        info="Match your TV's capability. 400=budget TVs, 600=mid-range, 1000=OLED/premium. Too high wastes file size; too low looks dim."
                                     )
                                     hdr_color_depth = gr.Radio(
                                         choices=[8, 10],
                                         value=10,
                                         label="Color Depth",
-                                        info="10-bit=smoother gradients, no banding (recommended for HDR). 8-bit=smaller file, may show color banding"
+                                        info="USE 10-bit for HDR (required for smooth gradients). USE 8-bit only if storage is critical or device doesn't support 10-bit."
                                     )
 
                         with gr.Accordion("🔊 Audio Options", open=False):
@@ -1030,85 +1030,85 @@ def create_gui() -> gr.Blocks:
                                     choices=["none", "light", "moderate", "aggressive", "voice", "music"],
                                     value="none",
                                     label="Audio Cleanup",
-                                    info="none=keep original, light=subtle cleanup, moderate=balanced, aggressive=heavy noise removal, voice=optimize for dialogue, music=preserve musical dynamics"
+                                    info="USE: aggressive/voice for VHS (hiss), light for DVD, music for concerts. SKIP (none) for already-clean digital sources."
                                 )
                                 audio_upmix = gr.Dropdown(
                                     choices=["none", "simple", "surround", "prologic", "demucs"],
                                     value="none",
                                     label="Surround Sound Creation",
-                                    info="none=keep original, simple=basic expansion, surround=FFmpeg filters, prologic=Dolby-style, demucs=AI separates instruments (best quality, slowest)"
+                                    info="USE demucs for movies (best AI quality), prologic for music. SKIP if source is already surround, mono, or you only have stereo speakers."
                                 )
                             with gr.Row():
                                 audio_layout = gr.Dropdown(
                                     choices=["original", "stereo", "5.1", "7.1", "mono"],
                                     value="original",
                                     label="Speaker Layout",
-                                    info="original=don't change, stereo=2 speakers, 5.1=home theater (6 speakers), 7.1=premium home theater (8 speakers)"
+                                    info="USE 5.1 for home theater, stereo for headphones/phones, 7.1 only if you have 8 speakers. SKIP 7.1 for most setups (overkill)."
                                 )
                                 audio_format = gr.Dropdown(
                                     choices=["aac", "ac3", "eac3", "dts", "flac"],
                                     value="aac",
                                     label="Audio Codec",
-                                    info="aac=best for streaming/phones, ac3/eac3=Dolby (home theater), dts=high quality surround, flac=lossless (largest files)"
+                                    info="USE aac for streaming/phones, eac3 for 5.1 home theater, flac for archiving. SKIP dts unless your receiver requires it."
                                 )
 
                             # === Conditional: Audio Enhancement Options ===
                             with gr.Group(visible=False) as audio_enhance_options:
-                                gr.Markdown("**🎚️ Audio Cleanup Settings** - Fine-tune how audio is processed")
+                                gr.Markdown("**🎚️ Audio Cleanup Settings** - Fine-tune noise removal and volume normalization")
                                 with gr.Row():
                                     audio_target_loudness = gr.Slider(
                                         minimum=-24, maximum=-9, value=-14, step=1,
                                         label="Volume Level",
-                                        info="How loud the output should be. -14=YouTube/Spotify standard, -16=TV broadcast, -23=movie theater (quieter, more dynamic)"
+                                        info="USE -14 for YouTube/Spotify, -16 for TV, -23 for movies with dynamic range. SKIP changing if you'll edit audio later."
                                     )
                                     audio_noise_floor = gr.Slider(
                                         minimum=-30, maximum=-10, value=-20, step=1,
                                         label="Noise Removal Threshold",
-                                        info="Sounds quieter than this are treated as noise. -20=balanced, -30=remove more noise (may affect quiet sounds), -10=preserve more audio"
+                                        info="USE -25 to -30 for VHS (heavy hiss), -15 to -20 for light noise, -10 for clean sources. Too aggressive removes quiet dialogue!"
                                     )
 
                             # === Conditional: Demucs Options ===
                             with gr.Group(visible=False) as demucs_options:
-                                gr.Markdown("**🤖 Demucs AI Settings** - AI that separates vocals, drums, bass & instruments to create realistic surround sound")
+                                gr.Markdown("**🤖 Demucs AI Settings** - Best for movies/music. SKIP for voice-only content (interviews, podcasts).")
                                 with gr.Row():
                                     demucs_model = gr.Dropdown(
                                         choices=["htdemucs", "htdemucs_ft", "mdx_extra", "mdx_extra_q"],
                                         value="htdemucs",
                                         label="AI Model",
-                                        info="htdemucs=good & fast, htdemucs_ft=best quality (fine-tuned), mdx_extra=alternative model, mdx_extra_q=mdx with quantization"
+                                        info="USE htdemucs for speed, htdemucs_ft for quality (movies). SKIP mdx models unless htdemucs gives artifacts."
                                     )
                                     demucs_device = gr.Dropdown(
                                         choices=["auto", "cuda", "cpu"],
                                         value="auto",
                                         label="Processing Device",
-                                        info="auto=use GPU if available (recommended), cuda=force NVIDIA GPU, cpu=use processor only (slower but always works)"
+                                        info="USE auto (picks GPU if available). USE cpu only if GPU causes crashes. GPU is 10-50x faster than CPU."
                                     )
                                 with gr.Row():
                                     demucs_shifts = gr.Slider(
                                         minimum=0, maximum=5, value=1, step=1,
                                         label="Quality Passes",
-                                        info="How many times to analyze the audio. 0=fastest, 1=good balance, 5=best quality but 5x slower"
+                                        info="USE 1 for most content (good balance). USE 2-3 for music you care about. USE 0 for quick previews. SKIP 4-5 unless archiving."
                                     )
 
                             # === Conditional: Surround Options ===
                             with gr.Group(visible=False) as surround_options:
-                                gr.Markdown("**🔊 Surround Sound Settings** - Fine-tune how audio is distributed to your speakers")
+                                gr.Markdown("**🔊 Surround Sound Settings** - Adjust speaker balance. Defaults work for most setups; only change if something sounds off.")
                                 with gr.Row():
                                     lfe_crossover = gr.Slider(
                                         minimum=60, maximum=200, value=120, step=10,
                                         label="Subwoofer Cutoff",
-                                        info="Bass frequencies below this go to subwoofer. 80Hz=THX standard, 120Hz=most systems, higher=more bass to sub"
+                                        info="USE 80Hz for THX/large speakers, 120Hz for typical setups, 150-200Hz for small speakers/soundbars. Match your receiver setting."
                                     )
                                     center_mix = gr.Slider(
                                         minimum=0.0, maximum=1.0, value=0.707, step=0.05,
                                         label="Center Speaker Volume",
-                                        info="How loud dialogue/vocals are. 0.707=standard (-3dB), 1.0=full volume, lower=quieter center"
+                                        info="USE 0.707 (default) for most content. INCREASE to 0.8-1.0 if dialogue is hard to hear. DECREASE for music-heavy content."
                                     )
                                 with gr.Row():
                                     surround_delay = gr.Slider(
                                         minimum=0, maximum=50, value=15, step=5,
                                         label="Rear Speaker Delay",
-                                        info="Milliseconds to delay rear speakers. Creates sense of space/depth. 0=no delay, 15-20ms=natural sounding, 50ms=very spacious"
+                                        info="USE 15-20ms for movies (natural depth). USE 0-5ms for music (tighter sound). USE 30-50ms for concert/live recordings (spacious)."
                                     )
 
                         add_btn = gr.Button("➕ Add to Queue", variant="primary", size="lg")
@@ -1125,6 +1125,31 @@ def create_gui() -> gr.Blocks:
                         | **youtube** | YouTube downloads |
                         | **clean** | Already clean sources |
                         | **auto** | Auto-detect settings |
+                        """)
+
+                        gr.Markdown("### 🎯 When to Use Each Option")
+                        gr.Markdown("""
+                        **AI Upscaler:**
+                        - **VHS/Old tapes** → Real-ESRGAN (best noise handling)
+                        - **DVDs/Clean sources** → Maxine (fastest) or FFmpeg
+                        - **Anime/Cartoons** → Real-ESRGAN anime model
+                        - **No GPU** → FFmpeg (CPU only)
+
+                        **HDR Output:**
+                        - ✅ Use for: Modern TVs, HDR monitors
+                        - ❌ Skip for: Old TVs, phones, web sharing
+
+                        **Audio Enhancement:**
+                        - **VHS tapes** → "voice" or "aggressive" (heavy hiss)
+                        - **DVDs** → "light" or "none" (usually clean)
+                        - **Home videos** → "moderate" (background noise)
+                        - **Music content** → "music" (preserves dynamics)
+
+                        **Surround Upmix:**
+                        - **Movies/TV** → "demucs" (AI, best quality)
+                        - **Music** → "prologic" (Dolby-style)
+                        - **Quick processing** → "simple" or "surround"
+                        - ❌ Skip if: Already surround or mono source
                         """)
 
                         gr.Markdown("### 💡 Quick Tips")
