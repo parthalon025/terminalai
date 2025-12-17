@@ -6,7 +6,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/parthalon025/terminalai/releases"><img src="https://img.shields.io/badge/version-1.4.2-blue?style=flat-square" alt="Version 1.4.2"></a>
+  <a href="https://github.com/parthalon025/terminalai/releases"><img src="https://img.shields.io/badge/version-1.4.3-blue?style=flat-square" alt="Version 1.4.3"></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.10+-blue?style=flat-square&logo=python&logoColor=white" alt="Python 3.10+"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License"></a>
   <a href="https://developer.nvidia.com/maxine"><img src="https://img.shields.io/badge/NVIDIA-Maxine-76B900?style=flat-square&logo=nvidia&logoColor=white" alt="NVIDIA Maxine"></a>
@@ -110,6 +110,11 @@ Opens automatically at **http://localhost:7860**
   - Every tooltip includes USE/SKIP recommendations based on content type
   - Guidance for VHS, DVD, anime, clean sources, and more
   - Examples: "USE 0.7-1.0 for VHS (heavy noise), 0.3-0.5 for DVD"
+- **Dependencies & Auto-Detection** (v1.4.3):
+  - Validated all dependencies against latest PyPI versions (Dec 2025)
+  - Added automatic GPU encoder detection (NVENC > AMF > QSV > CPU)
+  - System auto-selects best available encoder for your hardware
+  - Updated: gradio 5.x+, pytest 8.x+, torch 2.1.x+, ruff 0.5.x+
 
 ### What's New in v1.3.0
 
@@ -162,7 +167,7 @@ The modern Gradio web interface provides:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  🎬 VHS Video Upscaler                           v1.4.2     │
+│  🎬 VHS Video Upscaler                           v1.4.3     │
 │  AI-Powered Video Enhancement with NVIDIA Maxine            │
 ├─────────────────────────────────────────────────────────────┤
 │  📹 Single │ 📚 Batch │ 📋 Queue │ 📜 Logs │ ⚙️ Settings    │

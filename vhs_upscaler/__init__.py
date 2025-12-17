@@ -15,7 +15,7 @@ Features:
 - Comprehensive logging and error handling
 """
 
-__version__ = "1.4.2"
+__version__ = "1.4.3"
 __author__ = "TerminalAI Contributors"
 
 from .vhs_upscale import VHSUpscaler, ProcessingConfig, YouTubeDownloader

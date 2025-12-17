@@ -1,26 +1,29 @@
-# TerminalAI Requirements v1.4.2
+# TerminalAI Requirements v1.4.3
 # ===============================
 # Install: pip install -r requirements.txt
 # Or full install: pip install -e .
+#
+# Validated: December 2025
+# Python: >=3.10 required
 
 # ===================
 # Core Dependencies
 # ===================
-yt-dlp>=2023.0.0              # YouTube/video downloading
+yt-dlp>=2024.1.0              # YouTube/video downloading (latest: 2025.12.8)
 pyyaml>=6.0                   # Configuration files
 
 # ===================
 # GUI Dependencies
 # ===================
-gradio>=4.0.0                 # Modern web interface
+gradio>=5.0.0                 # Modern web interface (latest: 6.1.0)
 
 # ===================
 # Optional: AI Audio (for Demucs surround upmix)
 # Install with: pip install -e ".[audio]"
 # ===================
-# demucs>=4.0.0               # AI stem separation
-# torch>=2.0.0                # PyTorch (required by demucs)
-# torchaudio>=2.0.0           # Audio processing
+# demucs>=4.0.0               # AI stem separation (latest: 4.0.1)
+# torch>=2.1.0                # PyTorch (latest: 2.9.1)
+# torchaudio>=2.1.0           # Audio processing
 
 # ===================
 # External Dependencies (install separately)
@@ -43,7 +46,7 @@ gradio>=4.0.0                 # Modern web interface
 # Development Dependencies
 # Install with: pip install -e ".[dev]"
 # ===================
-# pytest>=7.0                 # Testing framework
-# pytest-cov>=4.0             # Test coverage
-# black>=23.0                 # Code formatting
-# ruff>=0.1.0                 # Linting
+# pytest>=8.0                 # Testing framework (latest: 9.0.2)
+# pytest-cov>=5.0             # Test coverage (latest: 7.0.0)
+# black>=24.0                 # Code formatting (latest: 25.12.0)
+# ruff>=0.5.0                 # Linting (latest: 0.14.9)
