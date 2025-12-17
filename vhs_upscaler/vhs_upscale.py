@@ -2,36 +2,37 @@
 """
 VHS Video Upscaling Pipeline
 ============================
-AI-powered video upscaling optimized for VHS-quality footage using NVIDIA Maxine SDK.
+AI-powered video upscaling for VHS-quality footage using NVIDIA Maxine SDK.
 
-Features:
-- Watch folder automation
-- Pre-processing: deinterlace, denoise, audio extraction
-- AI upscaling via NVIDIA Maxine SuperRes
-- Post-processing: NVENC encoding, audio remux
-- Configurable presets for VHS, DVD, webcam sources
+Accepts local video files OR YouTube URLs as input.
 
 Usage:
-    python vhs_upscale.py --input video.mp4 --output upscaled.mp4
-    python vhs_upscale.py --watch --input ./input --output ./output
-    python vhs_upscale.py --preset vhs --resolution 1080 --input video.mp4
+    python vhs_upscale.py -i video.mp4 -o upscaled.mp4
+    python vhs_upscale.py -i "https://youtube.com/watch?v=..." -o upscaled.mp4
+    python vhs_upscale.py --watch -i ./input -o ./output
 """
 
 import argparse
+import json
 import logging
 import os
+import re
 import shutil
 import subprocess
 import sys
 import tempfile
 import time
-import yaml
-from dataclasses import dataclass
-from datetime import datetime, timedelta
-from pathlib import Path
-from typing import Optional
-from concurrent.futures import ThreadPoolExecutor
 import threading
+from dataclasses import dataclass, field
+from datetime import timedelta
+from pathlib import Path
+from typing import Optional, List
+
+try:
+    import yaml
+    HAS_YAML = True
+except ImportError:
+    HAS_YAML = False
 
 # Configure logging
 logging.basicConfig(
@@ -41,6 +42,257 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
+# ============================================================================
+# Progress Display
+# ============================================================================
+
+class UnifiedProgress:
+    """
+    Unified progress tracker with visual progress bar.
+    Shows overall pipeline progress and current stage.
+    """
+
+    STAGES = [
+        ("download", "Downloading"),
+        ("preprocess", "Pre-processing"),
+        ("upscale", "AI Upscaling"),
+        ("postprocess", "Encoding"),
+    ]
+
+    def __init__(self, has_download: bool = False):
+        self.has_download = has_download
+        self.active_stages = self.STAGES if has_download else self.STAGES[1:]
+        self.current_stage_idx = 0
+        self.stage_progress = 0.0
+        self.start_time = time.time()
+        self.stage_start_time = time.time()
+        self.video_title = ""
+        self.lock = threading.Lock()
+
+    def set_title(self, title: str):
+        """Set the video title for display."""
+        self.video_title = title[:50] + "..." if len(title) > 50 else title
+
+    def start_stage(self, stage_key: str):
+        """Start a new processing stage."""
+        with self.lock:
+            for idx, (key, _) in enumerate(self.active_stages):
+                if key == stage_key:
+                    self.current_stage_idx = idx
+                    break
+            self.stage_progress = 0.0
+            self.stage_start_time = time.time()
+            self._render()
+
+    def update(self, progress: float):
+        """Update current stage progress (0-100)."""
+        with self.lock:
+            self.stage_progress = min(max(progress, 0), 100)
+            self._render()
+
+    def complete_stage(self):
+        """Mark current stage as complete."""
+        with self.lock:
+            self.stage_progress = 100.0
+            self._render()
+            print()  # New line after stage completion
+
+    def _calculate_overall_progress(self) -> float:
+        """Calculate overall pipeline progress."""
+        total_stages = len(self.active_stages)
+        completed = self.current_stage_idx
+        current = self.stage_progress / 100.0
+        return ((completed + current) / total_stages) * 100
+
+    def _render(self):
+        """Render the progress display."""
+        overall = self._calculate_overall_progress()
+        stage_name = self.active_stages[self.current_stage_idx][1]
+
+        # Time calculations
+        elapsed = time.time() - self.start_time
+        stage_elapsed = time.time() - self.stage_start_time
+
+        # ETA estimation
+        eta_str = ""
+        if self.stage_progress > 5:
+            stage_remaining = (stage_elapsed / self.stage_progress) * (100 - self.stage_progress)
+            # Rough estimate for remaining stages
+            remaining_stages = len(self.active_stages) - self.current_stage_idx - 1
+            total_remaining = stage_remaining + (remaining_stages * stage_elapsed * 100 / max(self.stage_progress, 1))
+            eta_str = f"ETA: {timedelta(seconds=int(total_remaining))}"
+
+        # Build progress bar
+        bar_width = 40
+        filled = int(bar_width * overall / 100)
+        bar = "█" * filled + "▒" * (bar_width - filled)
+
+        # Stage indicators
+        stage_dots = ""
+        for i, (_, name) in enumerate(self.active_stages):
+            if i < self.current_stage_idx:
+                stage_dots += "●"  # Completed
+            elif i == self.current_stage_idx:
+                stage_dots += "◐"  # In progress
+            else:
+                stage_dots += "○"  # Pending
+
+        # Build output line
+        line = f"\r{stage_dots} [{bar}] {overall:5.1f}% │ {stage_name}: {self.stage_progress:5.1f}%"
+        if eta_str:
+            line += f" │ {eta_str}"
+
+        # Pad to clear previous content
+        line = line.ljust(120)
+        print(line, end="", flush=True)
+
+    def finish(self, success: bool = True):
+        """Display final status."""
+        elapsed = time.time() - self.start_time
+        status = "✓ Complete" if success else "✗ Failed"
+        print(f"\n\n{status} in {timedelta(seconds=int(elapsed))}")
+        if self.video_title:
+            print(f"Video: {self.video_title}")
+
+
+# ============================================================================
+# YouTube Downloader
+# ============================================================================
+
+class YouTubeDownloader:
+    """Download videos from YouTube using yt-dlp."""
+
+    # Patterns to detect YouTube URLs
+    URL_PATTERNS = [
+        r'(https?://)?(www\.)?youtube\.com/watch\?v=[\w-]+',
+        r'(https?://)?(www\.)?youtu\.be/[\w-]+',
+        r'(https?://)?(www\.)?youtube\.com/shorts/[\w-]+',
+        r'(https?://)?m\.youtube\.com/watch\?v=[\w-]+',
+    ]
+
+    def __init__(self, progress: UnifiedProgress):
+        self.progress = progress
+        self._validate_ytdlp()
+
+    def _validate_ytdlp(self):
+        """Check if yt-dlp is available."""
+        try:
+            result = subprocess.run(
+                ["yt-dlp", "--version"],
+                capture_output=True, text=True, check=True
+            )
+            logger.debug(f"yt-dlp version: {result.stdout.strip()}")
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            raise RuntimeError(
+                "yt-dlp not found. Install with: pip install yt-dlp"
+            )
+
+    @classmethod
+    def is_youtube_url(cls, input_str: str) -> bool:
+        """Check if input string is a YouTube URL."""
+        for pattern in cls.URL_PATTERNS:
+            if re.match(pattern, input_str):
+                return True
+        return False
+
+    def get_video_info(self, url: str) -> dict:
+        """Get video metadata without downloading."""
+        cmd = [
+            "yt-dlp",
+            "--dump-json",
+            "--no-download",
+            url
+        ]
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            return json.loads(result.stdout)
+        except Exception as e:
+            logger.warning(f"Could not get video info: {e}")
+            return {}
+
+    def download(self, url: str, output_dir: Path) -> Path:
+        """
+        Download YouTube video to specified directory.
+        Returns path to downloaded file.
+        """
+        self.progress.start_stage("download")
+
+        # Get video info first
+        info = self.get_video_info(url)
+        title = info.get("title", "video")
+        self.progress.set_title(title)
+
+        logger.info(f"Downloading: {title}")
+
+        # Sanitize filename
+        safe_title = re.sub(r'[<>:"/\\|?*]', '_', title)[:100]
+        output_template = str(output_dir / f"{safe_title}.%(ext)s")
+
+        cmd = [
+            "yt-dlp",
+            "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+            "--merge-output-format", "mp4",
+            "-o", output_template,
+            "--no-playlist",
+            "--newline",  # Progress on new lines for parsing
+            "--progress-template", "%(progress._percent_str)s",
+            url
+        ]
+
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True
+        )
+
+        output_file = None
+        for line in process.stdout:
+            line = line.strip()
+
+            # Parse progress percentage
+            if "%" in line:
+                try:
+                    # Handle formats like "  50.0%" or "50%"
+                    pct_str = line.replace("%", "").strip()
+                    pct = float(pct_str)
+                    self.progress.update(pct)
+                except ValueError:
+                    pass
+
+            # Capture output filename
+            if "[download] Destination:" in line:
+                output_file = Path(line.split("Destination:")[-1].strip())
+            elif "[Merger]" in line and "Merging formats into" in line:
+                # Get merged output file
+                match = re.search(r'"([^"]+)"', line)
+                if match:
+                    output_file = Path(match.group(1))
+
+            logger.debug(f"yt-dlp: {line}")
+
+        process.wait()
+
+        if process.returncode != 0:
+            raise RuntimeError(f"Download failed with code {process.returncode}")
+
+        # Find the output file if not captured
+        if not output_file or not output_file.exists():
+            # Look for mp4 files in output directory
+            mp4_files = list(output_dir.glob("*.mp4"))
+            if mp4_files:
+                output_file = max(mp4_files, key=lambda p: p.stat().st_mtime)
+            else:
+                raise RuntimeError("Could not find downloaded file")
+
+        self.progress.complete_stage()
+        return output_file
+
+
+# ============================================================================
+# Processing Configuration
+# ============================================================================
 
 @dataclass
 class ProcessingConfig:
@@ -58,54 +310,12 @@ class ProcessingConfig:
     encoder: str = "hevc_nvenc"
     nvenc_preset: str = "p7"
     keep_temp: bool = False
+    skip_maxine: bool = False  # For testing without Maxine
 
 
-class ProgressTracker:
-    """Track and display processing progress."""
-
-    def __init__(self, total_files: int = 1):
-        self.total_files = total_files
-        self.current_file = 0
-        self.current_stage = ""
-        self.stage_progress = 0.0
-        self.start_time = time.time()
-        self.file_start_time = time.time()
-
-    def set_stage(self, stage: str, file_num: int = None):
-        self.current_stage = stage
-        self.stage_progress = 0.0
-        if file_num:
-            self.current_file = file_num
-            self.file_start_time = time.time()
-        self._display()
-
-    def update(self, progress: float):
-        self.stage_progress = min(progress, 100.0)
-        self._display()
-
-    def _display(self):
-        elapsed = time.time() - self.file_start_time
-        eta = self._estimate_eta(elapsed)
-        bar_width = 30
-        filled = int(bar_width * self.stage_progress / 100)
-        bar = "█" * filled + "░" * (bar_width - filled)
-
-        status = f"\r[{self.current_file}/{self.total_files}] {self.current_stage}: [{bar}] {self.stage_progress:.1f}%"
-        if eta:
-            status += f" | ETA: {eta}"
-        print(status, end="", flush=True)
-
-    def _estimate_eta(self, elapsed: float) -> str:
-        if self.stage_progress <= 0:
-            return ""
-        remaining = (elapsed / self.stage_progress) * (100 - self.stage_progress)
-        return str(timedelta(seconds=int(remaining)))
-
-    def complete_stage(self):
-        self.stage_progress = 100.0
-        self._display()
-        print()  # New line
-
+# ============================================================================
+# VHS Upscaler Pipeline
+# ============================================================================
 
 class VHSUpscaler:
     """Main upscaling pipeline orchestrator."""
@@ -133,12 +343,18 @@ class VHSUpscaler:
             "deinterlace": False,
             "denoise": False,
             "quality_mode": 0,
+        },
+        "youtube": {
+            "deinterlace": False,
+            "denoise": False,
+            "denoise_strength": (1, 1, 1, 1),
+            "quality_mode": 0,
         }
     }
 
-    def __init__(self, config: ProcessingConfig):
+    def __init__(self, config: ProcessingConfig, progress: UnifiedProgress = None):
         self.config = config
-        self.progress = ProgressTracker()
+        self.progress = progress
         self._validate_dependencies()
 
     def _validate_dependencies(self):
@@ -153,86 +369,88 @@ class VHSUpscaler:
         except (subprocess.CalledProcessError, FileNotFoundError):
             raise RuntimeError("FFmpeg not found. Install from https://ffmpeg.org")
 
-        # Check Maxine VideoEffectsApp
-        maxine_exe = Path(self.config.maxine_path) / "VideoEffectsApp.exe"
-        if not maxine_exe.exists():
-            # Try environment variable
-            maxine_home = os.environ.get("MAXINE_HOME", "")
-            if maxine_home:
-                maxine_exe = Path(maxine_home) / "bin" / "VideoEffectsApp.exe"
-                if maxine_exe.exists():
-                    self.config.maxine_path = str(Path(maxine_home) / "bin")
-                    self.config.model_dir = str(Path(maxine_home) / "bin" / "models")
-
+        # Check Maxine VideoEffectsApp (skip if testing)
+        if not self.config.skip_maxine:
+            maxine_exe = Path(self.config.maxine_path) / "VideoEffectsApp.exe"
             if not maxine_exe.exists():
-                raise RuntimeError(
-                    f"NVIDIA Maxine VideoEffectsApp not found at {maxine_exe}\n"
-                    "Run install.ps1 or set MAXINE_HOME environment variable."
-                )
-        logger.debug(f"Maxine SDK found: {maxine_exe}")
+                # Try environment variable
+                maxine_home = os.environ.get("MAXINE_HOME", "")
+                if maxine_home:
+                    maxine_exe = Path(maxine_home) / "bin" / "VideoEffectsApp.exe"
+                    if maxine_exe.exists():
+                        self.config.maxine_path = str(Path(maxine_home) / "bin")
+                        self.config.model_dir = str(Path(maxine_home) / "bin" / "models")
 
-    def _get_video_info(self, input_path: Path) -> dict:
-        """Extract video metadata using FFprobe."""
+                if not maxine_exe.exists():
+                    logger.warning(
+                        f"NVIDIA Maxine not found. Use --skip-maxine for FFmpeg-only upscaling."
+                    )
+                    self.config.skip_maxine = True
+
+    def _get_video_duration(self, input_path: Path) -> float:
+        """Get video duration in seconds."""
         cmd = [
             "ffprobe", "-v", "quiet",
-            "-print_format", "json",
-            "-show_format", "-show_streams",
+            "-show_entries", "format=duration",
+            "-of", "json",
             str(input_path)
         ]
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-            import json
-            return json.loads(result.stdout)
-        except Exception as e:
-            logger.warning(f"Could not get video info: {e}")
-            return {}
+            data = json.loads(result.stdout)
+            return float(data.get("format", {}).get("duration", 0))
+        except:
+            return 0
 
-    def _is_interlaced(self, video_info: dict) -> bool:
+    def _is_interlaced(self, input_path: Path) -> bool:
         """Detect if video is interlaced."""
-        for stream in video_info.get("streams", []):
-            if stream.get("codec_type") == "video":
-                field_order = stream.get("field_order", "progressive")
+        cmd = [
+            "ffprobe", "-v", "quiet",
+            "-select_streams", "v:0",
+            "-show_entries", "stream=field_order",
+            "-of", "json",
+            str(input_path)
+        ]
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            data = json.loads(result.stdout)
+            streams = data.get("streams", [])
+            if streams:
+                field_order = streams[0].get("field_order", "progressive")
                 return field_order not in ("progressive", "unknown")
+        except:
+            pass
         return False
 
-    def preprocess(self, input_path: Path, temp_dir: Path) -> tuple[Path, Optional[Path]]:
-        """
-        Pre-process video: deinterlace, denoise, extract audio.
-
-        Returns:
-            Tuple of (processed_video_path, audio_path or None)
-        """
-        self.progress.set_stage("Pre-processing")
+    def preprocess(self, input_path: Path, temp_dir: Path, duration: float) -> tuple:
+        """Pre-process video: deinterlace, denoise, extract audio."""
+        self.progress.start_stage("preprocess")
 
         video_out = temp_dir / "prepped_video.mp4"
         audio_out = temp_dir / "audio.aac"
 
         # Build video filter chain
         vf_filters = []
-
         if self.config.deinterlace:
             vf_filters.append("yadif=1")
-
         if self.config.denoise:
             ds = self.config.denoise_strength
             vf_filters.append(f"hqdn3d={ds[0]}:{ds[1]}:{ds[2]}:{ds[3]}")
 
         vf_string = ",".join(vf_filters) if vf_filters else "null"
 
-        # Process video (without audio)
+        # Process video
         video_cmd = [
             self.config.ffmpeg_path,
             "-y", "-i", str(input_path),
             "-vf", vf_string,
-            "-an",  # No audio
+            "-an",
             "-c:v", "libx264",
-            "-crf", "15",  # High quality intermediate
+            "-crf", "15",
             "-preset", "fast",
             "-progress", "pipe:1",
             str(video_out)
         ]
-
-        logger.debug(f"Pre-process command: {' '.join(video_cmd)}")
 
         process = subprocess.Popen(
             video_cmd,
@@ -241,238 +459,241 @@ class VHSUpscaler:
             text=True
         )
 
-        # Monitor progress from FFmpeg
-        duration = None
         for line in process.stdout:
-            if "Duration:" in line:
-                # Parse duration
-                pass
-            elif line.startswith("out_time_ms="):
+            if line.startswith("out_time_ms="):
                 try:
                     ms = int(line.split("=")[1])
-                    if duration:
+                    if duration > 0:
                         self.progress.update((ms / 1000000) / duration * 100)
                 except:
                     pass
 
         process.wait()
         if process.returncode != 0:
-            stderr = process.stderr.read()
-            raise RuntimeError(f"Pre-processing failed: {stderr}")
+            raise RuntimeError(f"Pre-processing failed: {process.stderr.read()}")
 
         # Extract audio
         audio_cmd = [
             self.config.ffmpeg_path,
             "-y", "-i", str(input_path),
-            "-vn",  # No video
-            "-c:a", "copy",
+            "-vn", "-c:a", "copy",
             str(audio_out)
         ]
-
-        try:
-            subprocess.run(audio_cmd, capture_output=True, check=True)
-        except subprocess.CalledProcessError:
-            # No audio track or extraction failed
-            audio_out = None
-            logger.warning("No audio track extracted")
+        subprocess.run(audio_cmd, capture_output=True)
 
         self.progress.complete_stage()
-        return video_out, audio_out if audio_out and audio_out.exists() else None
+        return video_out, audio_out if audio_out.exists() else None
 
     def upscale(self, input_path: Path, temp_dir: Path) -> Path:
-        """
-        Apply NVIDIA Maxine SuperRes upscaling.
-        """
-        self.progress.set_stage("AI Upscaling (Maxine SuperRes)")
+        """Apply AI upscaling."""
+        self.progress.start_stage("upscale")
 
         output_path = temp_dir / "upscaled.mp4"
-        maxine_exe = Path(self.config.maxine_path) / "VideoEffectsApp.exe"
 
-        cmd = [
-            str(maxine_exe),
-            "--progress",
-            "--effect=SuperRes",
-            f"--mode={self.config.quality_mode}",
-            f"--model_dir={self.config.model_dir}",
-            f"--in_file={input_path}",
-            f"--resolution={self.config.resolution}",
-            f"--out_file={output_path}"
-        ]
+        if self.config.skip_maxine:
+            # FFmpeg fallback upscaling
+            cmd = [
+                self.config.ffmpeg_path,
+                "-y", "-i", str(input_path),
+                "-vf", f"scale=-2:{self.config.resolution}:flags=lanczos",
+                "-c:v", "libx264",
+                "-crf", "18",
+                "-preset", "slow",
+                "-progress", "pipe:1",
+                str(output_path)
+            ]
 
-        logger.debug(f"Maxine command: {' '.join(cmd)}")
+            duration = self._get_video_duration(input_path)
+            process = subprocess.Popen(
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+            )
 
-        process = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True
-        )
+            for line in process.stdout:
+                if line.startswith("out_time_ms="):
+                    try:
+                        ms = int(line.split("=")[1])
+                        if duration > 0:
+                            self.progress.update((ms / 1000000) / duration * 100)
+                    except:
+                        pass
 
-        # Parse Maxine progress output
-        for line in process.stdout:
-            line = line.strip()
-            if "%" in line:
-                try:
-                    # Extract percentage from output
-                    pct = float(line.split("%")[0].split()[-1])
-                    self.progress.update(pct)
-                except:
-                    pass
-            logger.debug(f"Maxine: {line}")
+            process.wait()
+        else:
+            # NVIDIA Maxine upscaling
+            maxine_exe = Path(self.config.maxine_path) / "VideoEffectsApp.exe"
+            cmd = [
+                str(maxine_exe),
+                "--progress",
+                "--effect=SuperRes",
+                f"--mode={self.config.quality_mode}",
+                f"--model_dir={self.config.model_dir}",
+                f"--in_file={input_path}",
+                f"--resolution={self.config.resolution}",
+                f"--out_file={output_path}"
+            ]
 
-        process.wait()
-        if process.returncode != 0:
-            raise RuntimeError(f"Maxine upscaling failed with code {process.returncode}")
+            process = subprocess.Popen(
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
+            )
+
+            for line in process.stdout:
+                if "%" in line:
+                    try:
+                        pct = float(line.split("%")[0].split()[-1])
+                        self.progress.update(pct)
+                    except:
+                        pass
+
+            process.wait()
 
         if not output_path.exists():
-            raise RuntimeError("Maxine did not produce output file")
+            raise RuntimeError("Upscaling failed to produce output")
 
         self.progress.complete_stage()
         return output_path
 
-    def postprocess(self, video_path: Path, audio_path: Optional[Path], output_path: Path):
-        """
-        Post-process: remux audio, encode with NVENC.
-        """
-        self.progress.set_stage("Post-processing (NVENC encoding)")
+    def postprocess(self, video_path: Path, audio_path: Optional[Path],
+                    output_path: Path, duration: float):
+        """Post-process: encode and remux audio."""
+        self.progress.start_stage("postprocess")
 
-        cmd = [
-            self.config.ffmpeg_path,
-            "-y",
-            "-i", str(video_path),
-        ]
+        cmd = [self.config.ffmpeg_path, "-y", "-i", str(video_path)]
 
-        # Add audio input if available
         if audio_path and audio_path.exists():
             cmd.extend(["-i", str(audio_path)])
 
-        # Video encoding with NVENC
         cmd.extend([
             "-c:v", self.config.encoder,
             "-preset", self.config.nvenc_preset,
             "-cq", str(self.config.crf),
         ])
 
-        # Audio handling
         if audio_path and audio_path.exists():
-            cmd.extend(["-c:a", "copy"])
+            cmd.extend(["-c:a", "aac", "-b:a", "192k"])
         else:
             cmd.extend(["-an"])
 
         cmd.extend(["-progress", "pipe:1", str(output_path)])
 
-        logger.debug(f"Post-process command: {' '.join(cmd)}")
-
         process = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
         )
 
         for line in process.stdout:
             if line.startswith("out_time_ms="):
                 try:
-                    # Update progress (approximate)
                     ms = int(line.split("=")[1])
-                    self.progress.update(min(95, ms / 10000000 * 100))
+                    if duration > 0:
+                        self.progress.update((ms / 1000000) / duration * 100)
                 except:
                     pass
 
         process.wait()
         if process.returncode != 0:
-            stderr = process.stderr.read()
-            raise RuntimeError(f"Post-processing failed: {stderr}")
+            raise RuntimeError(f"Post-processing failed: {process.stderr.read()}")
 
         self.progress.complete_stage()
 
-    def process_video(self, input_path: Path, output_path: Path) -> bool:
+    def process(self, input_source: str, output_path: Path) -> bool:
         """
-        Process a single video through the complete pipeline.
+        Process video from file or YouTube URL.
         """
-        logger.info(f"Processing: {input_path.name}")
         start_time = time.time()
-
-        # Create temp directory
         temp_dir = Path(tempfile.mkdtemp(prefix="vhs_upscale_"))
+        is_youtube = YouTubeDownloader.is_youtube_url(input_source)
+
+        # Initialize progress tracker
+        self.progress = UnifiedProgress(has_download=is_youtube)
+
+        print("\n" + "=" * 60)
+        print("  VHS Upscaler Pipeline")
+        print("=" * 60)
+        print(f"  Input:      {'YouTube URL' if is_youtube else input_source}")
+        print(f"  Output:     {output_path}")
+        print(f"  Resolution: {self.config.resolution}p")
+        print(f"  Preset:     {self.config.preset}")
+        print("=" * 60 + "\n")
 
         try:
-            # Validate input
-            if not input_path.exists():
-                raise FileNotFoundError(f"Input file not found: {input_path}")
+            # Stage 0: Download if YouTube URL
+            if is_youtube:
+                downloader = YouTubeDownloader(self.progress)
+                input_path = downloader.download(input_source, temp_dir)
+            else:
+                input_path = Path(input_source)
+                if not input_path.exists():
+                    raise FileNotFoundError(f"Input file not found: {input_path}")
+                self.progress.set_title(input_path.stem)
 
-            video_info = self._get_video_info(input_path)
+            # Get video duration for progress
+            duration = self._get_video_duration(input_path)
 
-            # Auto-detect interlacing if not explicitly set
+            # Auto-detect interlacing
             if self.config.preset == "auto":
-                self.config.deinterlace = self._is_interlaced(video_info)
+                self.config.deinterlace = self._is_interlaced(input_path)
 
             # Stage 1: Pre-processing
-            prepped_video, audio = self.preprocess(input_path, temp_dir)
+            prepped_video, audio = self.preprocess(input_path, temp_dir, duration)
 
             # Stage 2: AI Upscaling
             upscaled_video = self.upscale(prepped_video, temp_dir)
 
             # Stage 3: Post-processing
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            self.postprocess(upscaled_video, audio, output_path)
+            self.postprocess(upscaled_video, audio, output_path, duration)
 
-            elapsed = time.time() - start_time
-            logger.info(f"Complete: {output_path.name} ({timedelta(seconds=int(elapsed))})")
+            self.progress.finish(success=True)
+            print(f"Output: {output_path}")
             return True
 
         except Exception as e:
-            logger.error(f"Failed to process {input_path.name}: {e}")
+            logger.error(f"Pipeline failed: {e}")
+            self.progress.finish(success=False)
             return False
 
         finally:
-            # Cleanup temp files
             if not self.config.keep_temp and temp_dir.exists():
                 shutil.rmtree(temp_dir, ignore_errors=True)
 
     def watch_folder(self, input_dir: Path, output_dir: Path, interval: int = 5):
-        """
-        Watch a folder for new video files and process them automatically.
-        """
-        logger.info(f"Watching folder: {input_dir}")
-        logger.info(f"Output folder: {output_dir}")
-        logger.info("Press Ctrl+C to stop")
+        """Watch folder for new files."""
+        logger.info(f"Watching: {input_dir}")
+        logger.info(f"Output:   {output_dir}")
+        logger.info("Press Ctrl+C to stop\n")
 
         processed = set()
-        video_extensions = {".mp4", ".avi", ".mkv", ".mov", ".wmv", ".flv", ".m4v", ".mpg", ".mpeg"}
+        extensions = {".mp4", ".avi", ".mkv", ".mov", ".wmv", ".flv"}
 
         input_dir.mkdir(parents=True, exist_ok=True)
         output_dir.mkdir(parents=True, exist_ok=True)
 
         try:
             while True:
-                # Find new video files
                 for file_path in input_dir.iterdir():
-                    if file_path.suffix.lower() in video_extensions:
-                        if file_path not in processed:
-                            # Generate output filename
-                            output_name = f"{file_path.stem}_upscaled{file_path.suffix}"
-                            output_path = output_dir / output_name
+                    if file_path.suffix.lower() in extensions and file_path not in processed:
+                        output_name = f"{file_path.stem}_upscaled.mp4"
+                        output_path = output_dir / output_name
 
-                            # Process the video
-                            success = self.process_video(file_path, output_path)
-                            processed.add(file_path)
+                        success = self.process(str(file_path), output_path)
+                        processed.add(file_path)
 
-                            if success:
-                                # Optionally move processed file
-                                processed_dir = input_dir / "processed"
-                                processed_dir.mkdir(exist_ok=True)
-                                shutil.move(str(file_path), str(processed_dir / file_path.name))
+                        if success:
+                            processed_dir = input_dir / "processed"
+                            processed_dir.mkdir(exist_ok=True)
+                            shutil.move(str(file_path), str(processed_dir / file_path.name))
 
                 time.sleep(interval)
-
         except KeyboardInterrupt:
-            logger.info("Watch mode stopped")
+            print("\nWatch mode stopped")
 
+
+# ============================================================================
+# Main Entry Point
+# ============================================================================
 
 def load_config(config_path: Path) -> dict:
     """Load configuration from YAML file."""
-    if config_path.exists():
+    if HAS_YAML and config_path.exists():
         with open(config_path) as f:
             return yaml.safe_load(f) or {}
     return {}
@@ -480,41 +701,43 @@ def load_config(config_path: Path) -> dict:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="VHS Video Upscaling Pipeline - NVIDIA Maxine powered",
+        description="VHS Video Upscaler - Accepts files or YouTube URLs",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  Single file:     python vhs_upscale.py -i video.mp4 -o upscaled.mp4
-  With preset:     python vhs_upscale.py -i video.mp4 -o out.mp4 --preset vhs
-  Watch folder:    python vhs_upscale.py --watch -i ./input -o ./output
-  4K output:       python vhs_upscale.py -i video.mp4 -o out.mp4 --resolution 2160
+  Local file:    python vhs_upscale.py -i video.mp4 -o upscaled.mp4
+  YouTube:       python vhs_upscale.py -i "https://youtube.com/watch?v=..." -o out.mp4
+  Watch folder:  python vhs_upscale.py --watch -i ./input -o ./output
+  4K output:     python vhs_upscale.py -i video.mp4 -o out.mp4 -r 2160
         """
     )
 
     parser.add_argument("-i", "--input", required=True,
-                        help="Input video file or folder (with --watch)")
+                        help="Input video file or YouTube URL")
     parser.add_argument("-o", "--output", required=True,
                         help="Output video file or folder (with --watch)")
     parser.add_argument("-r", "--resolution", type=int, default=1080,
                         choices=[720, 1080, 1440, 2160],
-                        help="Target resolution height (default: 1080)")
+                        help="Target resolution (default: 1080)")
     parser.add_argument("-q", "--quality", type=int, default=0,
                         choices=[0, 1],
-                        help="Quality mode: 0=best, 1=performance (default: 0)")
+                        help="Quality: 0=best, 1=fast (default: 0)")
     parser.add_argument("-p", "--preset", default="vhs",
-                        choices=["vhs", "dvd", "webcam", "clean", "auto"],
+                        choices=["vhs", "dvd", "webcam", "clean", "youtube", "auto"],
                         help="Processing preset (default: vhs)")
     parser.add_argument("--watch", action="store_true",
-                        help="Watch folder mode - monitor input folder for new files")
+                        help="Watch folder mode")
     parser.add_argument("--crf", type=int, default=20,
-                        help="Output quality CRF (lower=better, default: 20)")
+                        help="Output quality CRF (default: 20)")
     parser.add_argument("--encoder", default="hevc_nvenc",
                         choices=["hevc_nvenc", "h264_nvenc", "libx265", "libx264"],
                         help="Output encoder (default: hevc_nvenc)")
+    parser.add_argument("--skip-maxine", action="store_true",
+                        help="Use FFmpeg upscaling instead of Maxine")
     parser.add_argument("--config", type=Path, default=Path("config.yaml"),
-                        help="Configuration file path")
+                        help="Config file path")
     parser.add_argument("--keep-temp", action="store_true",
-                        help="Keep temporary files for debugging")
+                        help="Keep temporary files")
     parser.add_argument("-v", "--verbose", action="store_true",
                         help="Verbose output")
 
@@ -523,10 +746,16 @@ Examples:
     if args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)
 
-    # Load config file
+    # Auto-detect YouTube and switch preset
+    is_youtube = YouTubeDownloader.is_youtube_url(args.input)
+    if is_youtube and args.preset == "vhs":
+        args.preset = "youtube"
+        logger.info("Auto-selected 'youtube' preset for URL input")
+
+    # Load config
     file_config = load_config(args.config)
 
-    # Build processing config
+    # Build config
     config = ProcessingConfig(
         maxine_path=file_config.get("maxine_path", ""),
         model_dir=file_config.get("model_dir", ""),
@@ -537,6 +766,7 @@ Examples:
         preset=args.preset,
         encoder=args.encoder,
         keep_temp=args.keep_temp,
+        skip_maxine=args.skip_maxine,
     )
 
     # Apply preset
@@ -547,21 +777,19 @@ Examples:
         config.denoise_strength = preset.get("denoise_strength", config.denoise_strength)
         config.quality_mode = preset.get("quality_mode", config.quality_mode)
 
-    # Initialize upscaler
+    # Run
     try:
         upscaler = VHSUpscaler(config)
     except RuntimeError as e:
         logger.error(str(e))
         sys.exit(1)
 
-    # Run
-    input_path = Path(args.input)
     output_path = Path(args.output)
 
     if args.watch:
-        upscaler.watch_folder(input_path, output_path)
+        upscaler.watch_folder(Path(args.input), output_path)
     else:
-        success = upscaler.process_video(input_path, output_path)
+        success = upscaler.process(args.input, output_path)
         sys.exit(0 if success else 1)
 
 
