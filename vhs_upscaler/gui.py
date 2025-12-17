@@ -34,7 +34,7 @@ from logger import get_logger
 logger = get_logger(verbose=True, log_to_file=True)
 
 # Version info
-__version__ = "1.4.2"
+__version__ = "1.4.3"
 
 
 # =============================================================================

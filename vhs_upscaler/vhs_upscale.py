@@ -392,8 +392,10 @@ class VHSUpscaler:
         self.config = config
         self.progress = progress
         self.available_engines = []
+        self.available_encoders = []
         self._validate_dependencies()
         self._detect_upscale_engine()
+        self._detect_best_encoder()
 
     def _validate_dependencies(self):
         """Verify all required tools are available."""
@@ -427,6 +429,9 @@ class VHSUpscaler:
             self.config.realesrgan_path = str(realesrgan_exe)
             self.available_engines.append("realesrgan")
             logger.debug(f"Real-ESRGAN found: {realesrgan_exe}")
+
+        # Check available video encoders
+        self._detect_available_encoders()
 
     def _find_realesrgan(self) -> Optional[Path]:
         """Find Real-ESRGAN ncnn-vulkan executable."""
@@ -489,9 +494,85 @@ class VHSUpscaler:
 
         self.config.upscale_engine = "ffmpeg"
 
+    def _detect_available_encoders(self):
+        """Detect which video encoders are available in FFmpeg."""
+        # Query FFmpeg for available encoders
+        try:
+            result = subprocess.run(
+                [self.config.ffmpeg_path, "-encoders"],
+                capture_output=True, text=True, check=True
+            )
+            encoder_output = result.stdout
+
+            # Check for NVIDIA NVENC encoders
+            if "hevc_nvenc" in encoder_output:
+                self.available_encoders.append("hevc_nvenc")
+                logger.debug("NVIDIA NVENC HEVC encoder available")
+            if "h264_nvenc" in encoder_output:
+                self.available_encoders.append("h264_nvenc")
+                logger.debug("NVIDIA NVENC H.264 encoder available")
+
+            # Check for AMD AMF encoders
+            if "hevc_amf" in encoder_output:
+                self.available_encoders.append("hevc_amf")
+                logger.debug("AMD AMF HEVC encoder available")
+            if "h264_amf" in encoder_output:
+                self.available_encoders.append("h264_amf")
+                logger.debug("AMD AMF H.264 encoder available")
+
+            # Check for Intel QuickSync encoders
+            if "hevc_qsv" in encoder_output:
+                self.available_encoders.append("hevc_qsv")
+                logger.debug("Intel QuickSync HEVC encoder available")
+            if "h264_qsv" in encoder_output:
+                self.available_encoders.append("h264_qsv")
+                logger.debug("Intel QuickSync H.264 encoder available")
+
+            # CPU encoders (always available with FFmpeg)
+            if "libx265" in encoder_output:
+                self.available_encoders.append("libx265")
+            if "libx264" in encoder_output:
+                self.available_encoders.append("libx264")
+
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            # Fallback to CPU encoders
+            self.available_encoders = ["libx265", "libx264"]
+            logger.warning("Could not detect encoders, using CPU fallback")
+
+    def _detect_best_encoder(self):
+        """Auto-select best available encoder if current one is unavailable."""
+        current = self.config.encoder
+
+        # If current encoder is available, keep it
+        if current in self.available_encoders:
+            return
+
+        # Priority order: NVIDIA > AMD > Intel > CPU
+        encoder_priority = [
+            "hevc_nvenc", "h264_nvenc",  # NVIDIA (fastest)
+            "hevc_amf", "h264_amf",       # AMD
+            "hevc_qsv", "h264_qsv",       # Intel
+            "libx265", "libx264"          # CPU (slowest)
+        ]
+
+        for encoder in encoder_priority:
+            if encoder in self.available_encoders:
+                old_encoder = self.config.encoder
+                self.config.encoder = encoder
+                logger.info(f"Auto-selected encoder: {encoder} (requested {old_encoder} not available)")
+                return
+
+        # Ultimate fallback
+        self.config.encoder = "libx264"
+        logger.warning("No preferred encoders found, using libx264")
+
     def get_available_engines(self) -> List[str]:
         """Return list of available upscale engines."""
         return self.available_engines.copy()
+
+    def get_available_encoders(self) -> List[str]:
+        """Return list of available video encoders."""
+        return self.available_encoders.copy()
 
     def _get_video_duration(self, input_path: Path) -> float:
         """Get video duration in seconds."""

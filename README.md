@@ -6,7 +6,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/parthalon025/terminalai/releases"><img src="https://img.shields.io/badge/version-1.4.2-blue?style=flat-square" alt="Version 1.4.2"></a>
+  <a href="https://github.com/parthalon025/terminalai/releases"><img src="https://img.shields.io/badge/version-1.4.3-blue?style=flat-square" alt="Version 1.4.3"></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.10+-blue?style=flat-square&logo=python&logoColor=white" alt="Python 3.10+"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License"></a>
   <a href="https://developer.nvidia.com/maxine"><img src="https://img.shields.io/badge/NVIDIA-Maxine-76B900?style=flat-square&logo=nvidia&logoColor=white" alt="NVIDIA Maxine"></a>
@@ -110,6 +110,11 @@ Opens automatically at **http://localhost:7860**
   - Every tooltip includes USE/SKIP recommendations based on content type
   - Guidance for VHS, DVD, anime, clean sources, and more
   - Examples: "USE 0.7-1.0 for VHS (heavy noise), 0.3-0.5 for DVD"
+- **Dependencies & Auto-Detection** (v1.4.3):
+  - Validated all dependencies against latest PyPI versions (Dec 2025)
+  - Added automatic GPU encoder detection (NVENC > AMF > QSV > CPU)
+  - System auto-selects best available encoder for your hardware
+  - Updated: gradio 5.x+, pytest 8.x+, torch 2.1.x+, ruff 0.5.x+
 
 ### What's New in v1.3.0
 
@@ -141,7 +146,7 @@ Opens automatically at **http://localhost:7860**
 - **Dark Mode**: Toggle dark theme in Settings
 - **Stats Dashboard**: Track pending/completed/failed jobs with totals
 - **Improved UI**: Better CSS styling with animations
-- **90+ Unit Tests**: Comprehensive test coverage
+- **93 Unit Tests**: Comprehensive test coverage
 
 ---
 
@@ -162,7 +167,7 @@ The modern Gradio web interface provides:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  🎬 VHS Video Upscaler                           v1.4.2     │
+│  🎬 VHS Video Upscaler                           v1.4.3     │
 │  AI-Powered Video Enhancement with NVIDIA Maxine            │
 ├─────────────────────────────────────────────────────────────┤
 │  📹 Single │ 📚 Batch │ 📋 Queue │ 📜 Logs │ ⚙️ Settings    │
@@ -321,7 +326,7 @@ python -m vhs_upscaler.vhs_upscale \
 | `-r, --resolution` | Target height (720/1080/1440/2160) | 1080 |
 | `-p, --preset` | vhs/dvd/webcam/youtube/clean | vhs |
 | `--crf` | Quality (lower=better, 15-28) | 20 |
-| `--encoder` | hevc_nvenc/h264_nvenc/libx265/libx264 | hevc_nvenc |
+| `--encoder` | auto/hevc_nvenc/h264_nvenc/hevc_amf/h264_amf/hevc_qsv/h264_qsv/libx265/libx264 | auto |
 | `--engine` | Upscale engine: auto/maxine/realesrgan/ffmpeg | auto |
 | `--hdr` | HDR mode: sdr/hdr10/hlg | sdr |
 | `--realesrgan-model` | Real-ESRGAN model selection | realesrgan-x4plus |
@@ -338,6 +343,30 @@ python -m vhs_upscaler.vhs_upscale \
 | **maxine** | NVIDIA RTX | ⭐⭐⭐⭐⭐ | Fast | RTX users |
 | **realesrgan** | AMD/Intel/NVIDIA | ⭐⭐⭐⭐ | Medium | Non-NVIDIA GPUs |
 | **ffmpeg** | None (CPU) | ⭐⭐⭐ | Slow | Any system |
+
+### Video Encoders (v1.4.3 Auto-Detection)
+
+The system automatically detects and selects the best available encoder for your hardware:
+
+| Priority | Encoder | GPU Vendor | Quality | Speed |
+|----------|---------|------------|---------|-------|
+| 1 | hevc_nvenc | NVIDIA | ⭐⭐⭐⭐ | ⚡⚡⚡⚡⚡ |
+| 2 | h264_nvenc | NVIDIA | ⭐⭐⭐ | ⚡⚡⚡⚡⚡ |
+| 3 | hevc_amf | AMD | ⭐⭐⭐⭐ | ⚡⚡⚡⚡ |
+| 4 | h264_amf | AMD | ⭐⭐⭐ | ⚡⚡⚡⚡ |
+| 5 | hevc_qsv | Intel | ⭐⭐⭐⭐ | ⚡⚡⚡⚡ |
+| 6 | h264_qsv | Intel | ⭐⭐⭐ | ⚡⚡⚡⚡ |
+| 7 | libx265 | CPU | ⭐⭐⭐⭐⭐ | ⚡ |
+| 8 | libx264 | CPU | ⭐⭐⭐⭐ | ⚡⚡ |
+
+**Auto-detection:** When `--encoder auto` (default), the system queries FFmpeg for available encoders and selects the best one. GPU encoders are 5-10x faster than CPU.
+
+```bash
+# Force specific encoder
+python -m vhs_upscaler.vhs_upscale -i video.mp4 -o out.mp4 --encoder hevc_amf  # AMD GPU
+python -m vhs_upscaler.vhs_upscale -i video.mp4 -o out.mp4 --encoder hevc_qsv  # Intel GPU
+python -m vhs_upscaler.vhs_upscale -i video.mp4 -o out.mp4 --encoder libx265   # CPU (best quality)
+```
 
 ### Audio Enhancement
 
@@ -465,10 +494,22 @@ Clean HD          ──▶   4K                     ███░░░░░░
 
 ### Python Dependencies
 
-```
-yt-dlp>=2023.0.0    # YouTube downloading
-pyyaml>=6.0         # Configuration
-gradio>=4.0.0       # Web interface
+| Package | Minimum | Latest (Dec 2025) | Purpose |
+|---------|---------|-------------------|---------|
+| yt-dlp | >=2024.1.0 | 2025.12.8 | YouTube downloading |
+| pyyaml | >=6.0 | 6.0.2 | Configuration files |
+| gradio | >=5.0.0 | 6.1.0 | Web interface |
+
+**Optional (for AI audio upmix):**
+| Package | Minimum | Latest | Purpose |
+|---------|---------|--------|---------|
+| demucs | >=4.0.0 | 4.0.1 | AI stem separation |
+| torch | >=2.1.0 | 2.9.1 | PyTorch backend |
+| torchaudio | >=2.1.0 | 2.9.1 | Audio processing |
+
+```bash
+# Install with audio support
+pip install -e ".[audio]"
 ```
 
 ---
@@ -478,19 +519,20 @@ gradio>=4.0.0       # Web interface
 ```
 terminalai/
 ├── vhs_upscaler/           # Main package
-│   ├── gui.py              # Gradio web interface
-│   ├── vhs_upscale.py      # Processing pipeline
+│   ├── gui.py              # Gradio web interface (v1.4.3)
+│   ├── vhs_upscale.py      # Processing pipeline + encoder auto-detection
+│   ├── audio_processor.py  # Audio enhancement + surround upmix
 │   ├── queue_manager.py    # Batch queue system
 │   ├── logger.py           # Logging system
 │   └── config.yaml         # Configuration
-├── tests/                  # Test suite (90+ tests)
+├── tests/                  # Test suite (93 tests)
 │   ├── test_gui_helpers.py
 │   ├── test_gui_integration.py
 │   └── test_queue_manager.py
 ├── download_youtube.py     # Standalone downloader
 ├── install.sh              # Linux/Mac installer
 ├── install.ps1             # Windows installer
-├── requirements.txt        # Dependencies
+├── requirements.txt        # Dependencies (validated Dec 2025)
 ├── pyproject.toml          # Package config
 └── README.md
 ```
@@ -510,7 +552,7 @@ pytest tests/ -v
 pytest tests/ --cov=vhs_upscaler
 ```
 
-**Test Coverage:** 90+ tests covering GUI helpers, queue management, and integration.
+**Test Coverage:** 93 tests covering GUI helpers, queue management, and integration (90 pass, 3 skipped for optional GUI components).
 
 ---
 
