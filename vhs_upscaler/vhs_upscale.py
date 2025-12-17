@@ -321,9 +321,11 @@ class ProcessingConfig:
     upscale_engine: str = "auto"  # auto, maxine, realesrgan, ffmpeg
     realesrgan_path: str = ""  # Path to realesrgan-ncnn-vulkan
     realesrgan_model: str = "realesrgan-x4plus"  # Model name
+    realesrgan_denoise: float = 0.5  # 0-1 denoise strength for Real-ESRGAN
+    ffmpeg_scale_algo: str = "lanczos"  # lanczos, bicubic, bilinear, spline, neighbor
     hdr_mode: str = "sdr"  # sdr, hdr10, hlg
-    hdr_brightness: int = 200  # Peak brightness in nits for HDR
-    color_depth: int = 8  # 8 or 10 bit
+    hdr_brightness: int = 400  # Peak brightness in nits for HDR
+    color_depth: int = 10  # 8 or 10 bit
     # Audio processing options
     audio_enhance: str = "none"  # none, light, moderate, aggressive, voice, music
     audio_upmix: str = "none"  # none, simple, surround, prologic, demucs
@@ -331,6 +333,17 @@ class ProcessingConfig:
     audio_format: str = "aac"  # aac, ac3, eac3, dts, flac
     audio_bitrate: str = "192k"
     audio_normalize: bool = True
+    # Audio enhancement advanced options
+    audio_target_loudness: float = -14.0  # LUFS target (-24 to -9)
+    audio_noise_floor: float = -20.0  # dB noise floor (-30 to -10)
+    # Demucs advanced options
+    demucs_model: str = "htdemucs"  # htdemucs, htdemucs_ft, mdx_extra, mdx_extra_q
+    demucs_device: str = "auto"  # auto, cuda, cpu
+    demucs_shifts: int = 1  # 0-5, more = better quality, slower
+    # Surround advanced options
+    lfe_crossover: int = 120  # Hz (60-200)
+    center_mix: float = 0.707  # 0-1, 0.707 = -3dB
+    surround_delay: int = 15  # ms (0-50)
 
 
 # ============================================================================

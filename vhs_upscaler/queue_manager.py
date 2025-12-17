@@ -45,12 +45,32 @@ class QueueJob:
     upscale_engine: str = "auto"  # auto, maxine, realesrgan, ffmpeg
     hdr_mode: str = "sdr"  # sdr, hdr10, hlg
     realesrgan_model: str = "realesrgan-x4plus"
+    realesrgan_denoise: float = 0.5  # 0-1 denoise strength
+    ffmpeg_scale_algo: str = "lanczos"  # lanczos, bicubic, bilinear, spline, neighbor
+
+    # HDR advanced options
+    hdr_brightness: int = 400  # Peak brightness in nits
+    hdr_color_depth: int = 10  # 8 or 10 bit
 
     # Audio options
     audio_enhance: str = "none"  # none, light, moderate, aggressive, voice, music
     audio_upmix: str = "none"  # none, simple, surround, prologic, demucs
     audio_layout: str = "original"  # original, stereo, 5.1, 7.1, mono
     audio_format: str = "aac"  # aac, ac3, eac3, dts, flac
+
+    # Audio enhancement advanced options
+    audio_target_loudness: float = -14.0  # LUFS target (-24 to -9)
+    audio_noise_floor: float = -20.0  # dB noise floor (-30 to -10)
+
+    # Demucs advanced options
+    demucs_model: str = "htdemucs"  # htdemucs, htdemucs_ft, mdx_extra, mdx_extra_q
+    demucs_device: str = "auto"  # auto, cuda, cpu
+    demucs_shifts: int = 1  # 0-5, more = better quality, slower
+
+    # Surround advanced options
+    lfe_crossover: int = 120  # Hz (60-200)
+    center_mix: float = 0.707  # 0-1, 0.707 = -3dB
+    surround_delay: int = 15  # ms (0-50)
 
     # Runtime state
     status: JobStatus = JobStatus.PENDING
@@ -149,10 +169,22 @@ class VideoQueue:
                 upscale_engine: str = "auto",
                 hdr_mode: str = "sdr",
                 realesrgan_model: str = "realesrgan-x4plus",
+                realesrgan_denoise: float = 0.5,
+                ffmpeg_scale_algo: str = "lanczos",
+                hdr_brightness: int = 400,
+                hdr_color_depth: int = 10,
                 audio_enhance: str = "none",
                 audio_upmix: str = "none",
                 audio_layout: str = "original",
-                audio_format: str = "aac") -> QueueJob:
+                audio_format: str = "aac",
+                audio_target_loudness: float = -14.0,
+                audio_noise_floor: float = -20.0,
+                demucs_model: str = "htdemucs",
+                demucs_device: str = "auto",
+                demucs_shifts: int = 1,
+                lfe_crossover: int = 120,
+                center_mix: float = 0.707,
+                surround_delay: int = 15) -> QueueJob:
         """Add a new job to the queue."""
         job = QueueJob(
             id=str(uuid.uuid4())[:8],
@@ -166,10 +198,22 @@ class VideoQueue:
             upscale_engine=upscale_engine,
             hdr_mode=hdr_mode,
             realesrgan_model=realesrgan_model,
+            realesrgan_denoise=realesrgan_denoise,
+            ffmpeg_scale_algo=ffmpeg_scale_algo,
+            hdr_brightness=hdr_brightness,
+            hdr_color_depth=hdr_color_depth,
             audio_enhance=audio_enhance,
             audio_upmix=audio_upmix,
             audio_layout=audio_layout,
-            audio_format=audio_format
+            audio_format=audio_format,
+            audio_target_loudness=audio_target_loudness,
+            audio_noise_floor=audio_noise_floor,
+            demucs_model=demucs_model,
+            demucs_device=demucs_device,
+            demucs_shifts=demucs_shifts,
+            lfe_crossover=lfe_crossover,
+            center_mix=center_mix,
+            surround_delay=surround_delay
         )
 
         with self._lock:

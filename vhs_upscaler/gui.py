@@ -37,7 +37,7 @@ from logger import get_logger, VHSLogger
 logger = get_logger(verbose=True, log_to_file=True)
 
 # Version info
-__version__ = "1.3.0"
+__version__ = "1.4.0"
 
 
 # =============================================================================
@@ -133,14 +133,30 @@ def process_job(job: QueueJob, progress_callback) -> bool:
             crf=job.crf,
             preset=job.preset,
             encoder=job.encoder,
+            # Video upscale options
             upscale_engine=getattr(job, 'upscale_engine', 'auto'),
             hdr_mode=getattr(job, 'hdr_mode', 'sdr'),
             realesrgan_model=getattr(job, 'realesrgan_model', 'realesrgan-x4plus'),
+            realesrgan_denoise=getattr(job, 'realesrgan_denoise', 0.5),
+            ffmpeg_scale_algo=getattr(job, 'ffmpeg_scale_algo', 'lanczos'),
+            hdr_brightness=getattr(job, 'hdr_brightness', 400),
+            color_depth=getattr(job, 'hdr_color_depth', 10),
             # Audio options
             audio_enhance=getattr(job, 'audio_enhance', 'none'),
             audio_upmix=getattr(job, 'audio_upmix', 'none'),
             audio_layout=getattr(job, 'audio_layout', 'original'),
             audio_format=getattr(job, 'audio_format', 'aac'),
+            # Audio enhancement advanced
+            audio_target_loudness=getattr(job, 'audio_target_loudness', -14.0),
+            audio_noise_floor=getattr(job, 'audio_noise_floor', -20.0),
+            # Demucs advanced
+            demucs_model=getattr(job, 'demucs_model', 'htdemucs'),
+            demucs_device=getattr(job, 'demucs_device', 'auto'),
+            demucs_shifts=getattr(job, 'demucs_shifts', 1),
+            # Surround advanced
+            lfe_crossover=getattr(job, 'lfe_crossover', 120),
+            center_mix=getattr(job, 'center_mix', 0.707),
+            surround_delay=getattr(job, 'surround_delay', 15),
         )
 
         # Apply preset
@@ -378,8 +394,15 @@ def add_to_queue(input_source: str, preset: str, resolution: int,
                  quality: int, crf: int, encoder: str,
                  upscale_engine: str = "auto", hdr_mode: str = "sdr",
                  realesrgan_model: str = "realesrgan-x4plus",
+                 realesrgan_denoise: float = 0.5,
+                 ffmpeg_scale_algo: str = "lanczos",
+                 hdr_brightness: int = 400, hdr_color_depth: int = 10,
                  audio_enhance: str = "none", audio_upmix: str = "none",
-                 audio_layout: str = "original", audio_format: str = "aac") -> Tuple[str, str]:
+                 audio_layout: str = "original", audio_format: str = "aac",
+                 audio_target_loudness: float = -14.0, audio_noise_floor: float = -20.0,
+                 demucs_model: str = "htdemucs", demucs_device: str = "auto",
+                 demucs_shifts: int = 1, lfe_crossover: int = 120,
+                 center_mix: float = 0.707, surround_delay: int = 15) -> Tuple[str, str]:
     """Add a video to the processing queue."""
     initialize_queue()
 
@@ -399,10 +422,22 @@ def add_to_queue(input_source: str, preset: str, resolution: int,
         upscale_engine=upscale_engine,
         hdr_mode=hdr_mode,
         realesrgan_model=realesrgan_model,
+        realesrgan_denoise=realesrgan_denoise,
+        ffmpeg_scale_algo=ffmpeg_scale_algo,
+        hdr_brightness=hdr_brightness,
+        hdr_color_depth=hdr_color_depth,
         audio_enhance=audio_enhance,
         audio_upmix=audio_upmix,
         audio_layout=audio_layout,
-        audio_format=audio_format
+        audio_format=audio_format,
+        audio_target_loudness=audio_target_loudness,
+        audio_noise_floor=audio_noise_floor,
+        demucs_model=demucs_model,
+        demucs_device=demucs_device,
+        demucs_shifts=demucs_shifts,
+        lfe_crossover=lfe_crossover,
+        center_mix=center_mix,
+        surround_delay=surround_delay
     )
 
     AppState.add_log(f"Added to queue: {input_source[:50]}...")
@@ -415,7 +450,7 @@ def add_multiple_to_queue(urls_text: str, preset: str, resolution: int,
                           upscale_engine: str = "auto", hdr_mode: str = "sdr",
                           audio_enhance: str = "none", audio_upmix: str = "none",
                           audio_layout: str = "original", audio_format: str = "aac") -> Tuple[str, str]:
-    """Add multiple videos to the queue."""
+    """Add multiple videos to the queue (uses default advanced settings)."""
     initialize_queue()
 
     urls = [u.strip() for u in urls_text.strip().split('\n') if u.strip()]
@@ -943,13 +978,50 @@ def create_gui() -> gr.Blocks:
                                     label="HDR Mode",
                                     info="sdr=standard, hdr10=HDR10, hlg=HLG broadcast"
                                 )
-                                realesrgan_model = gr.Dropdown(
-                                    choices=["realesrgan-x4plus", "realesrgan-x4plus-anime",
-                                             "realesr-animevideov3", "realesrnet-x4plus"],
-                                    value="realesrgan-x4plus",
-                                    label="Real-ESRGAN Model",
-                                    info="Model for Real-ESRGAN upscaling (if selected)"
-                                )
+
+                            # === Conditional: Real-ESRGAN Options ===
+                            with gr.Group(visible=False) as realesrgan_options:
+                                gr.Markdown("**🎨 Real-ESRGAN Settings**")
+                                with gr.Row():
+                                    realesrgan_model = gr.Dropdown(
+                                        choices=["realesrgan-x4plus", "realesrgan-x4plus-anime",
+                                                 "realesr-animevideov3", "realesrnet-x4plus"],
+                                        value="realesrgan-x4plus",
+                                        label="Model",
+                                        info="x4plus=general, anime=animation, animevideo=video"
+                                    )
+                                    realesrgan_denoise = gr.Slider(
+                                        minimum=0, maximum=1, value=0.5, step=0.1,
+                                        label="Denoise Strength",
+                                        info="0=no denoise, 1=max denoise"
+                                    )
+
+                            # === Conditional: FFmpeg Upscale Options ===
+                            with gr.Group(visible=False) as ffmpeg_options:
+                                gr.Markdown("**🔧 FFmpeg Upscale Settings**")
+                                with gr.Row():
+                                    ffmpeg_scale_algo = gr.Dropdown(
+                                        choices=["lanczos", "bicubic", "bilinear", "spline", "neighbor"],
+                                        value="lanczos",
+                                        label="Scaling Algorithm",
+                                        info="lanczos=best quality, bicubic=balanced"
+                                    )
+
+                            # === Conditional: HDR Options ===
+                            with gr.Group(visible=False) as hdr_options:
+                                gr.Markdown("**🎨 HDR Settings**")
+                                with gr.Row():
+                                    hdr_brightness = gr.Slider(
+                                        minimum=100, maximum=1000, value=400, step=50,
+                                        label="Peak Brightness (nits)",
+                                        info="Target peak brightness for HDR"
+                                    )
+                                    hdr_color_depth = gr.Radio(
+                                        choices=[8, 10],
+                                        value=10,
+                                        label="Color Depth (bits)",
+                                        info="10-bit required for true HDR"
+                                    )
 
                         with gr.Accordion("🔊 Audio Options", open=False):
                             gr.Markdown("*Enhance audio and/or convert to surround sound*")
@@ -979,6 +1051,65 @@ def create_gui() -> gr.Blocks:
                                     label="Audio Format",
                                     info="eac3/ac3 for 5.1, dts for high quality"
                                 )
+
+                            # === Conditional: Audio Enhancement Options ===
+                            with gr.Group(visible=False) as audio_enhance_options:
+                                gr.Markdown("**🎚️ Enhancement Settings**")
+                                with gr.Row():
+                                    audio_target_loudness = gr.Slider(
+                                        minimum=-24, maximum=-9, value=-14, step=1,
+                                        label="Target Loudness (LUFS)",
+                                        info="-14=streaming, -16=broadcast, -23=cinema"
+                                    )
+                                    audio_noise_floor = gr.Slider(
+                                        minimum=-30, maximum=-10, value=-20, step=1,
+                                        label="Noise Floor (dB)",
+                                        info="Lower=more aggressive noise removal"
+                                    )
+
+                            # === Conditional: Demucs Options ===
+                            with gr.Group(visible=False) as demucs_options:
+                                gr.Markdown("**🤖 Demucs AI Settings**")
+                                with gr.Row():
+                                    demucs_model = gr.Dropdown(
+                                        choices=["htdemucs", "htdemucs_ft", "mdx_extra", "mdx_extra_q"],
+                                        value="htdemucs",
+                                        label="Model",
+                                        info="htdemucs=fast, htdemucs_ft=best quality, mdx=alternative"
+                                    )
+                                    demucs_device = gr.Dropdown(
+                                        choices=["auto", "cuda", "cpu"],
+                                        value="auto",
+                                        label="Device",
+                                        info="auto=detect GPU, cuda=force GPU, cpu=force CPU"
+                                    )
+                                with gr.Row():
+                                    demucs_shifts = gr.Slider(
+                                        minimum=0, maximum=5, value=1, step=1,
+                                        label="Shifts",
+                                        info="More shifts=better quality, slower (0=fastest)"
+                                    )
+
+                            # === Conditional: Surround Options ===
+                            with gr.Group(visible=False) as surround_options:
+                                gr.Markdown("**🔊 Surround Settings**")
+                                with gr.Row():
+                                    lfe_crossover = gr.Slider(
+                                        minimum=60, maximum=200, value=120, step=10,
+                                        label="LFE Crossover (Hz)",
+                                        info="Low frequency cutoff for subwoofer"
+                                    )
+                                    center_mix = gr.Slider(
+                                        minimum=0.0, maximum=1.0, value=0.707, step=0.05,
+                                        label="Center Mix Level",
+                                        info="0.707=-3dB (standard), 1.0=full"
+                                    )
+                                with gr.Row():
+                                    surround_delay = gr.Slider(
+                                        minimum=0, maximum=50, value=15, step=5,
+                                        label="Surround Delay (ms)",
+                                        info="Delay for rear channels (creates depth)"
+                                    )
 
                         add_btn = gr.Button("➕ Add to Queue", variant="primary", size="lg")
                         status_msg = gr.Textbox(label="Status", interactive=False)
@@ -1236,18 +1367,36 @@ def create_gui() -> gr.Blocks:
 
         # Helper to get the right input source
         def add_video_to_queue(file_path, url_input, preset, resolution, quality, crf, encoder,
-                               engine, hdr, model, aud_enhance, aud_upmix, aud_layout, aud_format):
+                               engine, hdr, model, esrgan_denoise, ffmpeg_algo,
+                               hdr_bright, hdr_depth,
+                               aud_enhance, aud_upmix, aud_layout, aud_format,
+                               aud_loudness, aud_noise,
+                               dem_model, dem_device, dem_shifts,
+                               lfe_cross, cent_mix, surr_delay):
             # Prefer file upload, fall back to URL/path input
             source = file_path if file_path else url_input
-            return add_to_queue(source, preset, resolution, quality, crf, encoder,
-                                engine, hdr, model, aud_enhance, aud_upmix, aud_layout, aud_format)
+            return add_to_queue(
+                source, preset, resolution, quality, crf, encoder,
+                engine, hdr, model, esrgan_denoise, ffmpeg_algo,
+                hdr_bright, hdr_depth,
+                aud_enhance, aud_upmix, aud_layout, aud_format,
+                aud_loudness, aud_noise,
+                dem_model, dem_device, dem_shifts,
+                lfe_cross, cent_mix, surr_delay
+            )
 
         # Single video - use combined handler
         add_btn.click(
             fn=add_video_to_queue,
-            inputs=[final_input, input_source, preset, resolution, quality, crf, encoder,
-                    upscale_engine, hdr_mode, realesrgan_model,
-                    audio_enhance, audio_upmix, audio_layout, audio_format],
+            inputs=[
+                final_input, input_source, preset, resolution, quality, crf, encoder,
+                upscale_engine, hdr_mode, realesrgan_model, realesrgan_denoise, ffmpeg_scale_algo,
+                hdr_brightness, hdr_color_depth,
+                audio_enhance, audio_upmix, audio_layout, audio_format,
+                audio_target_loudness, audio_noise_floor,
+                demucs_model, demucs_device, demucs_shifts,
+                lfe_crossover, center_mix, surround_delay
+            ],
             outputs=[status_msg, queue_display]
         )
 
@@ -1299,6 +1448,68 @@ def create_gui() -> gr.Blocks:
             fn=toggle_theme,
             inputs=[dark_mode_checkbox],
             outputs=[theme_status]
+        )
+
+        # =====================================================================
+        # Conditional Option Visibility Handlers
+        # =====================================================================
+
+        # Upscale engine options visibility
+        def update_engine_options(engine):
+            """Show/hide engine-specific options based on selection."""
+            return {
+                realesrgan_options: gr.update(visible=(engine == "realesrgan")),
+                ffmpeg_options: gr.update(visible=(engine == "ffmpeg")),
+            }
+
+        upscale_engine.change(
+            fn=update_engine_options,
+            inputs=[upscale_engine],
+            outputs=[realesrgan_options, ffmpeg_options]
+        )
+
+        # HDR options visibility
+        def update_hdr_options(mode):
+            """Show HDR settings when HDR mode is enabled."""
+            return gr.update(visible=(mode != "sdr"))
+
+        hdr_mode.change(
+            fn=update_hdr_options,
+            inputs=[hdr_mode],
+            outputs=[hdr_options]
+        )
+
+        # Audio enhancement options visibility
+        def update_audio_enhance_options(enhance_mode):
+            """Show enhancement settings when audio enhancement is enabled."""
+            return gr.update(visible=(enhance_mode != "none"))
+
+        audio_enhance.change(
+            fn=update_audio_enhance_options,
+            inputs=[audio_enhance],
+            outputs=[audio_enhance_options]
+        )
+
+        # Demucs options visibility
+        def update_demucs_options(upmix_mode):
+            """Show Demucs settings when Demucs upmix is selected."""
+            return gr.update(visible=(upmix_mode == "demucs"))
+
+        audio_upmix.change(
+            fn=update_demucs_options,
+            inputs=[audio_upmix],
+            outputs=[demucs_options]
+        )
+
+        # Surround options visibility
+        def update_surround_options(layout):
+            """Show surround settings when 5.1 or 7.1 layout is selected."""
+            return gr.update(visible=(layout in ["5.1", "7.1"]))
+
+        audio_layout.change(
+            fn=update_surround_options,
+            inputs=[audio_layout],
+            outputs=[surround_options]
         )
 
         # Auto-refresh queue and stats every 2 seconds
