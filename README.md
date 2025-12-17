@@ -6,7 +6,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/parthalon025/terminalai/releases"><img src="https://img.shields.io/badge/version-1.2.0-blue?style=flat-square" alt="Version 1.2.0"></a>
+  <a href="https://github.com/parthalon025/terminalai/releases"><img src="https://img.shields.io/badge/version-1.3.0-blue?style=flat-square" alt="Version 1.3.0"></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.10+-blue?style=flat-square&logo=python&logoColor=white" alt="Python 3.10+"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License"></a>
   <a href="https://developer.nvidia.com/maxine"><img src="https://img.shields.io/badge/NVIDIA-Maxine-76B900?style=flat-square&logo=nvidia&logoColor=white" alt="NVIDIA Maxine"></a>
@@ -82,15 +82,29 @@ Opens automatically at **http://localhost:7860**
 |---------|-------------|
 | 🎬 **AI Video Upscaling** | Multiple engines: NVIDIA Maxine, Real-ESRGAN, FFmpeg |
 | 📺 **VHS Restoration** | Optimized presets for vintage footage (deinterlace + denoise) |
+| 🔊 **Audio Enhancement** | Noise reduction, EQ, loudness normalization |
+| 🎵 **Surround Upmix** | Stereo to 5.1/7.1 with FFmpeg or Demucs AI |
 | ⬇️ **YouTube Integration** | Download and upscale YouTube videos in one step |
 | 📁 **Drag & Drop Upload** | Simply drag video files into the browser |
 | 🌙 **Dark Mode** | Easy on the eyes with theme toggle |
 | 📊 **Stats Dashboard** | Real-time queue statistics and progress |
 | 📋 **Queue System** | Batch process multiple videos with pause/resume |
-| 👁️ **Video Preview** | See file info (resolution, duration, codec) before processing |
 | 🚀 **GPU Accelerated** | RTX Tensor Core + NVENC hardware encoding |
 | 🎨 **HDR Output** | Convert to HDR10 or HLG format |
 | 💻 **Works Without NVIDIA** | Real-ESRGAN supports AMD/Intel GPUs, FFmpeg for CPU-only |
+
+### What's New in v1.3.0
+
+- **Audio Enhancement** (all FREE, no GPU required):
+  - Noise reduction, EQ, compression presets
+  - Voice mode optimized for VHS dialogue
+  - Music mode preserves dynamics
+  - Loudness normalization (EBU R128)
+- **Surround Sound Upmix**:
+  - Stereo → 5.1 or 7.1 surround
+  - Multiple algorithms: simple, surround, Pro Logic II
+  - **Demucs AI** stem separation for best quality upmix
+- **Audio Output Formats**: AAC, AC3, EAC3, DTS, FLAC
 
 ### What's New in v1.2.0
 
@@ -196,6 +210,10 @@ python -m vhs_upscaler.vhs_upscale -i video.mp4 -o out.mp4 --engine ffmpeg --enc
 | `--engine` | Upscale engine: auto/maxine/realesrgan/ffmpeg | auto |
 | `--hdr` | HDR mode: sdr/hdr10/hlg | sdr |
 | `--realesrgan-model` | Real-ESRGAN model selection | realesrgan-x4plus |
+| `--audio-enhance` | Audio enhancement: none/light/moderate/aggressive/voice/music | none |
+| `--audio-upmix` | Surround upmix: none/simple/surround/prologic/demucs | none |
+| `--audio-layout` | Output layout: original/stereo/5.1/7.1/mono | original |
+| `--audio-format` | Audio format: aac/ac3/eac3/dts/flac | aac |
 | `-v, --verbose` | Verbose logging | Off |
 
 ### Upscale Engines
@@ -205,6 +223,27 @@ python -m vhs_upscaler.vhs_upscale -i video.mp4 -o out.mp4 --engine ffmpeg --enc
 | **maxine** | NVIDIA RTX | ⭐⭐⭐⭐⭐ | Fast | RTX users |
 | **realesrgan** | AMD/Intel/NVIDIA | ⭐⭐⭐⭐ | Medium | Non-NVIDIA GPUs |
 | **ffmpeg** | None (CPU) | ⭐⭐⭐ | Slow | Any system |
+
+### Audio Enhancement
+
+| Mode | Best For | Description |
+|------|----------|-------------|
+| **none** | Clean audio | No processing |
+| **light** | General cleanup | Gentle highpass + compression |
+| **moderate** | Noisy recordings | Noise reduction + EQ |
+| **aggressive** | Very noisy | Heavy noise removal |
+| **voice** | VHS dialogue | Optimized for speech |
+| **music** | Music content | Preserves dynamics |
+
+### Surround Upmix
+
+| Mode | Description | Quality |
+|------|-------------|---------|
+| **none** | Keep original channels | N/A |
+| **simple** | Basic channel mapping | ⭐⭐ |
+| **surround** | FFmpeg surround filter | ⭐⭐⭐ |
+| **prologic** | Dolby Pro Logic II decode | ⭐⭐⭐ |
+| **demucs** | AI stem separation (requires `demucs` package) | ⭐⭐⭐⭐⭐ |
 
 ---
 

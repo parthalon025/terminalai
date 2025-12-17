@@ -34,6 +34,12 @@ try:
 except ImportError:
     HAS_YAML = False
 
+try:
+    from .audio_processor import AudioProcessor, AudioConfig, AudioEnhanceMode, UpmixMode, AudioChannelLayout, AudioFormat
+    HAS_AUDIO_PROCESSOR = True
+except ImportError:
+    HAS_AUDIO_PROCESSOR = False
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -311,13 +317,20 @@ class ProcessingConfig:
     nvenc_preset: str = "p7"
     keep_temp: bool = False
     skip_maxine: bool = False  # For testing without Maxine
-    # New options for non-NVIDIA and HDR
+    # Video upscale options
     upscale_engine: str = "auto"  # auto, maxine, realesrgan, ffmpeg
     realesrgan_path: str = ""  # Path to realesrgan-ncnn-vulkan
     realesrgan_model: str = "realesrgan-x4plus"  # Model name
     hdr_mode: str = "sdr"  # sdr, hdr10, hlg
     hdr_brightness: int = 200  # Peak brightness in nits for HDR
     color_depth: int = 8  # 8 or 10 bit
+    # Audio processing options
+    audio_enhance: str = "none"  # none, light, moderate, aggressive, voice, music
+    audio_upmix: str = "none"  # none, simple, surround, prologic, demucs
+    audio_layout: str = "original"  # original, stereo, 5.1, 7.1, mono
+    audio_format: str = "aac"  # aac, ac3, eac3, dts, flac
+    audio_bitrate: str = "192k"
+    audio_normalize: bool = True
 
 
 # ============================================================================
@@ -774,6 +787,27 @@ class VHSUpscaler:
 
         return ""
 
+    def _process_audio(self, input_path: Path, output_path: Path):
+        """Process audio with enhancement and/or upmixing."""
+        if not HAS_AUDIO_PROCESSOR:
+            logger.warning("Audio processor not available, skipping audio enhancement")
+            return
+
+        # Build audio config from processing config
+        audio_config = AudioConfig(
+            enhance_mode=AudioEnhanceMode(self.config.audio_enhance),
+            upmix_mode=UpmixMode(self.config.audio_upmix),
+            output_layout=AudioChannelLayout(self.config.audio_layout),
+            output_format=AudioFormat(self.config.audio_format),
+            output_bitrate=self.config.audio_bitrate,
+            normalize=self.config.audio_normalize,
+        )
+
+        processor = AudioProcessor(audio_config, self.config.ffmpeg_path)
+        processor.process(input_path, output_path)
+        logger.info(f"Audio processed: enhance={self.config.audio_enhance}, "
+                    f"upmix={self.config.audio_upmix}, layout={self.config.audio_layout}")
+
     def postprocess(self, video_path: Path, audio_path: Optional[Path],
                     output_path: Path, duration: float):
         """Post-process: encode with optional HDR and remux audio."""
@@ -828,8 +862,30 @@ class VHSUpscaler:
                 "-colorspace", "bt2020nc",
             ])
 
+        # Audio processing
         if audio_path and audio_path.exists():
-            cmd.extend(["-c:a", "aac", "-b:a", "192k"])
+            # Check if audio processing is needed
+            needs_audio_processing = (
+                self.config.audio_enhance != "none" or
+                self.config.audio_upmix != "none" or
+                self.config.audio_layout != "original"
+            )
+
+            if needs_audio_processing and HAS_AUDIO_PROCESSOR:
+                # Process audio separately with AudioProcessor
+                processed_audio = output_path.parent / f"{output_path.stem}_audio_processed.wav"
+                self._process_audio(audio_path, processed_audio)
+                cmd.extend(["-i", str(processed_audio)])
+                cmd.extend(["-map", "0:v", "-map", "2:a"])  # Map processed audio
+
+                # Set audio codec based on layout
+                if self.config.audio_layout in ["5.1", "7.1"]:
+                    cmd.extend(["-c:a", self.config.audio_format, "-b:a", "640k"])
+                else:
+                    cmd.extend(["-c:a", self.config.audio_format, "-b:a", self.config.audio_bitrate])
+            else:
+                # Standard audio passthrough/encoding
+                cmd.extend(["-c:a", self.config.audio_format, "-b:a", self.config.audio_bitrate])
         else:
             cmd.extend(["-an"])
 
@@ -971,6 +1027,8 @@ Examples:
   4K output:     python vhs_upscale.py -i video.mp4 -o out.mp4 -r 2160
   HDR output:    python vhs_upscale.py -i video.mp4 -o out.mp4 --hdr hdr10
   No NVIDIA:     python vhs_upscale.py -i video.mp4 -o out.mp4 --engine realesrgan
+  5.1 audio:     python vhs_upscale.py -i video.mp4 -o out.mp4 --audio-layout 5.1 --audio-upmix surround
+  Clean audio:   python vhs_upscale.py -i video.mp4 -o out.mp4 --audio-enhance voice
         """
     )
 
@@ -1010,6 +1068,24 @@ Examples:
                                  "realesr-animevideov3", "realesrnet-x4plus"],
                         help="Real-ESRGAN model (default: realesrgan-x4plus)")
 
+    # Audio processing options
+    parser.add_argument("--audio-enhance", default="none",
+                        choices=["none", "light", "moderate", "aggressive", "voice", "music"],
+                        help="Audio enhancement: none, light, moderate, aggressive, voice, music")
+    parser.add_argument("--audio-upmix", default="none",
+                        choices=["none", "simple", "surround", "prologic", "demucs"],
+                        help="Surround upmix: none, simple, surround (FFmpeg), prologic, demucs (AI)")
+    parser.add_argument("--audio-layout", default="original",
+                        choices=["original", "stereo", "5.1", "7.1", "mono"],
+                        help="Output audio layout (default: original)")
+    parser.add_argument("--audio-format", default="aac",
+                        choices=["aac", "ac3", "eac3", "dts", "flac"],
+                        help="Output audio format (default: aac)")
+    parser.add_argument("--audio-bitrate", default="192k",
+                        help="Audio bitrate (default: 192k, use 640k for 5.1)")
+    parser.add_argument("--no-audio-normalize", action="store_true",
+                        help="Disable audio loudness normalization")
+
     parser.add_argument("--config", type=Path, default=Path("config.yaml"),
                         help="Config file path")
     parser.add_argument("--keep-temp", action="store_true",
@@ -1043,11 +1119,18 @@ Examples:
         encoder=args.encoder,
         keep_temp=args.keep_temp,
         skip_maxine=args.skip_maxine,
-        # New options
+        # Video options
         upscale_engine=args.engine,
         realesrgan_path=file_config.get("realesrgan_path", ""),
         realesrgan_model=args.realesrgan_model,
         hdr_mode=args.hdr,
+        # Audio options
+        audio_enhance=args.audio_enhance,
+        audio_upmix=args.audio_upmix,
+        audio_layout=args.audio_layout,
+        audio_format=args.audio_format,
+        audio_bitrate=args.audio_bitrate,
+        audio_normalize=not args.no_audio_normalize,
     )
 
     # Apply preset

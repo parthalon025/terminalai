@@ -46,6 +46,12 @@ class QueueJob:
     hdr_mode: str = "sdr"  # sdr, hdr10, hlg
     realesrgan_model: str = "realesrgan-x4plus"
 
+    # Audio options
+    audio_enhance: str = "none"  # none, light, moderate, aggressive, voice, music
+    audio_upmix: str = "none"  # none, simple, surround, prologic, demucs
+    audio_layout: str = "original"  # original, stereo, 5.1, 7.1, mono
+    audio_format: str = "aac"  # aac, ac3, eac3, dts, flac
+
     # Runtime state
     status: JobStatus = JobStatus.PENDING
     progress: float = 0.0
@@ -142,7 +148,11 @@ class VideoQueue:
                 encoder: str = "hevc_nvenc",
                 upscale_engine: str = "auto",
                 hdr_mode: str = "sdr",
-                realesrgan_model: str = "realesrgan-x4plus") -> QueueJob:
+                realesrgan_model: str = "realesrgan-x4plus",
+                audio_enhance: str = "none",
+                audio_upmix: str = "none",
+                audio_layout: str = "original",
+                audio_format: str = "aac") -> QueueJob:
         """Add a new job to the queue."""
         job = QueueJob(
             id=str(uuid.uuid4())[:8],
@@ -155,7 +165,11 @@ class VideoQueue:
             encoder=encoder,
             upscale_engine=upscale_engine,
             hdr_mode=hdr_mode,
-            realesrgan_model=realesrgan_model
+            realesrgan_model=realesrgan_model,
+            audio_enhance=audio_enhance,
+            audio_upmix=audio_upmix,
+            audio_layout=audio_layout,
+            audio_format=audio_format
         )
 
         with self._lock:

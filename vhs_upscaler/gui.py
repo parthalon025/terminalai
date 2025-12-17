@@ -37,7 +37,7 @@ from logger import get_logger, VHSLogger
 logger = get_logger(verbose=True, log_to_file=True)
 
 # Version info
-__version__ = "1.2.0"
+__version__ = "1.3.0"
 
 
 # =============================================================================
@@ -136,6 +136,11 @@ def process_job(job: QueueJob, progress_callback) -> bool:
             upscale_engine=getattr(job, 'upscale_engine', 'auto'),
             hdr_mode=getattr(job, 'hdr_mode', 'sdr'),
             realesrgan_model=getattr(job, 'realesrgan_model', 'realesrgan-x4plus'),
+            # Audio options
+            audio_enhance=getattr(job, 'audio_enhance', 'none'),
+            audio_upmix=getattr(job, 'audio_upmix', 'none'),
+            audio_layout=getattr(job, 'audio_layout', 'original'),
+            audio_format=getattr(job, 'audio_format', 'aac'),
         )
 
         # Apply preset
@@ -372,7 +377,9 @@ def generate_output_path(input_source: str, resolution: int) -> str:
 def add_to_queue(input_source: str, preset: str, resolution: int,
                  quality: int, crf: int, encoder: str,
                  upscale_engine: str = "auto", hdr_mode: str = "sdr",
-                 realesrgan_model: str = "realesrgan-x4plus") -> Tuple[str, str]:
+                 realesrgan_model: str = "realesrgan-x4plus",
+                 audio_enhance: str = "none", audio_upmix: str = "none",
+                 audio_layout: str = "original", audio_format: str = "aac") -> Tuple[str, str]:
     """Add a video to the processing queue."""
     initialize_queue()
 
@@ -391,7 +398,11 @@ def add_to_queue(input_source: str, preset: str, resolution: int,
         encoder=encoder,
         upscale_engine=upscale_engine,
         hdr_mode=hdr_mode,
-        realesrgan_model=realesrgan_model
+        realesrgan_model=realesrgan_model,
+        audio_enhance=audio_enhance,
+        audio_upmix=audio_upmix,
+        audio_layout=audio_layout,
+        audio_format=audio_format
     )
 
     AppState.add_log(f"Added to queue: {input_source[:50]}...")
@@ -401,7 +412,9 @@ def add_to_queue(input_source: str, preset: str, resolution: int,
 
 def add_multiple_to_queue(urls_text: str, preset: str, resolution: int,
                           quality: int, crf: int, encoder: str,
-                          upscale_engine: str = "auto", hdr_mode: str = "sdr") -> Tuple[str, str]:
+                          upscale_engine: str = "auto", hdr_mode: str = "sdr",
+                          audio_enhance: str = "none", audio_upmix: str = "none",
+                          audio_layout: str = "original", audio_format: str = "aac") -> Tuple[str, str]:
     """Add multiple videos to the queue."""
     initialize_queue()
 
@@ -422,7 +435,11 @@ def add_multiple_to_queue(urls_text: str, preset: str, resolution: int,
             crf=crf,
             encoder=encoder,
             upscale_engine=upscale_engine,
-            hdr_mode=hdr_mode
+            hdr_mode=hdr_mode,
+            audio_enhance=audio_enhance,
+            audio_upmix=audio_upmix,
+            audio_layout=audio_layout,
+            audio_format=audio_format
         )
         added += 1
 
@@ -934,6 +951,35 @@ def create_gui() -> gr.Blocks:
                                     info="Model for Real-ESRGAN upscaling (if selected)"
                                 )
 
+                        with gr.Accordion("🔊 Audio Options", open=False):
+                            gr.Markdown("*Enhance audio and/or convert to surround sound*")
+                            with gr.Row():
+                                audio_enhance = gr.Dropdown(
+                                    choices=["none", "light", "moderate", "aggressive", "voice", "music"],
+                                    value="none",
+                                    label="Audio Enhancement",
+                                    info="none=skip, voice=dialogue, music=preserve dynamics"
+                                )
+                                audio_upmix = gr.Dropdown(
+                                    choices=["none", "simple", "surround", "prologic", "demucs"],
+                                    value="none",
+                                    label="Surround Upmix",
+                                    info="demucs=AI stem separation (best quality)"
+                                )
+                            with gr.Row():
+                                audio_layout = gr.Dropdown(
+                                    choices=["original", "stereo", "5.1", "7.1", "mono"],
+                                    value="original",
+                                    label="Output Layout",
+                                    info="Target audio channel layout"
+                                )
+                                audio_format = gr.Dropdown(
+                                    choices=["aac", "ac3", "eac3", "dts", "flac"],
+                                    value="aac",
+                                    label="Audio Format",
+                                    info="eac3/ac3 for 5.1, dts for high quality"
+                                )
+
                         add_btn = gr.Button("➕ Add to Queue", variant="primary", size="lg")
                         status_msg = gr.Textbox(label="Status", interactive=False)
 
@@ -955,17 +1001,16 @@ def create_gui() -> gr.Blocks:
                         - Use **hevc_nvenc** for best compression
                         - Lower **CRF** = better quality, larger files
                         - **1080p** is ideal for most VHS content
-                        - **4K (2160p)** best for DVD sources
 
                         **No NVIDIA GPU?**
                         - Use **realesrgan** engine (AMD/Intel)
                         - Use **ffmpeg** for CPU-only upscaling
-                        - Use **libx265** encoder instead of NVENC
 
-                        **HDR Output:**
-                        - **HDR10** - Best for modern TVs
-                        - **HLG** - Better for broadcast/web
-                        - Note: True HDR requires HDR source
+                        **Audio Enhancement:**
+                        - **voice** - Best for VHS/dialogue
+                        - **music** - Preserves dynamics
+                        - **demucs** - AI upmix (best 5.1)
+                        - Use **eac3** for 5.1 surround
                         """)
 
             # =====================================================================
@@ -1191,25 +1236,27 @@ def create_gui() -> gr.Blocks:
 
         # Helper to get the right input source
         def add_video_to_queue(file_path, url_input, preset, resolution, quality, crf, encoder,
-                               engine, hdr, model):
+                               engine, hdr, model, aud_enhance, aud_upmix, aud_layout, aud_format):
             # Prefer file upload, fall back to URL/path input
             source = file_path if file_path else url_input
             return add_to_queue(source, preset, resolution, quality, crf, encoder,
-                                engine, hdr, model)
+                                engine, hdr, model, aud_enhance, aud_upmix, aud_layout, aud_format)
 
         # Single video - use combined handler
         add_btn.click(
             fn=add_video_to_queue,
             inputs=[final_input, input_source, preset, resolution, quality, crf, encoder,
-                    upscale_engine, hdr_mode, realesrgan_model],
+                    upscale_engine, hdr_mode, realesrgan_model,
+                    audio_enhance, audio_upmix, audio_layout, audio_format],
             outputs=[status_msg, queue_display]
         )
 
-        # Batch
+        # Batch - simplified (uses same audio settings from single tab as default)
         batch_add_btn.click(
             fn=add_multiple_to_queue,
             inputs=[batch_input, batch_preset, batch_resolution, batch_quality, batch_crf,
-                    batch_encoder, batch_engine, batch_hdr],
+                    batch_encoder, batch_engine, batch_hdr,
+                    audio_enhance, audio_upmix, audio_layout, audio_format],
             outputs=[batch_status, queue_display]
         )
 
