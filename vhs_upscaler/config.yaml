@@ -1,0 +1,107 @@
+# VHS Upscaler Configuration
+# ==========================
+# Edit paths and defaults to match your system
+
+# NVIDIA Maxine SDK paths
+# -----------------------
+# These will be auto-detected from MAXINE_HOME env var if not set
+maxine_path: ""  # e.g., "C:/Users/YourName/AppData/Local/NVIDIA/Maxine/bin"
+model_dir: ""    # e.g., "C:/Users/YourName/AppData/Local/NVIDIA/Maxine/bin/models"
+
+# FFmpeg path (leave as "ffmpeg" if in PATH)
+ffmpeg_path: "ffmpeg"
+
+# Default processing settings
+# ---------------------------
+defaults:
+  # Target resolution (720, 1080, 1440, 2160)
+  resolution: 1080
+
+  # Quality mode: 0 = best quality, 1 = performance
+  quality_mode: 0
+
+  # Output encoder: hevc_nvenc, h264_nvenc, libx265, libx264
+  encoder: "hevc_nvenc"
+
+  # NVENC preset: p1 (fastest) to p7 (best quality)
+  nvenc_preset: "p7"
+
+  # CRF/CQ value: 0-51, lower = better quality, larger file
+  # Recommended: 18-22 for archival, 23-28 for streaming
+  crf: 20
+
+  # Default preset: vhs, dvd, webcam, clean, auto
+  preset: "vhs"
+
+# Preset configurations
+# ---------------------
+presets:
+  vhs:
+    description: "VHS tapes (480i interlaced, heavy noise)"
+    deinterlace: true
+    denoise: true
+    denoise_strength: [3, 2, 3, 2]  # hqdn3d: luma_spatial, chroma_spatial, luma_temp, chroma_temp
+    quality_mode: 0
+
+  dvd:
+    description: "DVD sources (480p/576p, moderate noise)"
+    deinterlace: true
+    denoise: true
+    denoise_strength: [2, 1, 2, 1]
+    quality_mode: 0
+
+  webcam:
+    description: "Old webcam footage (progressive, compression artifacts)"
+    deinterlace: false
+    denoise: true
+    denoise_strength: [4, 3, 4, 3]
+    quality_mode: 1  # Performance mode OK for webcam
+
+  clean:
+    description: "Already clean source, upscale only"
+    deinterlace: false
+    denoise: false
+    quality_mode: 0
+
+  auto:
+    description: "Auto-detect interlacing, apply light denoise"
+    deinterlace: auto
+    denoise: true
+    denoise_strength: [2, 1, 2, 1]
+    quality_mode: 0
+
+# Watch folder settings
+# ---------------------
+watch:
+  # Seconds between folder scans
+  interval: 5
+
+  # Move processed files to 'processed' subfolder
+  move_completed: true
+
+  # Supported input formats
+  extensions:
+    - .mp4
+    - .avi
+    - .mkv
+    - .mov
+    - .wmv
+    - .flv
+    - .m4v
+    - .mpg
+    - .mpeg
+
+# Advanced settings
+# -----------------
+advanced:
+  # Keep temporary files for debugging
+  keep_temp: false
+
+  # Intermediate encoding quality (before Maxine)
+  intermediate_crf: 15
+
+  # Maximum concurrent processes (for batch mode)
+  max_workers: 1
+
+  # Log level: DEBUG, INFO, WARNING, ERROR
+  log_level: "INFO"
