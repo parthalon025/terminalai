@@ -274,6 +274,24 @@ vhs_upscaler/
     └── watch_folder.bat
 ```
 
+## Alternatives
+
+Choose the right tool for your use case:
+
+| Project | Speed | Quality | Best For |
+|---------|-------|---------|----------|
+| **VHS Upscaler** | ⚡ Fast | Good | VHS/DVD restoration with RTX |
+| [Video2X](https://github.com/k4yt3x/video2x) | Medium | Excellent | Anime, Real-ESRGAN backend |
+| [Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN) | Slow | Best | Maximum quality output |
+| [Topaz Video AI](https://www.topazlabs.com/) | Medium | Excellent | Commercial, easy to use |
+
+**Why choose VHS Upscaler?**
+- Optimized for analog video (VHS, DVD, camcorder)
+- Integrated YouTube downloading
+- Queue system for batch processing
+- Watch folder automation
+- 5x faster than Real-ESRGAN on RTX GPUs
+
 ## License
 
 MIT License - Use freely for personal and commercial projects.
@@ -283,3 +301,9 @@ MIT License - Use freely for personal and commercial projects.
 - [NVIDIA Maxine Video Effects SDK](https://developer.nvidia.com/maxine)
 - [FFmpeg](https://ffmpeg.org/)
 - [yt-dlp](https://github.com/yt-dlp/yt-dlp) (for YouTube downloading)
+- [Gradio](https://gradio.app/) (for Web GUI)
+
+---
+
+**Keywords:** VHS upscaling, video restoration, AI video enhancement, NVIDIA Maxine, RTX video super resolution,
+analog video digitization, vintage video restoration, 480i to 1080p, deinterlace, temporal denoise, NVENC encoding

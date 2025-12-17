@@ -401,16 +401,83 @@ def set_output_directory(path: str) -> str:
 def create_gui() -> gr.Blocks:
     """Create the Gradio interface."""
 
-    # Custom CSS for modern look
+    # Custom CSS for modern look (inspired by rtx-upscaler and video2x)
     custom_css = """
+    /* Container styling */
     .gradio-container {
         max-width: 1200px !important;
+        margin: 0 auto !important;
     }
-    .tab-nav button {
-        font-size: 16px !important;
-    }
+
+    /* Header gradient */
     .prose h1 {
-        color: #1976D2 !important;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        font-weight: 700 !important;
+    }
+
+    /* Tab styling */
+    .tab-nav button {
+        font-size: 15px !important;
+        font-weight: 500 !important;
+        transition: all 0.3s ease !important;
+    }
+    .tab-nav button:hover {
+        transform: translateY(-2px) !important;
+    }
+
+    /* Card-like sections */
+    .block {
+        border-radius: 12px !important;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
+    }
+
+    /* Button enhancements */
+    .primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+        border: none !important;
+        transition: all 0.3s ease !important;
+    }
+    .primary:hover {
+        transform: translateY(-2px) !important;
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4) !important;
+    }
+
+    /* Status badges */
+    .status-completed { color: #10b981; font-weight: 600; }
+    .status-processing { color: #3b82f6; font-weight: 600; }
+    .status-failed { color: #ef4444; font-weight: 600; }
+    .status-pending { color: #6b7280; }
+
+    /* Progress bar animation */
+    @keyframes progress-pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.7; }
+    }
+    .progress-active {
+        animation: progress-pulse 1.5s ease-in-out infinite;
+    }
+
+    /* Queue item styling */
+    .queue-item {
+        transition: all 0.2s ease;
+        border-left: 4px solid transparent;
+    }
+    .queue-item:hover {
+        border-left-color: #667eea;
+        background: #f8fafc;
+    }
+
+    /* Version badge */
+    .version-badge {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        color: white;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 600;
     }
     """
 
@@ -423,12 +490,13 @@ def create_gui() -> gr.Blocks:
         css=custom_css
     ) as app:
 
-        # Header
+        # Header with version badge
         gr.Markdown("""
         # 🎬 VHS Video Upscaler
-        ### AI-Powered Video Enhancement with NVIDIA Maxine
+        ### AI-Powered Video Enhancement with NVIDIA Maxine <span class="version-badge">v1.0.0</span>
 
-        Upload local files or paste YouTube URLs to upscale videos to HD/4K quality.
+        Transform vintage VHS tapes, DVDs, and low-quality videos into stunning HD/4K using RTX GPU acceleration.
+        Supports **YouTube URLs** and **local files** with batch processing and queue management.
         """)
 
         with gr.Tabs():
@@ -580,10 +648,82 @@ def create_gui() -> gr.Blocks:
 
                 gr.Markdown("---")
                 gr.Markdown("### System Information")
+
+                # Detect system info
+                import platform
+                import shutil
+
+                gpu_info = "Not detected (install pynvml for GPU info)"
+                try:
+                    import subprocess
+                    result = subprocess.run(
+                        ["nvidia-smi", "--query-gpu=name,memory.total", "--format=csv,noheader"],
+                        capture_output=True, text=True, timeout=5
+                    )
+                    if result.returncode == 0:
+                        gpu_info = result.stdout.strip()
+                except:
+                    pass
+
+                ffmpeg_version = "Not found"
+                try:
+                    result = subprocess.run(["ffmpeg", "-version"], capture_output=True, text=True, timeout=5)
+                    if result.returncode == 0:
+                        ffmpeg_version = result.stdout.split('\n')[0].split(' ')[2]
+                except:
+                    pass
+
                 gr.Markdown(f"""
-                - **Log Directory:** `logs/`
-                - **Queue State:** `queue_state.json`
-                - **Python Version:** {sys.version.split()[0]}
+                | Component | Status |
+                |-----------|--------|
+                | **Python** | {sys.version.split()[0]} |
+                | **Platform** | {platform.system()} {platform.release()} |
+                | **GPU** | {gpu_info} |
+                | **FFmpeg** | {ffmpeg_version} |
+                | **Log Directory** | `logs/` |
+                | **Queue State** | `queue_state.json` |
+                """)
+
+            # =====================================================================
+            # Tab 6: About
+            # =====================================================================
+            with gr.TabItem("ℹ️ About", id=6):
+                gr.Markdown("""
+                ### About VHS Video Upscaler
+
+                **Version:** 1.0.0
+                **License:** MIT (Open Source)
+
+                ---
+
+                #### Features
+                - 🎬 **AI Upscaling** - NVIDIA Maxine SuperRes with artifact reduction
+                - 📺 **VHS Restoration** - Optimized presets for vintage footage
+                - ⬇️ **YouTube Integration** - Download and upscale in one step
+                - 📋 **Queue System** - Batch process multiple videos
+                - 👁️ **Watch Folder** - Automatic processing of new files
+                - 🚀 **GPU Accelerated** - RTX Tensor Core optimization
+
+                ---
+
+                #### Credits
+                - [NVIDIA Maxine Video Effects SDK](https://developer.nvidia.com/maxine)
+                - [yt-dlp](https://github.com/yt-dlp/yt-dlp)
+                - [FFmpeg](https://ffmpeg.org/)
+                - [Gradio](https://gradio.app/)
+
+                ---
+
+                #### Alternatives
+                | Project | Best For |
+                |---------|----------|
+                | [Video2X](https://github.com/k4yt3x/video2x) | Anime upscaling, Real-ESRGAN |
+                | [Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN) | Maximum quality (slower) |
+                | [Topaz Video AI](https://www.topazlabs.com/) | Commercial, easy to use |
+
+                ---
+
+                **GitHub:** [github.com/parthalon025/terminalai](https://github.com/parthalon025/terminalai)
                 """)
 
         # =====================================================================

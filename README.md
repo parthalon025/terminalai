@@ -1,21 +1,42 @@
-# TerminalAI - Video Processing Suite
+<p align="center">
+  <h1 align="center">🎬 TerminalAI - Video Processing Suite</h1>
+  <p align="center">
+    <strong>AI-powered VHS video upscaling and YouTube downloading with NVIDIA RTX acceleration</strong>
+  </p>
+</p>
 
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![NVIDIA Maxine](https://img.shields.io/badge/NVIDIA-Maxine-76B900.svg)](https://developer.nvidia.com/maxine)
+<p align="center">
+  <a href="https://github.com/parthalon025/terminalai/releases"><img src="https://img.shields.io/github/v/release/parthalon025/terminalai?style=flat-square&color=blue" alt="Release"></a>
+  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.10+-blue?style=flat-square&logo=python&logoColor=white" alt="Python 3.10+"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License"></a>
+  <a href="https://developer.nvidia.com/maxine"><img src="https://img.shields.io/badge/NVIDIA-Maxine-76B900?style=flat-square&logo=nvidia&logoColor=white" alt="NVIDIA Maxine"></a>
+  <a href="https://gradio.app/"><img src="https://img.shields.io/badge/Gradio-Web_GUI-orange?style=flat-square" alt="Gradio"></a>
+</p>
 
-AI-powered video processing tools featuring YouTube downloading and VHS video upscaling using NVIDIA Maxine Video Effects SDK.
+<p align="center">
+  <a href="#-features">Features</a> •
+  <a href="#-quick-start">Quick Start</a> •
+  <a href="#-web-gui">Web GUI</a> •
+  <a href="#-requirements">Requirements</a> •
+  <a href="#-alternatives">Alternatives</a>
+</p>
 
-## Features
+---
 
-- **YouTube Video Downloader** - Download videos in best quality MP4 format
-- **VHS Video Upscaler** - AI-powered upscaling for vintage footage (480i to 1080p/4K)
-- **Modern Web GUI** - Beautiful Gradio-based interface with queue management
-- **Batch Processing** - Process multiple videos with queue system
-- **Watch Folder Mode** - Automatic processing of dropped files
-- **Progress Tracking** - Real-time progress bars with ETA estimates
+## ✨ Features
 
-## Quick Start
+| Feature | Description |
+|---------|-------------|
+| 🎬 **AI Video Upscaling** | NVIDIA Maxine SuperRes with artifact reduction - up to 4K output |
+| 📺 **VHS Restoration** | Optimized presets for vintage footage (deinterlace + denoise) |
+| ⬇️ **YouTube Integration** | Download and upscale YouTube videos in one step |
+| 🖥️ **Modern Web GUI** | Beautiful Gradio interface with dark mode support |
+| 📋 **Queue System** | Batch process multiple videos with pause/resume |
+| 👁️ **Watch Folder** | Automatic processing when files are dropped |
+| 🚀 **GPU Accelerated** | RTX Tensor Core + NVENC hardware encoding |
+| 📊 **Progress Tracking** | Real-time progress bars with ETA estimates |
+
+## 🚀 Quick Start
 
 ### Installation
 
@@ -24,110 +45,138 @@ AI-powered video processing tools featuring YouTube downloading and VHS video up
 git clone https://github.com/parthalon025/terminalai.git
 cd terminalai
 
-# Install dependencies
-pip install -r vhs_upscaler/requirements.txt
+# Install Python dependencies
+pip install -r requirements.txt
+
+# Or install as package
+pip install -e .
 ```
 
-### Download YouTube Videos
+### Launch Web GUI (Recommended)
 
 ```bash
-python download_youtube.py "https://www.youtube.com/watch?v=VIDEO_ID"
-```
-
-### Upscale VHS Videos
-
-```bash
-# Launch web GUI (recommended)
 python vhs_upscaler/gui.py
-
-# Or use command line
-python vhs_upscaler/vhs_upscale.py -i video.mp4 -o upscaled.mp4 --preset vhs
 ```
 
-## Project Structure
+Opens automatically at `http://localhost:7860`
+
+### Command Line Usage
+
+```bash
+# Download YouTube video
+python download_youtube.py "https://www.youtube.com/watch?v=VIDEO_ID"
+
+# Upscale VHS tape to 1080p
+python vhs_upscaler/vhs_upscale.py -i video.mp4 -o upscaled.mp4 --preset vhs
+
+# Upscale to 4K
+python vhs_upscaler/vhs_upscale.py -i video.mp4 -o upscaled_4k.mp4 -r 2160
+
+# Watch folder mode (auto-process new files)
+python vhs_upscaler/vhs_upscale.py --watch -i ./input -o ./output
+```
+
+## 🖥️ Web GUI
+
+The modern Gradio web interface provides:
+
+- **Single Video** - Process one video with full options
+- **Batch Processing** - Add multiple URLs at once
+- **Queue Manager** - Monitor and control processing
+- **Activity Logs** - Real-time logging display
+- **Settings** - Configure output directory
+- **About** - System info and alternatives
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  🎬 VHS Video Upscaler                           v1.0.0    │
+│  AI-Powered Video Enhancement with NVIDIA Maxine           │
+├─────────────────────────────────────────────────────────────┤
+│  📹 Single │ 📚 Batch │ 📋 Queue │ 📜 Logs │ ⚙️ Settings   │
+├─────────────────────────────────────────────────────────────┤
+│  Video: [https://youtube.com/watch?v=...               ]   │
+│  Preset: [vhs ▼]    Resolution: [1080p ▼]                  │
+│  [➕ Add to Queue]                                          │
+│  ┌─ Queue ─────────────────────────────────────────────┐   │
+│  │ ⬇️ Downloading: Video Title                         │   │
+│  │ [████████████░░░░░░░░░░░░░░] 45% │ ETA: 0:02:30     │   │
+│  └─────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## 📦 Project Structure
 
 ```
 terminalai/
 ├── download_youtube.py      # Standalone YouTube downloader
-├── vhs_upscaler/            # VHS upscaling pipeline
-│   ├── gui.py               # Web GUI (Gradio)
-│   ├── vhs_upscale.py       # Main processing pipeline
-│   ├── queue_manager.py     # Batch processing queue
-│   ├── logger.py            # Verbose logging system
+├── vhs_upscaler/            # Main upscaling package
+│   ├── gui.py               # Gradio web interface
+│   ├── vhs_upscale.py       # Processing pipeline
+│   ├── queue_manager.py     # Batch queue system
+│   ├── logger.py            # Verbose logging
 │   ├── config.yaml          # Configuration
 │   ├── install.ps1          # Windows installer
-│   ├── requirements.txt     # Python dependencies
 │   └── scripts/             # Batch scripts
-├── .gitignore
-├── LICENSE
+├── requirements.txt         # Python dependencies
+├── pyproject.toml           # Package config
+├── LICENSE                  # MIT License
 └── README.md
 ```
 
-## Requirements
+## 💻 Requirements
 
 ### Hardware
-- **GPU**: NVIDIA RTX 20/30/40/50 series with Tensor Cores (for AI upscaling)
-- **VRAM**: 8GB minimum, 16GB recommended for 4K
-- **CPU**: Any modern multi-core processor (for FFmpeg processing)
+
+| Component | Minimum | Recommended |
+|-----------|---------|-------------|
+| **GPU** | RTX 2060 (Tensor Cores) | RTX 3080+ |
+| **VRAM** | 6GB | 12GB+ for 4K |
+| **RAM** | 8GB | 16GB+ |
+| **Storage** | 10GB free | SSD recommended |
 
 ### Software
-- Python 3.10+
-- FFmpeg (with NVENC support recommended)
-- NVIDIA Maxine Video Effects SDK (for AI upscaling)
-- yt-dlp (for YouTube downloads)
 
-## Components
+- **Python** 3.10+ (required for Gradio)
+- **NVIDIA Driver** 535+
+- **FFmpeg** with NVENC support
+- **NVIDIA Maxine Video Effects SDK** (for AI upscaling)
+- **yt-dlp** (for YouTube downloads)
 
-### 1. YouTube Downloader (`download_youtube.py`)
+## ⚙️ Presets
 
-Simple, standalone script to download YouTube videos:
+| Preset | Source Type | Deinterlace | Denoise | Best For |
+|--------|-------------|-------------|---------|----------|
+| `vhs` | 480i VHS tapes | ✅ Yes | Strong | Old home videos |
+| `dvd` | 480p/576p DVDs | ✅ Yes | Moderate | DVD rips |
+| `webcam` | Low-quality webcam | ❌ No | Strong | Old webcam footage |
+| `youtube` | YouTube downloads | ❌ No | Light | Downloaded videos |
+| `clean` | Already clean | ❌ No | None | High-quality sources |
+| `auto` | Unknown | Auto-detect | Auto | Mixed content |
 
-```bash
-python download_youtube.py "https://youtu.be/VIDEO_ID" --output ./downloads
-```
+## 🔄 Alternatives
 
-### 2. VHS Upscaler (`vhs_upscaler/`)
+Choose the right tool for your needs:
 
-Full-featured video upscaling pipeline with:
+| Project | Speed | Quality | Best For | Open Source |
+|---------|-------|---------|----------|-------------|
+| **TerminalAI** | ⚡ Fast | Good | VHS/DVD restoration, YouTube | ✅ Yes |
+| [Video2X](https://github.com/k4yt3x/video2x) | Medium | Excellent | Anime, Real-ESRGAN | ✅ Yes |
+| [Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN) | Slow | Best | Maximum quality | ✅ Yes |
+| [Topaz Video AI](https://www.topazlabs.com/) | Medium | Excellent | Easy to use | ❌ Commercial |
+| [RTX Upscaler](https://github.com/abus-aikorea/rtx-upscaler) | Fast | Good | Similar to TerminalAI | ⚠️ Trial Limited |
 
-- **Web GUI**: Modern interface at `http://localhost:7860`
-- **CLI**: Command-line processing
-- **Presets**: Optimized for VHS, DVD, webcam, etc.
-- **Queue**: Batch processing with pause/resume
-- **Logging**: Verbose logs with file output
+**When to use TerminalAI:**
+- You have VHS tapes or DVDs to restore
+- You want to download + upscale YouTube videos
+- You need batch processing with queue management
+- You have an NVIDIA RTX GPU
 
-See [vhs_upscaler/README.md](vhs_upscaler/README.md) for detailed documentation.
-
-## Web GUI
-
-Launch the modern web interface:
-
-```bash
-python vhs_upscaler/gui.py
-```
-
-Features:
-- Single video processing with full options
-- Batch processing (multiple URLs)
-- Real-time queue monitoring
-- Activity logs
-- Configurable settings
-
-## Dependencies
-
-| Package | Purpose |
-|---------|---------|
-| [yt-dlp](https://github.com/yt-dlp/yt-dlp) | YouTube video downloading |
-| [Gradio](https://gradio.app/) | Modern web GUI |
-| [PyYAML](https://pyyaml.org/) | Configuration files |
-| [FFmpeg](https://ffmpeg.org/) | Video processing |
-| [NVIDIA Maxine](https://developer.nvidia.com/maxine) | AI video effects |
-
-## Configuration
+## 🔧 Configuration
 
 Edit `vhs_upscaler/config.yaml`:
 
 ```yaml
+# NVIDIA Maxine SDK path (auto-detected if MAXINE_HOME is set)
 maxine_path: "C:/path/to/maxine/bin"
 ffmpeg_path: "ffmpeg"
 
@@ -135,33 +184,39 @@ defaults:
   resolution: 1080
   encoder: "hevc_nvenc"
   crf: 20
+  quality_mode: 0  # 0=best, 1=fast
 ```
 
-## Contributing
+## 🤝 Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome! See our [Contributing Guide](CONTRIBUTING.md).
 
 1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
+2. Create feature branch (`git checkout -b feature/amazing`)
+3. Commit changes (`git commit -m 'Add amazing feature'`)
+4. Push to branch (`git push origin feature/amazing`)
 5. Open a Pull Request
 
-## License
+## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the **MIT License** - see [LICENSE](LICENSE) for details.
 
-## Acknowledgments
+## 🙏 Acknowledgments
 
 - [NVIDIA Maxine Video Effects SDK](https://developer.nvidia.com/maxine) - AI video upscaling
 - [yt-dlp](https://github.com/yt-dlp/yt-dlp) - YouTube downloading
 - [FFmpeg](https://ffmpeg.org/) - Video processing
 - [Gradio](https://gradio.app/) - Web interface framework
+- [Video2X](https://github.com/k4yt3x/video2x) - Inspiration for features
 
-## Support
+---
 
-If you encounter any issues or have questions:
+<p align="center">
+  <b>Keywords:</b> VHS upscaling, video restoration, AI video enhancement, NVIDIA Maxine, RTX video super resolution,
+  YouTube downloader, video upscaler, 480p to 1080p, 480p to 4K, deinterlace, denoise, NVENC encoding,
+  batch video processing, Python video tools, Gradio GUI, analog video digitization, vintage video restoration
+</p>
 
-1. Check the [Troubleshooting](vhs_upscaler/README.md#troubleshooting) section
-2. Search existing [Issues](https://github.com/parthalon025/terminalai/issues)
-3. Open a new issue with detailed information
+<p align="center">
+  Made with ❤️ by the TerminalAI community
+</p>

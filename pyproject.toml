@@ -13,15 +13,24 @@ authors = [
     {name = "TerminalAI Contributors"}
 ]
 keywords = [
-    "video",
-    "upscaling",
-    "youtube",
-    "downloader",
-    "nvidia",
-    "maxine",
-    "vhs",
-    "ai",
-    "gpu"
+    "video-upscaling",
+    "vhs-restoration",
+    "ai-video-enhancement",
+    "nvidia-maxine",
+    "rtx-video-super-resolution",
+    "youtube-downloader",
+    "video-upscaler",
+    "480p-to-1080p",
+    "480p-to-4k",
+    "deinterlace",
+    "denoise",
+    "nvenc-encoding",
+    "batch-video-processing",
+    "gradio-gui",
+    "analog-video-digitization",
+    "vintage-video-restoration",
+    "ffmpeg",
+    "gpu-acceleration"
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
