@@ -2,7 +2,7 @@
 # =========================
 
 # Core dependencies
-yt-dlp>=2024.0.0          # YouTube downloading
+yt-dlp>=2023.0.0          # YouTube downloading
 pyyaml>=6.0               # Configuration files
 
 # GUI dependencies

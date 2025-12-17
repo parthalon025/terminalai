@@ -220,6 +220,19 @@ class VideoQueue:
         """Get a job by ID."""
         return self.jobs.get(job_id)
 
+    def get_status(self, job_id: str) -> dict:
+        """Get job status as dictionary."""
+        job = self.jobs.get(job_id)
+        if job:
+            return {
+                'id': job.id,
+                'status': job.status.value,
+                'progress': job.progress,
+                'stage': job.current_stage,
+                'error': job.error_message,
+            }
+        return {'error': 'Job not found'}
+
     def get_all_jobs(self) -> List[QueueJob]:
         """Get all jobs in order."""
         with self._lock:
