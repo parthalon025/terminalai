@@ -80,7 +80,7 @@ The modern web interface provides:
 - **OS**: Windows 10/11 (Maxine SDK is Windows-only)
 
 ### Software
-- Python 3.8+
+- Python 3.10+ (required for Gradio)
 - NVIDIA Driver 535+
 - FFmpeg (with NVENC support)
 - NVIDIA Maxine Video Effects SDK
