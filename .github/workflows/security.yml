@@ -11,7 +11,7 @@ on:
     branches: [main]
   schedule:
     # Run weekly security scan on Monday at midnight UTC
-    - cron: '0 0 * * 1'
+    - cron: "0 0 * * 1"
   workflow_dispatch:
 
 permissions:
@@ -61,7 +61,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
 
       - name: Install dependencies
         run: npm ci --ignore-scripts
@@ -117,9 +117,9 @@ jobs:
         uses: dependency-check/Dependency-Check_Action@main
         id: depcheck
         with:
-          project: 'terminalai'
-          path: '.'
-          format: 'HTML'
+          project: "terminalai"
+          path: "."
+          format: "HTML"
           args: >
             --failOnCVSS 7
             --enableRetired
@@ -145,7 +145,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
 
       - name: Install dependencies
         run: npm ci --ignore-scripts

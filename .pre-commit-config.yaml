@@ -22,7 +22,7 @@ repos:
         name: Validate TOML syntax
       - id: check-added-large-files
         name: Check for large files
-        args: ['--maxkb=500']
+        args: ["--maxkb=500"]
       - id: check-merge-conflict
         name: Check for merge conflicts
       - id: detect-private-key
@@ -33,10 +33,10 @@ repos:
         name: Check broken symlinks
       - id: mixed-line-ending
         name: Check line endings
-        args: ['--fix=lf']
+        args: ["--fix=lf"]
       - id: no-commit-to-branch
         name: Prevent direct commits to main
-        args: ['--branch', 'main', '--branch', 'master']
+        args: ["--branch", "main", "--branch", "master"]
 
   # Secret detection
   - repo: https://github.com/gitleaks/gitleaks
@@ -78,9 +78,9 @@ repos:
 
 # CI configuration
 ci:
-  autofix_commit_msg: 'style: auto-fix by pre-commit hooks'
+  autofix_commit_msg: "style: auto-fix by pre-commit hooks"
   autofix_prs: true
-  autoupdate_branch: 'develop'
-  autoupdate_commit_msg: 'chore: update pre-commit hooks'
+  autoupdate_branch: "develop"
+  autoupdate_commit_msg: "chore: update pre-commit hooks"
   autoupdate_schedule: weekly
-  skip: [lint, format-check, type-check, test-unit]  # Skip local hooks in CI
+  skip: [lint, format-check, type-check, test-unit] # Skip local hooks in CI

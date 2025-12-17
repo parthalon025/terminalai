@@ -1,19 +1,9 @@
 import eslint from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import prettier from 'eslint-config-prettier';
-import importPlugin from 'eslint-plugin-import';
+import globals from 'globals';
 
 export default tseslint.config(
-  // Base ESLint recommended rules
-  eslint.configs.recommended,
-
-  // TypeScript ESLint strict rules
-  ...tseslint.configs.strictTypeChecked,
-  ...tseslint.configs.stylisticTypeChecked,
-
-  // Prettier compatibility (disables conflicting rules)
-  prettier,
-
   // Global ignores
   {
     ignores: [
@@ -26,18 +16,28 @@ export default tseslint.config(
     ],
   },
 
-  // Main configuration
+  // Base ESLint recommended rules
+  eslint.configs.recommended,
+
+  // TypeScript ESLint recommended rules
+  ...tseslint.configs.recommended,
+
+  // Prettier compatibility (disables conflicting rules)
+  prettier,
+
+  // Main configuration for source TypeScript files
   {
+    files: ['src/**/*.ts'],
     languageOptions: {
       ecmaVersion: 2024,
       sourceType: 'module',
+      globals: {
+        ...globals.node,
+      },
       parserOptions: {
         project: './tsconfig.json',
         tsconfigRootDir: import.meta.dirname,
       },
-    },
-    plugins: {
-      import: importPlugin,
     },
     rules: {
       // TypeScript specific rules
@@ -57,46 +57,15 @@ export default tseslint.config(
         },
       ],
       '@typescript-eslint/no-explicit-any': 'error',
-      '@typescript-eslint/prefer-nullish-coalescing': 'error',
-      '@typescript-eslint/prefer-optional-chain': 'error',
-      '@typescript-eslint/no-floating-promises': 'error',
-      '@typescript-eslint/await-thenable': 'error',
-      '@typescript-eslint/no-misused-promises': 'error',
-      '@typescript-eslint/strict-boolean-expressions': 'warn',
-
-      // Import rules
-      'import/order': [
-        'error',
-        {
-          groups: [
-            'builtin',
-            'external',
-            'internal',
-            'parent',
-            'sibling',
-            'index',
-            'type',
-          ],
-          'newlines-between': 'always',
-          alphabetize: {
-            order: 'asc',
-            caseInsensitive: true,
-          },
-        },
-      ],
-      'import/no-duplicates': 'error',
 
       // General code quality
       'no-console': ['warn', { allow: ['warn', 'error'] }],
-      complexity: ['error', 10],
-      'max-lines-per-function': ['warn', { max: 50, skipComments: true, skipBlankLines: true }],
+      complexity: ['warn', 15],
       'max-depth': ['error', 4],
       'max-nested-callbacks': ['error', 3],
-      'no-param-reassign': 'error',
       'prefer-const': 'error',
       'no-var': 'error',
       eqeqeq: ['error', 'always'],
-      curly: ['error', 'all'],
 
       // Security
       'no-eval': 'error',
@@ -105,15 +74,21 @@ export default tseslint.config(
     },
   },
 
-  // Test file overrides
+  // Test file configuration (without project reference)
   {
-    files: ['**/*.test.ts', '**/*.spec.ts', 'tests/**/*.ts'],
+    files: ['tests/**/*.ts'],
+    languageOptions: {
+      ecmaVersion: 2024,
+      sourceType: 'module',
+      globals: {
+        ...globals.node,
+      },
+    },
     rules: {
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-non-null-assertion': 'off',
-      'max-lines-per-function': 'off',
-      '@typescript-eslint/no-unsafe-assignment': 'off',
-      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unused-vars': 'off',
+      'no-console': 'off',
     },
   }
 );

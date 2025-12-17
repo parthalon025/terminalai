@@ -60,17 +60,17 @@ pnpm dev
 
 ### Scripts
 
-| Command | Description |
-|---------|-------------|
-| `pnpm dev` | Start development mode |
-| `pnpm build` | Build for production |
-| `pnpm test` | Run all tests |
-| `pnpm test:unit` | Run unit tests |
-| `pnpm test:integration` | Run integration tests |
-| `pnpm test:e2e` | Run E2E tests |
-| `pnpm lint` | Run ESLint |
-| `pnpm format` | Format with Prettier |
-| `pnpm type-check` | TypeScript type checking |
+| Command                 | Description              |
+| ----------------------- | ------------------------ |
+| `pnpm dev`              | Start development mode   |
+| `pnpm build`            | Build for production     |
+| `pnpm test`             | Run all tests            |
+| `pnpm test:unit`        | Run unit tests           |
+| `pnpm test:integration` | Run integration tests    |
+| `pnpm test:e2e`         | Run E2E tests            |
+| `pnpm lint`             | Run ESLint               |
+| `pnpm format`           | Format with Prettier     |
+| `pnpm type-check`       | TypeScript type checking |
 
 ## Project Structure
 
@@ -130,7 +130,8 @@ See [CI/CD QC Plan](docs/CI_CD_QC_PLAN.md) for full details.
 
 ## Contributing
 
-We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for
+guidelines.
 
 ## Security
 

@@ -11,7 +11,8 @@ We release patches for security vulnerabilities in the following versions:
 
 ## Reporting a Vulnerability
 
-We take the security of TerminalAI seriously. If you believe you have found a security vulnerability, please report it to us as described below.
+We take the security of TerminalAI seriously. If you believe you have found a
+security vulnerability, please report it to us as described below.
 
 ### How to Report
 
@@ -19,7 +20,8 @@ We take the security of TerminalAI seriously. If you believe you have found a se
 
 Instead, please report them via GitHub's private vulnerability reporting:
 
-1. Go to the [Security Advisories page](https://github.com/parthalon025/terminalai/security/advisories)
+1. Go to the
+   [Security Advisories page](https://github.com/parthalon025/terminalai/security/advisories)
 2. Click "Report a vulnerability"
 3. Fill out the form with details about the vulnerability
 
@@ -29,7 +31,8 @@ Alternatively, you can email security concerns to: [security@example.com]
 
 Please include the following information in your report:
 
-- **Type of issue** (e.g., buffer overflow, SQL injection, cross-site scripting, etc.)
+- **Type of issue** (e.g., buffer overflow, SQL injection, cross-site scripting,
+  etc.)
 - **Full paths of source file(s)** related to the manifestation of the issue
 - **Location of the affected source code** (tag/branch/commit or direct URL)
 - **Step-by-step instructions** to reproduce the issue
@@ -108,6 +111,7 @@ Subscribe to repository notifications to stay informed about security updates.
 
 ## Recognition
 
-We appreciate the security research community and will acknowledge contributors who help improve TerminalAI's security (with their permission).
+We appreciate the security research community and will acknowledge contributors
+who help improve TerminalAI's security (with their permission).
 
 Thank you for helping keep TerminalAI and its users safe!

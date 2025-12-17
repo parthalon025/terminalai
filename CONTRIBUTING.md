@@ -1,6 +1,7 @@
 # Contributing to TerminalAI
 
-Thank you for your interest in contributing to TerminalAI! This document provides guidelines and information for contributors.
+Thank you for your interest in contributing to TerminalAI! This document
+provides guidelines and information for contributors.
 
 ## Table of Contents
 
@@ -15,7 +16,8 @@ Thank you for your interest in contributing to TerminalAI! This document provide
 
 ## Code of Conduct
 
-By participating in this project, you agree to abide by our Code of Conduct. Please be respectful and constructive in all interactions.
+By participating in this project, you agree to abide by our Code of Conduct.
+Please be respectful and constructive in all interactions.
 
 ## Getting Started
 
@@ -127,7 +129,6 @@ pnpm type-check
    ```
 
 2. **Make your changes**
-
    - Write clean, maintainable code
    - Add tests for new functionality
    - Update documentation as needed
@@ -152,13 +153,11 @@ pnpm type-check
    ```
 
 6. **Open a Pull Request**
-
    - Fill out the PR template completely
    - Link any related issues
    - Request reviews from maintainers
 
 7. **Address feedback**
-
    - Respond to all review comments
    - Make requested changes promptly
    - Re-request reviews after changes
@@ -275,7 +274,8 @@ test(parser): add edge case tests for empty input
 
 If you have questions or need help:
 
-1. Check existing [issues](https://github.com/parthalon025/terminalai/issues) and [discussions](https://github.com/parthalon025/terminalai/discussions)
+1. Check existing [issues](https://github.com/parthalon025/terminalai/issues)
+   and [discussions](https://github.com/parthalon025/terminalai/discussions)
 2. Open a new discussion for general questions
 3. Open an issue for bugs or feature requests
 

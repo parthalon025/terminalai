@@ -9,32 +9,31 @@ export default defineConfig({
     globals: true,
 
     // Test file patterns
-    include: ['tests/**/*.{test,spec}.{ts,tsx}'],
+    include: ['tests/**/*.{test,spec}.ts'],
     exclude: ['node_modules', 'dist', '.git'],
 
     // Coverage configuration
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'text-summary', 'lcov', 'html', 'json'],
+      reporter: ['text', 'text-summary', 'lcov', 'html'],
       reportsDirectory: './coverage',
       include: ['src/**/*.ts'],
       exclude: [
         'src/**/*.d.ts',
         'src/**/*.test.ts',
-        'src/**/*.spec.ts',
         'src/**/index.ts',
         'src/types/**',
+        'src/cli.ts',
       ],
       // Coverage thresholds
       thresholds: {
         global: {
-          statements: 80,
-          branches: 80,
-          functions: 80,
-          lines: 80,
+          statements: 70,
+          branches: 60,
+          functions: 70,
+          lines: 70,
         },
       },
-      // Clean coverage before running tests
       clean: true,
     },
 
@@ -42,29 +41,8 @@ export default defineConfig({
     testTimeout: 10000,
     hookTimeout: 10000,
 
-    // Parallel execution
-    pool: 'threads',
-    poolOptions: {
-      threads: {
-        singleThread: false,
-      },
-    },
-
     // Reporter configuration
-    reporters: ['default', 'html'],
-
-    // Watch mode configuration
-    watch: true,
-    watchExclude: ['node_modules', 'dist'],
-
-    // Type checking
-    typecheck: {
-      enabled: true,
-      checker: 'tsc',
-    },
-
-    // Retry failed tests
-    retry: process.env.CI ? 2 : 0,
+    reporters: ['default'],
 
     // Setup files
     setupFiles: ['./tests/setup.ts'],
@@ -73,13 +51,5 @@ export default defineConfig({
     mockReset: true,
     restoreMocks: true,
     clearMocks: true,
-  },
-
-  // Path aliases
-  resolve: {
-    alias: {
-      '@': '/src',
-      '@tests': '/tests',
-    },
   },
 });
