@@ -1,0 +1,92 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "terminalai"
+version = "1.0.0"
+description = "AI-powered video processing suite with YouTube downloading and VHS upscaling"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+authors = [
+    {name = "TerminalAI Contributors"}
+]
+keywords = [
+    "video-upscaling",
+    "vhs-restoration",
+    "ai-video-enhancement",
+    "nvidia-maxine",
+    "rtx-video-super-resolution",
+    "youtube-downloader",
+    "video-upscaler",
+    "480p-to-1080p",
+    "480p-to-4k",
+    "deinterlace",
+    "denoise",
+    "nvenc-encoding",
+    "batch-video-processing",
+    "gradio-gui",
+    "analog-video-digitization",
+    "vintage-video-restoration",
+    "ffmpeg",
+    "gpu-acceleration"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Environment :: Web Environment",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Video",
+    "Topic :: Multimedia :: Video :: Conversion",
+]
+
+dependencies = [
+    "yt-dlp>=2023.0.0",
+    "pyyaml>=6.0",
+    "gradio>=4.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "black>=23.0",
+    "ruff>=0.1.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/parthalon025/terminalai"
+Documentation = "https://github.com/parthalon025/terminalai#readme"
+Repository = "https://github.com/parthalon025/terminalai.git"
+Issues = "https://github.com/parthalon025/terminalai/issues"
+
+[project.scripts]
+terminalai-gui = "vhs_upscaler.gui:main"
+vhs-upscale = "vhs_upscaler.vhs_upscale:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["vhs_upscaler*"]
+
+[tool.black]
+line-length = 100
+target-version = ['py310', 'py311', 'py312']
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+select = ["E", "F", "W", "I", "N", "UP", "B", "C4"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-v --tb=short"

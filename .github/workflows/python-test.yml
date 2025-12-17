@@ -1,0 +1,47 @@
+name: Python Tests
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.10', '3.11', '3.12']
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e ".[dev]"
+
+    - name: Lint with ruff
+      run: |
+        pip install ruff
+        ruff check vhs_upscaler/ --exit-zero
+
+    - name: Check syntax
+      run: |
+        python -m py_compile vhs_upscaler/vhs_upscale.py
+        python -m py_compile vhs_upscaler/gui.py
+        python -m py_compile vhs_upscaler/queue_manager.py
+        python -m py_compile vhs_upscaler/logger.py
+        python -m py_compile download_youtube.py
+
+    - name: Test imports
+      run: |
+        cd vhs_upscaler
+        python -c "from logger import get_logger, VHSLogger; print('Logger OK')"
+        python -c "from queue_manager import VideoQueue, QueueJob, JobStatus; print('Queue OK')"
+        python -c "from vhs_upscale import VHSUpscaler, ProcessingConfig, YouTubeDownloader; print('Upscaler OK')"

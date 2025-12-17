@@ -1,0 +1,13 @@
+# TerminalAI Requirements
+# ======================
+# For full installation, use: pip install -e .
+
+# Core dependencies
+yt-dlp>=2023.0.0          # YouTube downloading
+pyyaml>=6.0               # Configuration files
+
+# GUI dependencies
+gradio>=4.0.0             # Modern web interface
+
+# Note: FFmpeg and NVIDIA Maxine SDK must be installed separately
+# See README.md for installation instructions
