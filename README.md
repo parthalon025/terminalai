@@ -531,6 +531,347 @@ defaults:
 
 ---
 
+## 🔧 Troubleshooting
+
+### Common Errors and Solutions
+
+<details>
+<summary><b>❌ "FFmpeg not found" or "ffmpeg: command not found"</b></summary>
+
+**What happened:** FFmpeg is not installed or not in your system PATH.
+
+**Why it matters:** FFmpeg is required for all video processing operations.
+
+**Solutions:**
+
+```bash
+# Linux (Ubuntu/Debian)
+sudo apt update && sudo apt install ffmpeg
+
+# Linux (Fedora)
+sudo dnf install ffmpeg
+
+# macOS
+brew install ffmpeg
+
+# Windows (with winget)
+winget install FFmpeg
+
+# Windows (with chocolatey)
+choco install ffmpeg
+```
+
+**Verify installation:**
+```bash
+ffmpeg -version
+# Should show: ffmpeg version 5.x or higher
+```
+
+</details>
+
+<details>
+<summary><b>❌ "CUDA out of memory" or "RuntimeError: CUDA error"</b></summary>
+
+**What happened:** Your GPU doesn't have enough VRAM for the selected operation.
+
+**Why it matters:** AI upscaling (especially 4K) requires significant GPU memory.
+
+**Solutions:**
+
+| Resolution | Minimum VRAM | Recommended |
+|------------|--------------|-------------|
+| 720p | 2GB | 4GB |
+| 1080p | 4GB | 6GB |
+| 1440p | 6GB | 8GB |
+| 2160p (4K) | 8GB | 12GB+ |
+
+```bash
+# Option 1: Use lower resolution
+python -m vhs_upscaler.vhs_upscale -i video.mp4 -o out.mp4 -r 1080  # Instead of 2160
+
+# Option 2: Use CPU-based processing (slower but works)
+python -m vhs_upscaler.vhs_upscale -i video.mp4 -o out.mp4 --engine ffmpeg
+
+# Option 3: Close other GPU applications
+# Close browsers, games, other video editors before processing
+```
+
+**Check your VRAM:**
+```bash
+# NVIDIA
+nvidia-smi
+
+# Look for "Memory-Usage" - if close to max, reduce resolution
+```
+
+</details>
+
+<details>
+<summary><b>❌ "No NVIDIA GPU detected" or "hevc_nvenc encoder not found"</b></summary>
+
+**What happened:** NVIDIA hardware encoding requires an NVIDIA GPU with NVENC support.
+
+**Why it matters:** hevc_nvenc and h264_nvenc are GPU-accelerated encoders that only work on NVIDIA cards.
+
+**Solutions:**
+
+```bash
+# Option 1: Use CPU encoding instead (works on any system)
+python -m vhs_upscaler.vhs_upscale -i video.mp4 -o out.mp4 --encoder libx265
+
+# Option 2: Use libx264 for better compatibility
+python -m vhs_upscaler.vhs_upscale -i video.mp4 -o out.mp4 --encoder libx264
+```
+
+**Encoder comparison:**
+| Encoder | GPU Required | Speed | Quality | Compatibility |
+|---------|--------------|-------|---------|---------------|
+| hevc_nvenc | NVIDIA | ⚡ Fast | ⭐⭐⭐⭐ | Modern devices |
+| h264_nvenc | NVIDIA | ⚡ Fast | ⭐⭐⭐ | Most devices |
+| libx265 | None (CPU) | 🐢 Slow | ⭐⭐⭐⭐⭐ | Modern devices |
+| libx264 | None (CPU) | 🐢 Medium | ⭐⭐⭐⭐ | Everything |
+
+</details>
+
+<details>
+<summary><b>❌ "Real-ESRGAN not found" or "realesrgan-ncnn-vulkan: command not found"</b></summary>
+
+**What happened:** Real-ESRGAN executable is not installed or not in PATH.
+
+**Why it matters:** Real-ESRGAN provides high-quality AI upscaling for AMD/Intel/NVIDIA GPUs.
+
+**Solutions:**
+
+1. **Download Real-ESRGAN:**
+   - Go to: https://github.com/xinntao/Real-ESRGAN/releases
+   - Download the version for your OS (e.g., `realesrgan-ncnn-vulkan-v0.2.0-windows.zip`)
+   - Extract to a folder (e.g., `C:\Tools\realesrgan` or `/opt/realesrgan`)
+
+2. **Add to PATH:**
+   ```bash
+   # Linux/Mac - add to ~/.bashrc or ~/.zshrc
+   export PATH="$PATH:/opt/realesrgan"
+
+   # Windows - add via System Properties > Environment Variables
+   # Or use PowerShell:
+   $env:PATH += ";C:\Tools\realesrgan"
+   ```
+
+3. **Or use alternative engines:**
+   ```bash
+   # Use NVIDIA Maxine (if you have RTX GPU)
+   python -m vhs_upscaler.vhs_upscale -i video.mp4 -o out.mp4 --engine maxine
+
+   # Use FFmpeg (works everywhere, no GPU needed)
+   python -m vhs_upscaler.vhs_upscale -i video.mp4 -o out.mp4 --engine ffmpeg
+   ```
+
+</details>
+
+<details>
+<summary><b>❌ "YouTube download failed" or "yt-dlp: ERROR"</b></summary>
+
+**What happened:** YouTube blocks or changes their API frequently, breaking downloaders.
+
+**Why it matters:** yt-dlp needs regular updates to keep working with YouTube.
+
+**Solutions:**
+
+```bash
+# Update yt-dlp to latest version
+pip install --upgrade yt-dlp
+
+# If still failing, try with cookies (for age-restricted content)
+python -m vhs_upscaler.vhs_upscale -i "https://youtube.com/watch?v=VIDEO_ID" -o out.mp4
+
+# Common error: "Video unavailable"
+# → Video may be private, deleted, or region-locked
+# → Try a VPN or different video
+
+# Common error: "Sign in to confirm your age"
+# → Export cookies from your browser:
+# → Use browser extension "Get cookies.txt"
+# → Place cookies.txt in working directory
+```
+
+**Rate limiting:** If you get "HTTP Error 429", wait 10-15 minutes before retrying.
+
+</details>
+
+<details>
+<summary><b>❌ "Demucs failed" or "torch not found"</b></summary>
+
+**What happened:** Demucs AI audio separation requires PyTorch and the demucs package.
+
+**Why it matters:** Demucs provides the best quality stereo-to-surround conversion.
+
+**Solutions:**
+
+```bash
+# Install demucs and dependencies
+pip install demucs torch torchaudio
+
+# If CUDA errors, install CPU-only PyTorch:
+pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+
+# Or use simpler upmix methods (no extra dependencies):
+python -m vhs_upscaler.vhs_upscale -i video.mp4 -o out.mp4 --audio-upmix surround
+python -m vhs_upscaler.vhs_upscale -i video.mp4 -o out.mp4 --audio-upmix prologic
+```
+
+**Memory issues with Demucs:**
+```bash
+# Use CPU mode if GPU memory is limited
+python -m vhs_upscaler.vhs_upscale -i video.mp4 -o out.mp4 \
+  --audio-upmix demucs --demucs-device cpu
+
+# Reduce quality passes for faster processing
+python -m vhs_upscaler.vhs_upscale -i video.mp4 -o out.mp4 \
+  --audio-upmix demucs --demucs-shifts 0
+```
+
+</details>
+
+<details>
+<summary><b>❌ "Permission denied" or "Access denied"</b></summary>
+
+**What happened:** The program can't read/write files due to permission issues.
+
+**Why it matters:** Processing requires read access to input and write access to output location.
+
+**Solutions:**
+
+```bash
+# Linux/Mac - check file permissions
+ls -la video.mp4
+# If you don't own the file:
+sudo chown $USER video.mp4
+
+# Check output directory is writable
+ls -la /path/to/output/
+# Create directory if needed:
+mkdir -p /path/to/output
+
+# Windows - run as administrator if needed
+# Or change output to a user-writable location:
+python -m vhs_upscaler.vhs_upscale -i video.mp4 -o ~/Videos/output.mp4
+```
+
+**Common Windows issue:** Output path in Program Files or System folders.
+→ Use Documents, Videos, or Desktop instead.
+
+</details>
+
+<details>
+<summary><b>❌ "Output file is 0 bytes" or "Encoding failed"</b></summary>
+
+**What happened:** The encoding process failed silently or was interrupted.
+
+**Why it matters:** Incomplete processing results in corrupted or empty output files.
+
+**Solutions:**
+
+```bash
+# Enable verbose logging to see what went wrong
+python -m vhs_upscaler.vhs_upscale -i video.mp4 -o out.mp4 -v
+
+# Check logs in the logs/ directory
+cat logs/vhs_upscaler_*.log
+
+# Common causes:
+# 1. Disk full - check available space
+df -h  # Linux/Mac
+# 2. Corrupted input file - try playing in VLC first
+# 3. Unsupported codec - convert input first:
+ffmpeg -i input.mkv -c:v libx264 -c:a aac temp.mp4
+```
+
+**If encoding keeps failing:**
+```bash
+# Try different encoder
+python -m vhs_upscaler.vhs_upscale -i video.mp4 -o out.mp4 --encoder libx264
+
+# Try lower quality (uses less memory)
+python -m vhs_upscaler.vhs_upscale -i video.mp4 -o out.mp4 --crf 28
+
+# Try lower resolution
+python -m vhs_upscaler.vhs_upscale -i video.mp4 -o out.mp4 -r 720
+```
+
+</details>
+
+<details>
+<summary><b>❌ GUI won't start or "Gradio error"</b></summary>
+
+**What happened:** The web interface failed to initialize.
+
+**Why it matters:** The GUI requires Gradio and a free network port.
+
+**Solutions:**
+
+```bash
+# Update Gradio
+pip install --upgrade gradio
+
+# Check if port 7860 is in use
+# Linux/Mac:
+lsof -i :7860
+# Windows:
+netstat -ano | findstr 7860
+
+# Use a different port
+python -m vhs_upscaler.gui --port 7861
+
+# If firewall blocking, try localhost only
+python -m vhs_upscaler.gui --host 127.0.0.1
+```
+
+**Browser issues:**
+- Clear browser cache and cookies
+- Try incognito/private mode
+- Try a different browser
+
+</details>
+
+### Diagnostic Commands
+
+Run these commands to help diagnose issues:
+
+```bash
+# Check Python version (need 3.10+)
+python --version
+
+# Check FFmpeg
+ffmpeg -version
+
+# Check NVIDIA GPU and driver
+nvidia-smi
+
+# Check available disk space
+df -h  # Linux/Mac
+wmic logicaldisk get size,freespace,caption  # Windows
+
+# Check installed packages
+pip list | grep -E "(gradio|yt-dlp|torch|demucs)"
+
+# Test basic video processing
+ffmpeg -i input.mp4 -t 5 -c copy test_output.mp4
+
+# Check GPU memory usage
+nvidia-smi --query-gpu=memory.used,memory.total --format=csv
+```
+
+### Getting Help
+
+If you're still stuck:
+
+1. **Check logs:** `logs/vhs_upscaler_*.log`
+2. **Run with verbose:** Add `-v` flag to see detailed output
+3. **Search issues:** https://github.com/parthalon025/terminalai/issues
+4. **Create issue:** Include error message, OS, GPU, and steps to reproduce
+
+---
+
 ## 🔄 Alternatives
 
 | Project | Speed | Quality | Best For | Open Source |
