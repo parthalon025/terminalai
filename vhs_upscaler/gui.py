@@ -15,11 +15,8 @@ Features:
 
 import gradio as gr
 import json
-import os
 import sys
 import subprocess
-import threading
-import time
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, List, Tuple, Dict, Any
@@ -31,13 +28,13 @@ import hashlib
 sys.path.insert(0, str(Path(__file__).parent))
 
 from queue_manager import VideoQueue, QueueJob, JobStatus
-from logger import get_logger, VHSLogger
+from logger import get_logger
 
 # Initialize logger
 logger = get_logger(verbose=True, log_to_file=True)
 
 # Version info
-__version__ = "1.4.0"
+__version__ = "1.4.2"
 
 
 # =============================================================================
@@ -110,7 +107,7 @@ class AppState:
 def process_job(job: QueueJob, progress_callback) -> bool:
     """Process a single job through the pipeline."""
     from vhs_upscale import (
-        VHSUpscaler, ProcessingConfig, YouTubeDownloader, UnifiedProgress
+        VHSUpscaler, ProcessingConfig, YouTubeDownloader
     )
 
     AppState.add_log(f"Starting job: {job.input_source[:50]}...")
@@ -1289,7 +1286,6 @@ def create_gui() -> gr.Blocks:
 
                 # Detect system info
                 import platform
-                import shutil
 
                 gpu_info = "Not detected (install pynvml for GPU info)"
                 try:
@@ -1569,7 +1565,7 @@ def main():
     print("  🎬 VHS Upscaler Web GUI")
     print("=" * 60)
     print(f"  Output Directory: {AppState.output_dir.absolute()}")
-    print(f"  Log Directory: logs/")
+    print("  Log Directory: logs/")
     print("=" * 60 + "\n")
 
     app = create_gui()

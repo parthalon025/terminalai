@@ -1,20 +1,49 @@
-# TerminalAI Requirements
-# =======================
+# TerminalAI Requirements v1.4.2
+# ===============================
 # Install: pip install -r requirements.txt
 # Or full install: pip install -e .
 
-# Core dependencies
-yt-dlp>=2023.0.0          # YouTube downloading
-pyyaml>=6.0               # Configuration files
+# ===================
+# Core Dependencies
+# ===================
+yt-dlp>=2023.0.0              # YouTube/video downloading
+pyyaml>=6.0                   # Configuration files
 
-# GUI dependencies
-gradio>=4.0.0             # Modern web interface
+# ===================
+# GUI Dependencies
+# ===================
+gradio>=4.0.0                 # Modern web interface
 
-# Note: External dependencies (install separately)
-# - FFmpeg with NVENC support
-# - NVIDIA Driver 535+
-# - NVIDIA Maxine Video Effects SDK (optional, for AI upscaling)
-#   Download from: https://developer.nvidia.com/maxine
+# ===================
+# Optional: AI Audio (for Demucs surround upmix)
+# Install with: pip install -e ".[audio]"
+# ===================
+# demucs>=4.0.0               # AI stem separation
+# torch>=2.0.0                # PyTorch (required by demucs)
+# torchaudio>=2.0.0           # Audio processing
 
-# For development/testing, use: pip install -e ".[dev]"
-# This installs: pytest, pytest-cov, black, ruff
+# ===================
+# External Dependencies (install separately)
+# ===================
+# FFmpeg - Required for all video processing
+#   Linux: sudo apt install ffmpeg
+#   macOS: brew install ffmpeg
+#   Windows: winget install FFmpeg
+#
+# NVIDIA Driver 535+ - For GPU acceleration (optional)
+#   Download: https://www.nvidia.com/drivers
+#
+# NVIDIA Maxine SDK - Best AI upscaling on RTX (optional)
+#   Download: https://developer.nvidia.com/maxine
+#
+# Real-ESRGAN - AI upscaling for AMD/Intel/NVIDIA (optional)
+#   Download: https://github.com/xinntao/Real-ESRGAN/releases
+
+# ===================
+# Development Dependencies
+# Install with: pip install -e ".[dev]"
+# ===================
+# pytest>=7.0                 # Testing framework
+# pytest-cov>=4.0             # Test coverage
+# black>=23.0                 # Code formatting
+# ruff>=0.1.0                 # Linting
