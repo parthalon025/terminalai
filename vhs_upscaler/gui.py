@@ -4,18 +4,28 @@ VHS Upscaler Web GUI
 ====================
 Modern web-based interface for the VHS Upscaling Pipeline.
 Built with Gradio for a clean, responsive user experience.
+
+Features:
+- File upload with drag-and-drop support
+- Video preview thumbnails
+- Dark mode toggle
+- Real-time queue monitoring
+- Batch processing support
 """
 
 import gradio as gr
 import json
 import os
 import sys
+import subprocess
 import threading
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Dict, Any
 import tempfile
+import base64
+import hashlib
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent))
@@ -25,6 +35,9 @@ from logger import get_logger, VHSLogger
 
 # Initialize logger
 logger = get_logger(verbose=True, log_to_file=True)
+
+# Version info
+__version__ = "1.1.0"
 
 
 # =============================================================================
@@ -37,6 +50,9 @@ class AppState:
     output_dir: Path = Path("./output")
     logs: List[str] = []
     max_logs: int = 100
+    dark_mode: bool = False
+    thumbnail_cache: Dict[str, str] = {}
+    temp_dir: Path = Path(tempfile.gettempdir()) / "vhs_upscaler_temp"
 
     @classmethod
     def add_log(cls, message: str):
@@ -44,6 +60,47 @@ class AppState:
         cls.logs.append(f"[{timestamp}] {message}")
         if len(cls.logs) > cls.max_logs:
             cls.logs = cls.logs[-cls.max_logs:]
+
+    @classmethod
+    def toggle_dark_mode(cls) -> bool:
+        """Toggle dark mode setting."""
+        cls.dark_mode = not cls.dark_mode
+        cls.add_log(f"Dark mode {'enabled' if cls.dark_mode else 'disabled'}")
+        return cls.dark_mode
+
+    @classmethod
+    def get_thumbnail(cls, video_path: str) -> Optional[str]:
+        """Get or generate thumbnail for video file."""
+        if not video_path or not Path(video_path).exists():
+            return None
+
+        # Check cache
+        path_hash = hashlib.md5(video_path.encode()).hexdigest()[:8]
+        if path_hash in cls.thumbnail_cache:
+            return cls.thumbnail_cache[path_hash]
+
+        # Generate thumbnail using ffmpeg
+        try:
+            cls.temp_dir.mkdir(parents=True, exist_ok=True)
+            thumb_path = cls.temp_dir / f"thumb_{path_hash}.jpg"
+
+            if not thumb_path.exists():
+                subprocess.run([
+                    "ffmpeg", "-y", "-i", video_path,
+                    "-ss", "00:00:01", "-vframes", "1",
+                    "-vf", "scale=320:-1",
+                    str(thumb_path)
+                ], capture_output=True, timeout=10)
+
+            if thumb_path.exists():
+                with open(thumb_path, "rb") as f:
+                    thumb_data = base64.b64encode(f.read()).decode()
+                cls.thumbnail_cache[path_hash] = f"data:image/jpeg;base64,{thumb_data}"
+                return cls.thumbnail_cache[path_hash]
+        except Exception as e:
+            logger.debug(f"Failed to generate thumbnail: {e}")
+
+        return None
 
 
 # =============================================================================
@@ -167,6 +224,8 @@ def initialize_queue():
 
 def format_file_size(size_bytes: int) -> str:
     """Format file size in human-readable format."""
+    if size_bytes == 0:
+        return "0 B"
     for unit in ['B', 'KB', 'MB', 'GB']:
         if size_bytes < 1024:
             return f"{size_bytes:.1f} {unit}"
@@ -176,7 +235,104 @@ def format_file_size(size_bytes: int) -> str:
 
 def format_duration(seconds: float) -> str:
     """Format duration in human-readable format."""
+    if seconds <= 0:
+        return "0:00:00"
     return str(timedelta(seconds=int(seconds)))
+
+
+def get_video_info(video_path: str) -> Dict[str, Any]:
+    """Extract video metadata using ffprobe."""
+    info = {
+        "duration": 0,
+        "width": 0,
+        "height": 0,
+        "codec": "unknown",
+        "fps": 0,
+        "size": 0
+    }
+
+    if not video_path or not Path(video_path).exists():
+        return info
+
+    try:
+        # Get file size
+        info["size"] = Path(video_path).stat().st_size
+
+        # Use ffprobe to get video info
+        result = subprocess.run([
+            "ffprobe", "-v", "quiet",
+            "-print_format", "json",
+            "-show_format", "-show_streams",
+            video_path
+        ], capture_output=True, text=True, timeout=10)
+
+        if result.returncode == 0:
+            data = json.loads(result.stdout)
+
+            # Get duration from format
+            if "format" in data and "duration" in data["format"]:
+                info["duration"] = float(data["format"]["duration"])
+
+            # Get video stream info
+            for stream in data.get("streams", []):
+                if stream.get("codec_type") == "video":
+                    info["width"] = stream.get("width", 0)
+                    info["height"] = stream.get("height", 0)
+                    info["codec"] = stream.get("codec_name", "unknown")
+
+                    # Parse FPS
+                    fps_str = stream.get("r_frame_rate", "0/1")
+                    if "/" in fps_str:
+                        num, den = fps_str.split("/")
+                        if int(den) > 0:
+                            info["fps"] = round(int(num) / int(den), 2)
+                    break
+    except Exception as e:
+        logger.debug(f"Failed to get video info: {e}")
+
+    return info
+
+
+def handle_file_upload(file_obj) -> Tuple[str, str]:
+    """Handle uploaded file and return path and preview info."""
+    if file_obj is None:
+        return "", ""
+
+    # Gradio File returns a file path string
+    file_path = file_obj if isinstance(file_obj, str) else file_obj.name
+
+    if not file_path or not Path(file_path).exists():
+        return "", "No file uploaded"
+
+    # Get video info
+    info = get_video_info(file_path)
+    preview_html = f"""
+    <div style="padding: 10px; background: #f5f5f5; border-radius: 8px;">
+        <strong>Video Info:</strong><br/>
+        Resolution: {info['width']}x{info['height']}<br/>
+        Duration: {format_duration(info['duration'])}<br/>
+        Codec: {info['codec']}<br/>
+        FPS: {info['fps']}<br/>
+        Size: {format_file_size(info['size'])}
+    </div>
+    """
+
+    AppState.add_log(f"File uploaded: {Path(file_path).name}")
+    return file_path, preview_html
+
+
+def estimate_processing_time(info: Dict[str, Any], resolution: int) -> str:
+    """Estimate processing time based on video info and target resolution."""
+    if info["duration"] <= 0:
+        return "Unknown"
+
+    # Base estimate: 1 second of video = 2-10 seconds of processing
+    # Depends on resolution scaling
+    scale_factor = (resolution / max(info["height"], 480)) ** 2
+    base_multiplier = 3  # Average processing multiplier
+
+    estimated_seconds = info["duration"] * base_multiplier * scale_factor
+    return format_duration(estimated_seconds)
 
 
 def get_status_emoji(status: JobStatus) -> str:
@@ -380,9 +536,59 @@ def get_logs_display() -> str:
     return "\n".join(reversed(AppState.logs[-50:]))
 
 
-def refresh_display() -> Tuple[str, str]:
-    """Refresh the queue and logs display."""
-    return get_queue_display(), get_logs_display()
+def get_stats_display() -> str:
+    """Generate HTML stats dashboard."""
+    initialize_queue()
+
+    stats = AppState.queue.get_queue_stats()
+    jobs = AppState.queue.get_all_jobs()
+
+    # Calculate total processing time and output size
+    total_time = sum(j.processing_time for j in jobs if j.status == JobStatus.COMPLETED)
+    total_size = sum(j.output_size for j in jobs if j.status == JobStatus.COMPLETED)
+
+    # Processing rate
+    is_processing = AppState.queue.is_processing()
+    status_text = "🟢 Processing" if is_processing else "⏸️ Paused"
+    status_color = "#10b981" if is_processing else "#6b7280"
+
+    return f"""
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-value" style="color: #3b82f6;">{stats['pending']}</div>
+            <div class="stat-label">Pending</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" style="color: #f59e0b;">{stats['processing']}</div>
+            <div class="stat-label">Processing</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" style="color: #10b981;">{stats['completed']}</div>
+            <div class="stat-label">Completed</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" style="color: #ef4444;">{stats['failed']}</div>
+            <div class="stat-label">Failed</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{format_duration(total_time)}</div>
+            <div class="stat-label">Total Time</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{format_file_size(total_size)}</div>
+            <div class="stat-label">Output Size</div>
+        </div>
+    </div>
+    <div style="text-align: center; padding: 10px; background: #f5f5f5; border-radius: 8px; margin-top: 10px;">
+        <span style="color: {status_color}; font-weight: 600;">{status_text}</span>
+        <span style="margin-left: 15px; color: #666;">Total Jobs: {stats['total']}</span>
+    </div>
+    """
+
+
+def refresh_display() -> Tuple[str, str, str]:
+    """Refresh the queue, stats, and logs display."""
+    return get_queue_display(), get_stats_display(), get_logs_display()
 
 
 def set_output_directory(path: str) -> str:
@@ -401,17 +607,45 @@ def set_output_directory(path: str) -> str:
 def create_gui() -> gr.Blocks:
     """Create the Gradio interface."""
 
-    # Custom CSS for modern look (inspired by rtx-upscaler and video2x)
+    # Custom CSS for modern look with dark mode support
     custom_css = """
+    /* CSS Variables for theming */
+    :root {
+        --bg-primary: #ffffff;
+        --bg-secondary: #f5f5f5;
+        --bg-card: #ffffff;
+        --text-primary: #1a1a1a;
+        --text-secondary: #666666;
+        --border-color: #e0e0e0;
+        --shadow-color: rgba(0,0,0,0.08);
+        --accent-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        --success-color: #10b981;
+        --error-color: #ef4444;
+        --warning-color: #f59e0b;
+        --info-color: #3b82f6;
+    }
+
+    /* Dark mode variables */
+    .dark {
+        --bg-primary: #1a1a2e;
+        --bg-secondary: #16213e;
+        --bg-card: #0f3460;
+        --text-primary: #e4e4e4;
+        --text-secondary: #a0a0a0;
+        --border-color: #2a2a4a;
+        --shadow-color: rgba(0,0,0,0.3);
+    }
+
     /* Container styling */
     .gradio-container {
         max-width: 1200px !important;
         margin: 0 auto !important;
+        background: var(--bg-primary) !important;
     }
 
     /* Header gradient */
     .prose h1 {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: var(--accent-gradient);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
@@ -431,12 +665,13 @@ def create_gui() -> gr.Blocks:
     /* Card-like sections */
     .block {
         border-radius: 12px !important;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
+        box-shadow: 0 2px 8px var(--shadow-color) !important;
+        background: var(--bg-card) !important;
     }
 
     /* Button enhancements */
     .primary {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+        background: var(--accent-gradient) !important;
         border: none !important;
         transition: all 0.3s ease !important;
     }
@@ -445,11 +680,18 @@ def create_gui() -> gr.Blocks:
         box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4) !important;
     }
 
+    /* Secondary button */
+    .secondary {
+        background: var(--bg-secondary) !important;
+        border: 1px solid var(--border-color) !important;
+        transition: all 0.2s ease !important;
+    }
+
     /* Status badges */
-    .status-completed { color: #10b981; font-weight: 600; }
-    .status-processing { color: #3b82f6; font-weight: 600; }
-    .status-failed { color: #ef4444; font-weight: 600; }
-    .status-pending { color: #6b7280; }
+    .status-completed { color: var(--success-color); font-weight: 600; }
+    .status-processing { color: var(--info-color); font-weight: 600; }
+    .status-failed { color: var(--error-color); font-weight: 600; }
+    .status-pending { color: var(--text-secondary); }
 
     /* Progress bar animation */
     @keyframes progress-pulse {
@@ -464,10 +706,14 @@ def create_gui() -> gr.Blocks:
     .queue-item {
         transition: all 0.2s ease;
         border-left: 4px solid transparent;
+        background: var(--bg-card);
+        border-radius: 8px;
+        margin-bottom: 10px;
+        padding: 12px;
     }
     .queue-item:hover {
         border-left-color: #667eea;
-        background: #f8fafc;
+        background: var(--bg-secondary);
     }
 
     /* Version badge */
@@ -478,6 +724,94 @@ def create_gui() -> gr.Blocks:
         border-radius: 20px;
         font-size: 12px;
         font-weight: 600;
+    }
+
+    /* File upload zone */
+    .upload-zone {
+        border: 2px dashed var(--border-color);
+        border-radius: 12px;
+        padding: 30px;
+        text-align: center;
+        transition: all 0.3s ease;
+        background: var(--bg-secondary);
+    }
+    .upload-zone:hover {
+        border-color: #667eea;
+        background: rgba(102, 126, 234, 0.05);
+    }
+
+    /* Video preview */
+    .video-preview {
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 4px 12px var(--shadow-color);
+    }
+
+    /* Info cards */
+    .info-card {
+        background: var(--bg-secondary);
+        border-radius: 8px;
+        padding: 15px;
+        margin: 10px 0;
+    }
+
+    /* Dark mode toggle */
+    .dark-mode-toggle {
+        position: fixed;
+        top: 10px;
+        right: 10px;
+        z-index: 1000;
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+    .dark-mode-toggle:hover {
+        transform: scale(1.1);
+    }
+
+    /* Stats grid */
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 15px;
+        margin: 15px 0;
+    }
+    .stat-card {
+        background: var(--bg-secondary);
+        border-radius: 8px;
+        padding: 15px;
+        text-align: center;
+    }
+    .stat-value {
+        font-size: 24px;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+    .stat-label {
+        font-size: 12px;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+    }
+
+    /* Notification toast */
+    .toast {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        padding: 15px 25px;
+        border-radius: 8px;
+        background: var(--bg-card);
+        box-shadow: 0 4px 20px var(--shadow-color);
+        z-index: 1000;
+        animation: slideIn 0.3s ease;
+    }
+    @keyframes slideIn {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
     }
     """
 
@@ -491,12 +825,12 @@ def create_gui() -> gr.Blocks:
     ) as app:
 
         # Header with version badge
-        gr.Markdown("""
+        gr.Markdown(f"""
         # 🎬 VHS Video Upscaler
-        ### AI-Powered Video Enhancement with NVIDIA Maxine <span class="version-badge">v1.0.0</span>
+        ### AI-Powered Video Enhancement with NVIDIA Maxine <span class="version-badge">v{__version__}</span>
 
         Transform vintage VHS tapes, DVDs, and low-quality videos into stunning HD/4K using RTX GPU acceleration.
-        Supports **YouTube URLs** and **local files** with batch processing and queue management.
+        Supports **YouTube URLs**, **local files**, and **drag-and-drop upload** with batch processing.
         """)
 
         with gr.Tabs():
@@ -506,11 +840,31 @@ def create_gui() -> gr.Blocks:
             with gr.TabItem("📹 Single Video", id=1):
                 with gr.Row():
                     with gr.Column(scale=2):
-                        input_source = gr.Textbox(
-                            label="Video Source",
-                            placeholder="Enter file path or YouTube URL...",
-                            info="Supports: youtube.com, youtu.be, local .mp4/.avi/.mkv files"
-                        )
+                        gr.Markdown("### Input Source")
+
+                        # Tab group for input methods
+                        with gr.Tabs():
+                            with gr.TabItem("📁 Upload File"):
+                                file_upload = gr.File(
+                                    label="Drag & Drop Video File",
+                                    file_types=["video"],
+                                    file_count="single",
+                                    type="filepath"
+                                )
+                                file_preview = gr.HTML(
+                                    value="<div class='info-card'>Upload a video file to see preview info</div>",
+                                    label="Video Info"
+                                )
+
+                            with gr.TabItem("🔗 URL / Path"):
+                                input_source = gr.Textbox(
+                                    label="Video Source",
+                                    placeholder="Enter file path or YouTube URL...",
+                                    info="Supports: youtube.com, youtu.be, local .mp4/.avi/.mkv files"
+                                )
+
+                        # Hidden textbox to hold the final input path
+                        final_input = gr.Textbox(visible=False, value="")
 
                         with gr.Row():
                             preset = gr.Dropdown(
@@ -565,6 +919,14 @@ def create_gui() -> gr.Blocks:
                         | **auto** | Auto-detect settings |
                         """)
 
+                        gr.Markdown("### 💡 Quick Tips")
+                        gr.Markdown("""
+                        - Use **hevc_nvenc** for best compression
+                        - Lower **CRF** = better quality, larger files
+                        - **1080p** is ideal for most VHS content
+                        - **4K (2160p)** best for DVD sources
+                        """)
+
             # =====================================================================
             # Tab 2: Batch Processing
             # =====================================================================
@@ -604,12 +966,20 @@ def create_gui() -> gr.Blocks:
             # Tab 3: Queue
             # =====================================================================
             with gr.TabItem("📋 Queue", id=3):
+                # Stats dashboard
+                gr.Markdown("### Queue Overview")
+                stats_display = gr.HTML(
+                    value=get_stats_display(),
+                    label="Statistics"
+                )
+
                 with gr.Row():
-                    start_btn = gr.Button("▶️ Start", variant="primary")
+                    start_btn = gr.Button("▶️ Start Processing", variant="primary", size="lg")
                     pause_btn = gr.Button("⏸️ Pause", variant="secondary")
-                    clear_btn = gr.Button("🗑️ Clear Done", variant="secondary")
+                    clear_btn = gr.Button("🗑️ Clear Completed", variant="secondary")
                     refresh_btn = gr.Button("🔄 Refresh", variant="secondary")
 
+                gr.Markdown("### Job Queue")
                 queue_display = gr.HTML(
                     value=get_queue_display(),
                     label="Queue"
@@ -645,6 +1015,21 @@ def create_gui() -> gr.Blocks:
                     output_dir_btn = gr.Button("Set Directory")
 
                 output_dir_status = gr.Textbox(label="Status", interactive=False)
+
+                gr.Markdown("---")
+                gr.Markdown("### Appearance")
+
+                with gr.Row():
+                    dark_mode_checkbox = gr.Checkbox(
+                        label="🌙 Dark Mode",
+                        value=False,
+                        info="Enable dark mode for easier viewing"
+                    )
+                    theme_status = gr.Textbox(
+                        value="Light mode active",
+                        label="Theme Status",
+                        interactive=False
+                    )
 
                 gr.Markdown("---")
                 gr.Markdown("### System Information")
@@ -688,10 +1073,10 @@ def create_gui() -> gr.Blocks:
             # Tab 6: About
             # =====================================================================
             with gr.TabItem("ℹ️ About", id=6):
-                gr.Markdown("""
+                gr.Markdown(f"""
                 ### About VHS Video Upscaler
 
-                **Version:** 1.0.0
+                **Version:** {__version__}
                 **License:** MIT (Open Source)
 
                 ---
@@ -701,7 +1086,9 @@ def create_gui() -> gr.Blocks:
                 - 📺 **VHS Restoration** - Optimized presets for vintage footage
                 - ⬇️ **YouTube Integration** - Download and upscale in one step
                 - 📋 **Queue System** - Batch process multiple videos
-                - 👁️ **Watch Folder** - Automatic processing of new files
+                - 📁 **Drag & Drop** - Easy file upload support
+                - 👁️ **Video Preview** - See file info before processing
+                - 🌙 **Dark Mode** - Easy on the eyes
                 - 🚀 **GPU Accelerated** - RTX Tensor Core optimization
 
                 ---
@@ -730,10 +1117,36 @@ def create_gui() -> gr.Blocks:
         # Event Handlers
         # =====================================================================
 
-        # Single video
+        # File upload handler
+        def on_file_upload(file_path):
+            if file_path:
+                path, preview = handle_file_upload(file_path)
+                return path, preview, path
+            return "", "<div class='info-card'>Upload a video file to see preview info</div>", ""
+
+        file_upload.change(
+            fn=on_file_upload,
+            inputs=[file_upload],
+            outputs=[input_source, file_preview, final_input]
+        )
+
+        # URL input updates final_input
+        input_source.change(
+            fn=lambda x: x,
+            inputs=[input_source],
+            outputs=[final_input]
+        )
+
+        # Helper to get the right input source
+        def add_video_to_queue(file_path, url_input, preset, resolution, quality, crf, encoder):
+            # Prefer file upload, fall back to URL/path input
+            source = file_path if file_path else url_input
+            return add_to_queue(source, preset, resolution, quality, crf, encoder)
+
+        # Single video - use combined handler
         add_btn.click(
-            fn=add_to_queue,
-            inputs=[input_source, preset, resolution, quality, crf, encoder],
+            fn=add_video_to_queue,
+            inputs=[final_input, input_source, preset, resolution, quality, crf, encoder],
             outputs=[status_msg, queue_display]
         )
 
@@ -744,11 +1157,23 @@ def create_gui() -> gr.Blocks:
             outputs=[batch_status, queue_display]
         )
 
-        # Queue controls
-        start_btn.click(fn=start_queue, outputs=[queue_status, queue_display])
-        pause_btn.click(fn=pause_queue, outputs=[queue_status, queue_display])
-        clear_btn.click(fn=clear_completed, outputs=[queue_status, queue_display])
-        refresh_btn.click(fn=refresh_display, outputs=[queue_display, logs_display])
+        # Queue controls with stats update
+        def start_queue_with_stats():
+            result = start_queue()
+            return result[0], result[1], get_stats_display()
+
+        def pause_queue_with_stats():
+            result = pause_queue()
+            return result[0], result[1], get_stats_display()
+
+        def clear_completed_with_stats():
+            result = clear_completed()
+            return result[0], result[1], get_stats_display()
+
+        start_btn.click(fn=start_queue_with_stats, outputs=[queue_status, queue_display, stats_display])
+        pause_btn.click(fn=pause_queue_with_stats, outputs=[queue_status, queue_display, stats_display])
+        clear_btn.click(fn=clear_completed_with_stats, outputs=[queue_status, queue_display, stats_display])
+        refresh_btn.click(fn=refresh_display, outputs=[queue_display, stats_display, logs_display])
 
         # Logs
         logs_refresh_btn.click(fn=get_logs_display, outputs=[logs_display])
@@ -760,8 +1185,24 @@ def create_gui() -> gr.Blocks:
             outputs=[output_dir_status]
         )
 
-        # Auto-refresh queue every 2 seconds
-        app.load(fn=get_queue_display, outputs=[queue_display], every=2)
+        # Dark mode toggle handler
+        def toggle_theme(enabled):
+            AppState.dark_mode = enabled
+            status = "🌙 Dark mode active" if enabled else "☀️ Light mode active"
+            AppState.add_log(f"Theme changed: {status}")
+            return status
+
+        dark_mode_checkbox.change(
+            fn=toggle_theme,
+            inputs=[dark_mode_checkbox],
+            outputs=[theme_status]
+        )
+
+        # Auto-refresh queue and stats every 2 seconds
+        def auto_refresh():
+            return get_queue_display(), get_stats_display()
+
+        app.load(fn=auto_refresh, outputs=[queue_display, stats_display], every=2)
 
     return app
 
