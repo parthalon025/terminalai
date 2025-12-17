@@ -1,0 +1,14 @@
+# VHS Upscaler Requirements
+# =========================
+
+# Core dependencies
+yt-dlp>=2024.0.0          # YouTube downloading
+pyyaml>=6.0               # Configuration files
+
+# GUI dependencies
+gradio>=4.0.0             # Modern web interface
+
+# Optional dependencies (uncomment if needed)
+# watchdog>=3.0.0         # Enhanced file watching
+# rich>=13.0.0            # Rich console output
+# tqdm>=4.65.0            # Progress bars

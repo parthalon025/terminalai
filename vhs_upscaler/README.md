@@ -4,12 +4,73 @@ AI-powered video upscaling optimized for VHS-quality footage (480i) upscaled to 
 
 ## Features
 
-- **Watch folder automation** — Drop files in `/input`, get processed files in `/output`
-- **Pre-processing** — Deinterlace (yadif), temporal denoise (hqdn3d), audio extraction
-- **AI Upscaling** — NVIDIA Maxine SuperRes with artifact reduction
-- **Post-processing** — NVENC hardware encoding (H.265/H.264), audio remux
-- **Presets** — Optimized settings for VHS, DVD, webcam sources
-- **Progress tracking** — Real-time progress with ETA estimates
+- **🎬 YouTube & Local Files** — Process videos from URLs or local files
+- **🖥️ Modern Web GUI** — Beautiful Gradio-based interface
+- **📋 Video Queue** — Batch processing with queue management
+- **📊 Verbose Logging** — Detailed logs with file output
+- **👁️ Watch folder automation** — Drop files in `/input`, get processed files in `/output`
+- **🔧 Pre-processing** — Deinterlace (yadif), temporal denoise (hqdn3d), audio extraction
+- **🚀 AI Upscaling** — NVIDIA Maxine SuperRes with artifact reduction
+- **💾 Post-processing** — NVENC hardware encoding (H.265/H.264), audio remux
+- **⚙️ Presets** — Optimized settings for VHS, DVD, webcam sources
+- **📈 Progress tracking** — Real-time progress with ETA estimates
+
+## Quick Start
+
+### Option 1: Web GUI (Recommended)
+
+```bash
+# Install dependencies
+pip install -r requirements.txt
+
+# Launch the web interface
+python gui.py
+```
+
+The browser will open automatically at `http://localhost:7860`
+
+### Option 2: Command Line
+
+```bash
+# From YouTube URL
+python vhs_upscale.py -i "https://youtube.com/watch?v=VIDEO_ID" -o output.mp4
+
+# From local file
+python vhs_upscale.py -i video.mp4 -o upscaled.mp4 --preset vhs
+```
+
+## Web GUI Features
+
+The modern web interface provides:
+
+- **Single Video Tab** — Process one video with full options
+- **Batch Processing Tab** — Add multiple URLs at once
+- **Queue Tab** — Monitor and control processing queue
+- **Logs Tab** — View real-time activity logs
+- **Settings Tab** — Configure output directory
+
+### Screenshots
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  🎬 VHS Video Upscaler                                      │
+│  AI-Powered Video Enhancement with NVIDIA Maxine            │
+├─────────────────────────────────────────────────────────────┤
+│  📹 Single Video │ 📚 Batch │ 📋 Queue │ 📜 Logs │ ⚙️ Settings │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  Video Source: [https://youtube.com/watch?v=...           ] │
+│                                                             │
+│  Preset: [vhs ▼]    Resolution: [1080 ▼]                    │
+│                                                             │
+│  [➕ Add to Queue]                                          │
+│                                                             │
+│  ┌─ Queue ─────────────────────────────────────────────┐    │
+│  │ ⬇️ Downloading: Video Title                         │    │
+│  │ [████████████░░░░░░░░░░░░░░░] 45% | ETA: 0:02:30    │    │
+│  └─────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────┘
+```
 
 ## Requirements
 
