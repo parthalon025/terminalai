@@ -38,3 +38,18 @@ env/
 
 # Video processing temp
 vhs_upscale_*/
+
+# Logs
+logs/
+*.log
+
+# Queue state
+queue_state.json
+
+# Output
+output/
+
+# Pytest
+.pytest_cache/
+.coverage
+htmlcov/

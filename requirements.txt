@@ -1,6 +1,7 @@
 # TerminalAI Requirements
-# ======================
-# For full installation, use: pip install -e .
+# =======================
+# Install: pip install -r requirements.txt
+# Or full install: pip install -e .
 
 # Core dependencies
 yt-dlp>=2023.0.0          # YouTube downloading
@@ -9,5 +10,11 @@ pyyaml>=6.0               # Configuration files
 # GUI dependencies
 gradio>=4.0.0             # Modern web interface
 
-# Note: FFmpeg and NVIDIA Maxine SDK must be installed separately
-# See README.md for installation instructions
+# Note: External dependencies (install separately)
+# - FFmpeg with NVENC support
+# - NVIDIA Driver 535+
+# - NVIDIA Maxine Video Effects SDK (optional, for AI upscaling)
+#   Download from: https://developer.nvidia.com/maxine
+
+# For development/testing, use: pip install -e ".[dev]"
+# This installs: pytest, pytest-cov, black, ruff

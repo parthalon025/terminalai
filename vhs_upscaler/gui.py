@@ -4,18 +4,28 @@ VHS Upscaler Web GUI
 ====================
 Modern web-based interface for the VHS Upscaling Pipeline.
 Built with Gradio for a clean, responsive user experience.
+
+Features:
+- File upload with drag-and-drop support
+- Video preview thumbnails
+- Dark mode toggle
+- Real-time queue monitoring
+- Batch processing support
 """
 
 import gradio as gr
 import json
 import os
 import sys
+import subprocess
 import threading
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Dict, Any
 import tempfile
+import base64
+import hashlib
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent))
@@ -25,6 +35,9 @@ from logger import get_logger, VHSLogger
 
 # Initialize logger
 logger = get_logger(verbose=True, log_to_file=True)
+
+# Version info
+__version__ = "1.4.0"
 
 
 # =============================================================================
@@ -37,6 +50,9 @@ class AppState:
     output_dir: Path = Path("./output")
     logs: List[str] = []
     max_logs: int = 100
+    dark_mode: bool = False
+    thumbnail_cache: Dict[str, str] = {}
+    temp_dir: Path = Path(tempfile.gettempdir()) / "vhs_upscaler_temp"
 
     @classmethod
     def add_log(cls, message: str):
@@ -44,6 +60,47 @@ class AppState:
         cls.logs.append(f"[{timestamp}] {message}")
         if len(cls.logs) > cls.max_logs:
             cls.logs = cls.logs[-cls.max_logs:]
+
+    @classmethod
+    def toggle_dark_mode(cls) -> bool:
+        """Toggle dark mode setting."""
+        cls.dark_mode = not cls.dark_mode
+        cls.add_log(f"Dark mode {'enabled' if cls.dark_mode else 'disabled'}")
+        return cls.dark_mode
+
+    @classmethod
+    def get_thumbnail(cls, video_path: str) -> Optional[str]:
+        """Get or generate thumbnail for video file."""
+        if not video_path or not Path(video_path).exists():
+            return None
+
+        # Check cache
+        path_hash = hashlib.md5(video_path.encode()).hexdigest()[:8]
+        if path_hash in cls.thumbnail_cache:
+            return cls.thumbnail_cache[path_hash]
+
+        # Generate thumbnail using ffmpeg
+        try:
+            cls.temp_dir.mkdir(parents=True, exist_ok=True)
+            thumb_path = cls.temp_dir / f"thumb_{path_hash}.jpg"
+
+            if not thumb_path.exists():
+                subprocess.run([
+                    "ffmpeg", "-y", "-i", video_path,
+                    "-ss", "00:00:01", "-vframes", "1",
+                    "-vf", "scale=320:-1",
+                    str(thumb_path)
+                ], capture_output=True, timeout=10)
+
+            if thumb_path.exists():
+                with open(thumb_path, "rb") as f:
+                    thumb_data = base64.b64encode(f.read()).decode()
+                cls.thumbnail_cache[path_hash] = f"data:image/jpeg;base64,{thumb_data}"
+                return cls.thumbnail_cache[path_hash]
+        except Exception as e:
+            logger.debug(f"Failed to generate thumbnail: {e}")
+
+        return None
 
 
 # =============================================================================
@@ -76,7 +133,30 @@ def process_job(job: QueueJob, progress_callback) -> bool:
             crf=job.crf,
             preset=job.preset,
             encoder=job.encoder,
-            skip_maxine=True,  # For testing; remove in production
+            # Video upscale options
+            upscale_engine=getattr(job, 'upscale_engine', 'auto'),
+            hdr_mode=getattr(job, 'hdr_mode', 'sdr'),
+            realesrgan_model=getattr(job, 'realesrgan_model', 'realesrgan-x4plus'),
+            realesrgan_denoise=getattr(job, 'realesrgan_denoise', 0.5),
+            ffmpeg_scale_algo=getattr(job, 'ffmpeg_scale_algo', 'lanczos'),
+            hdr_brightness=getattr(job, 'hdr_brightness', 400),
+            color_depth=getattr(job, 'hdr_color_depth', 10),
+            # Audio options
+            audio_enhance=getattr(job, 'audio_enhance', 'none'),
+            audio_upmix=getattr(job, 'audio_upmix', 'none'),
+            audio_layout=getattr(job, 'audio_layout', 'original'),
+            audio_format=getattr(job, 'audio_format', 'aac'),
+            # Audio enhancement advanced
+            audio_target_loudness=getattr(job, 'audio_target_loudness', -14.0),
+            audio_noise_floor=getattr(job, 'audio_noise_floor', -20.0),
+            # Demucs advanced
+            demucs_model=getattr(job, 'demucs_model', 'htdemucs'),
+            demucs_device=getattr(job, 'demucs_device', 'auto'),
+            demucs_shifts=getattr(job, 'demucs_shifts', 1),
+            # Surround advanced
+            lfe_crossover=getattr(job, 'lfe_crossover', 120),
+            center_mix=getattr(job, 'center_mix', 0.707),
+            surround_delay=getattr(job, 'surround_delay', 15),
         )
 
         # Apply preset
@@ -167,6 +247,8 @@ def initialize_queue():
 
 def format_file_size(size_bytes: int) -> str:
     """Format file size in human-readable format."""
+    if size_bytes == 0:
+        return "0 B"
     for unit in ['B', 'KB', 'MB', 'GB']:
         if size_bytes < 1024:
             return f"{size_bytes:.1f} {unit}"
@@ -176,7 +258,104 @@ def format_file_size(size_bytes: int) -> str:
 
 def format_duration(seconds: float) -> str:
     """Format duration in human-readable format."""
+    if seconds <= 0:
+        return "0:00:00"
     return str(timedelta(seconds=int(seconds)))
+
+
+def get_video_info(video_path: str) -> Dict[str, Any]:
+    """Extract video metadata using ffprobe."""
+    info = {
+        "duration": 0,
+        "width": 0,
+        "height": 0,
+        "codec": "unknown",
+        "fps": 0,
+        "size": 0
+    }
+
+    if not video_path or not Path(video_path).exists():
+        return info
+
+    try:
+        # Get file size
+        info["size"] = Path(video_path).stat().st_size
+
+        # Use ffprobe to get video info
+        result = subprocess.run([
+            "ffprobe", "-v", "quiet",
+            "-print_format", "json",
+            "-show_format", "-show_streams",
+            video_path
+        ], capture_output=True, text=True, timeout=10)
+
+        if result.returncode == 0:
+            data = json.loads(result.stdout)
+
+            # Get duration from format
+            if "format" in data and "duration" in data["format"]:
+                info["duration"] = float(data["format"]["duration"])
+
+            # Get video stream info
+            for stream in data.get("streams", []):
+                if stream.get("codec_type") == "video":
+                    info["width"] = stream.get("width", 0)
+                    info["height"] = stream.get("height", 0)
+                    info["codec"] = stream.get("codec_name", "unknown")
+
+                    # Parse FPS
+                    fps_str = stream.get("r_frame_rate", "0/1")
+                    if "/" in fps_str:
+                        num, den = fps_str.split("/")
+                        if int(den) > 0:
+                            info["fps"] = round(int(num) / int(den), 2)
+                    break
+    except Exception as e:
+        logger.debug(f"Failed to get video info: {e}")
+
+    return info
+
+
+def handle_file_upload(file_obj) -> Tuple[str, str]:
+    """Handle uploaded file and return path and preview info."""
+    if file_obj is None:
+        return "", ""
+
+    # Gradio File returns a file path string
+    file_path = file_obj if isinstance(file_obj, str) else file_obj.name
+
+    if not file_path or not Path(file_path).exists():
+        return "", "No file uploaded"
+
+    # Get video info
+    info = get_video_info(file_path)
+    preview_html = f"""
+    <div style="padding: 10px; background: #f5f5f5; border-radius: 8px;">
+        <strong>Video Info:</strong><br/>
+        Resolution: {info['width']}x{info['height']}<br/>
+        Duration: {format_duration(info['duration'])}<br/>
+        Codec: {info['codec']}<br/>
+        FPS: {info['fps']}<br/>
+        Size: {format_file_size(info['size'])}
+    </div>
+    """
+
+    AppState.add_log(f"File uploaded: {Path(file_path).name}")
+    return file_path, preview_html
+
+
+def estimate_processing_time(info: Dict[str, Any], resolution: int) -> str:
+    """Estimate processing time based on video info and target resolution."""
+    if info["duration"] <= 0:
+        return "Unknown"
+
+    # Base estimate: 1 second of video = 2-10 seconds of processing
+    # Depends on resolution scaling
+    scale_factor = (resolution / max(info["height"], 480)) ** 2
+    base_multiplier = 3  # Average processing multiplier
+
+    estimated_seconds = info["duration"] * base_multiplier * scale_factor
+    return format_duration(estimated_seconds)
 
 
 def get_status_emoji(status: JobStatus) -> str:
@@ -212,7 +391,18 @@ def generate_output_path(input_source: str, resolution: int) -> str:
 # =============================================================================
 
 def add_to_queue(input_source: str, preset: str, resolution: int,
-                 quality: int, crf: int, encoder: str) -> Tuple[str, str]:
+                 quality: int, crf: int, encoder: str,
+                 upscale_engine: str = "auto", hdr_mode: str = "sdr",
+                 realesrgan_model: str = "realesrgan-x4plus",
+                 realesrgan_denoise: float = 0.5,
+                 ffmpeg_scale_algo: str = "lanczos",
+                 hdr_brightness: int = 400, hdr_color_depth: int = 10,
+                 audio_enhance: str = "none", audio_upmix: str = "none",
+                 audio_layout: str = "original", audio_format: str = "aac",
+                 audio_target_loudness: float = -14.0, audio_noise_floor: float = -20.0,
+                 demucs_model: str = "htdemucs", demucs_device: str = "auto",
+                 demucs_shifts: int = 1, lfe_crossover: int = 120,
+                 center_mix: float = 0.707, surround_delay: int = 15) -> Tuple[str, str]:
     """Add a video to the processing queue."""
     initialize_queue()
 
@@ -228,7 +418,26 @@ def add_to_queue(input_source: str, preset: str, resolution: int,
         resolution=resolution,
         quality=quality,
         crf=crf,
-        encoder=encoder
+        encoder=encoder,
+        upscale_engine=upscale_engine,
+        hdr_mode=hdr_mode,
+        realesrgan_model=realesrgan_model,
+        realesrgan_denoise=realesrgan_denoise,
+        ffmpeg_scale_algo=ffmpeg_scale_algo,
+        hdr_brightness=hdr_brightness,
+        hdr_color_depth=hdr_color_depth,
+        audio_enhance=audio_enhance,
+        audio_upmix=audio_upmix,
+        audio_layout=audio_layout,
+        audio_format=audio_format,
+        audio_target_loudness=audio_target_loudness,
+        audio_noise_floor=audio_noise_floor,
+        demucs_model=demucs_model,
+        demucs_device=demucs_device,
+        demucs_shifts=demucs_shifts,
+        lfe_crossover=lfe_crossover,
+        center_mix=center_mix,
+        surround_delay=surround_delay
     )
 
     AppState.add_log(f"Added to queue: {input_source[:50]}...")
@@ -237,8 +446,11 @@ def add_to_queue(input_source: str, preset: str, resolution: int,
 
 
 def add_multiple_to_queue(urls_text: str, preset: str, resolution: int,
-                          quality: int, crf: int, encoder: str) -> Tuple[str, str]:
-    """Add multiple videos to the queue."""
+                          quality: int, crf: int, encoder: str,
+                          upscale_engine: str = "auto", hdr_mode: str = "sdr",
+                          audio_enhance: str = "none", audio_upmix: str = "none",
+                          audio_layout: str = "original", audio_format: str = "aac") -> Tuple[str, str]:
+    """Add multiple videos to the queue (uses default advanced settings)."""
     initialize_queue()
 
     urls = [u.strip() for u in urls_text.strip().split('\n') if u.strip()]
@@ -256,7 +468,13 @@ def add_multiple_to_queue(urls_text: str, preset: str, resolution: int,
             resolution=resolution,
             quality=quality,
             crf=crf,
-            encoder=encoder
+            encoder=encoder,
+            upscale_engine=upscale_engine,
+            hdr_mode=hdr_mode,
+            audio_enhance=audio_enhance,
+            audio_upmix=audio_upmix,
+            audio_layout=audio_layout,
+            audio_format=audio_format
         )
         added += 1
 
@@ -380,9 +598,59 @@ def get_logs_display() -> str:
     return "\n".join(reversed(AppState.logs[-50:]))
 
 
-def refresh_display() -> Tuple[str, str]:
-    """Refresh the queue and logs display."""
-    return get_queue_display(), get_logs_display()
+def get_stats_display() -> str:
+    """Generate HTML stats dashboard."""
+    initialize_queue()
+
+    stats = AppState.queue.get_queue_stats()
+    jobs = AppState.queue.get_all_jobs()
+
+    # Calculate total processing time and output size
+    total_time = sum(j.processing_time for j in jobs if j.status == JobStatus.COMPLETED)
+    total_size = sum(j.output_size for j in jobs if j.status == JobStatus.COMPLETED)
+
+    # Processing rate
+    is_processing = AppState.queue.is_processing()
+    status_text = "🟢 Processing" if is_processing else "⏸️ Paused"
+    status_color = "#10b981" if is_processing else "#6b7280"
+
+    return f"""
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-value" style="color: #3b82f6;">{stats['pending']}</div>
+            <div class="stat-label">Pending</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" style="color: #f59e0b;">{stats['processing']}</div>
+            <div class="stat-label">Processing</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" style="color: #10b981;">{stats['completed']}</div>
+            <div class="stat-label">Completed</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" style="color: #ef4444;">{stats['failed']}</div>
+            <div class="stat-label">Failed</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{format_duration(total_time)}</div>
+            <div class="stat-label">Total Time</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{format_file_size(total_size)}</div>
+            <div class="stat-label">Output Size</div>
+        </div>
+    </div>
+    <div style="text-align: center; padding: 10px; background: #f5f5f5; border-radius: 8px; margin-top: 10px;">
+        <span style="color: {status_color}; font-weight: 600;">{status_text}</span>
+        <span style="margin-left: 15px; color: #666;">Total Jobs: {stats['total']}</span>
+    </div>
+    """
+
+
+def refresh_display() -> Tuple[str, str, str]:
+    """Refresh the queue, stats, and logs display."""
+    return get_queue_display(), get_stats_display(), get_logs_display()
 
 
 def set_output_directory(path: str) -> str:
@@ -401,17 +669,45 @@ def set_output_directory(path: str) -> str:
 def create_gui() -> gr.Blocks:
     """Create the Gradio interface."""
 
-    # Custom CSS for modern look (inspired by rtx-upscaler and video2x)
+    # Custom CSS for modern look with dark mode support
     custom_css = """
+    /* CSS Variables for theming */
+    :root {
+        --bg-primary: #ffffff;
+        --bg-secondary: #f5f5f5;
+        --bg-card: #ffffff;
+        --text-primary: #1a1a1a;
+        --text-secondary: #666666;
+        --border-color: #e0e0e0;
+        --shadow-color: rgba(0,0,0,0.08);
+        --accent-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        --success-color: #10b981;
+        --error-color: #ef4444;
+        --warning-color: #f59e0b;
+        --info-color: #3b82f6;
+    }
+
+    /* Dark mode variables */
+    .dark {
+        --bg-primary: #1a1a2e;
+        --bg-secondary: #16213e;
+        --bg-card: #0f3460;
+        --text-primary: #e4e4e4;
+        --text-secondary: #a0a0a0;
+        --border-color: #2a2a4a;
+        --shadow-color: rgba(0,0,0,0.3);
+    }
+
     /* Container styling */
     .gradio-container {
         max-width: 1200px !important;
         margin: 0 auto !important;
+        background: var(--bg-primary) !important;
     }
 
     /* Header gradient */
     .prose h1 {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: var(--accent-gradient);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
@@ -431,12 +727,13 @@ def create_gui() -> gr.Blocks:
     /* Card-like sections */
     .block {
         border-radius: 12px !important;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
+        box-shadow: 0 2px 8px var(--shadow-color) !important;
+        background: var(--bg-card) !important;
     }
 
     /* Button enhancements */
     .primary {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+        background: var(--accent-gradient) !important;
         border: none !important;
         transition: all 0.3s ease !important;
     }
@@ -445,11 +742,18 @@ def create_gui() -> gr.Blocks:
         box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4) !important;
     }
 
+    /* Secondary button */
+    .secondary {
+        background: var(--bg-secondary) !important;
+        border: 1px solid var(--border-color) !important;
+        transition: all 0.2s ease !important;
+    }
+
     /* Status badges */
-    .status-completed { color: #10b981; font-weight: 600; }
-    .status-processing { color: #3b82f6; font-weight: 600; }
-    .status-failed { color: #ef4444; font-weight: 600; }
-    .status-pending { color: #6b7280; }
+    .status-completed { color: var(--success-color); font-weight: 600; }
+    .status-processing { color: var(--info-color); font-weight: 600; }
+    .status-failed { color: var(--error-color); font-weight: 600; }
+    .status-pending { color: var(--text-secondary); }
 
     /* Progress bar animation */
     @keyframes progress-pulse {
@@ -464,10 +768,14 @@ def create_gui() -> gr.Blocks:
     .queue-item {
         transition: all 0.2s ease;
         border-left: 4px solid transparent;
+        background: var(--bg-card);
+        border-radius: 8px;
+        margin-bottom: 10px;
+        padding: 12px;
     }
     .queue-item:hover {
         border-left-color: #667eea;
-        background: #f8fafc;
+        background: var(--bg-secondary);
     }
 
     /* Version badge */
@@ -478,6 +786,94 @@ def create_gui() -> gr.Blocks:
         border-radius: 20px;
         font-size: 12px;
         font-weight: 600;
+    }
+
+    /* File upload zone */
+    .upload-zone {
+        border: 2px dashed var(--border-color);
+        border-radius: 12px;
+        padding: 30px;
+        text-align: center;
+        transition: all 0.3s ease;
+        background: var(--bg-secondary);
+    }
+    .upload-zone:hover {
+        border-color: #667eea;
+        background: rgba(102, 126, 234, 0.05);
+    }
+
+    /* Video preview */
+    .video-preview {
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 4px 12px var(--shadow-color);
+    }
+
+    /* Info cards */
+    .info-card {
+        background: var(--bg-secondary);
+        border-radius: 8px;
+        padding: 15px;
+        margin: 10px 0;
+    }
+
+    /* Dark mode toggle */
+    .dark-mode-toggle {
+        position: fixed;
+        top: 10px;
+        right: 10px;
+        z-index: 1000;
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+    .dark-mode-toggle:hover {
+        transform: scale(1.1);
+    }
+
+    /* Stats grid */
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 15px;
+        margin: 15px 0;
+    }
+    .stat-card {
+        background: var(--bg-secondary);
+        border-radius: 8px;
+        padding: 15px;
+        text-align: center;
+    }
+    .stat-value {
+        font-size: 24px;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+    .stat-label {
+        font-size: 12px;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+    }
+
+    /* Notification toast */
+    .toast {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        padding: 15px 25px;
+        border-radius: 8px;
+        background: var(--bg-card);
+        box-shadow: 0 4px 20px var(--shadow-color);
+        z-index: 1000;
+        animation: slideIn 0.3s ease;
+    }
+    @keyframes slideIn {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
     }
     """
 
@@ -491,12 +887,12 @@ def create_gui() -> gr.Blocks:
     ) as app:
 
         # Header with version badge
-        gr.Markdown("""
+        gr.Markdown(f"""
         # 🎬 VHS Video Upscaler
-        ### AI-Powered Video Enhancement with NVIDIA Maxine <span class="version-badge">v1.0.0</span>
+        ### AI-Powered Video Enhancement with NVIDIA Maxine <span class="version-badge">v{__version__}</span>
 
         Transform vintage VHS tapes, DVDs, and low-quality videos into stunning HD/4K using RTX GPU acceleration.
-        Supports **YouTube URLs** and **local files** with batch processing and queue management.
+        Supports **YouTube URLs**, **local files**, and **drag-and-drop upload** with batch processing.
         """)
 
         with gr.Tabs():
@@ -506,11 +902,31 @@ def create_gui() -> gr.Blocks:
             with gr.TabItem("📹 Single Video", id=1):
                 with gr.Row():
                     with gr.Column(scale=2):
-                        input_source = gr.Textbox(
-                            label="Video Source",
-                            placeholder="Enter file path or YouTube URL...",
-                            info="Supports: youtube.com, youtu.be, local .mp4/.avi/.mkv files"
-                        )
+                        gr.Markdown("### Input Source")
+
+                        # Tab group for input methods
+                        with gr.Tabs():
+                            with gr.TabItem("📁 Upload File"):
+                                file_upload = gr.File(
+                                    label="Drag & Drop Video File",
+                                    file_types=["video"],
+                                    file_count="single",
+                                    type="filepath"
+                                )
+                                file_preview = gr.HTML(
+                                    value="<div class='info-card'>Upload a video file to see preview info</div>",
+                                    label="Video Info"
+                                )
+
+                            with gr.TabItem("🔗 URL / Path"):
+                                input_source = gr.Textbox(
+                                    label="Video Source",
+                                    placeholder="Enter file path or YouTube URL...",
+                                    info="Supports: youtube.com, youtu.be, local .mp4/.avi/.mkv files"
+                                )
+
+                        # Hidden textbox to hold the final input path
+                        final_input = gr.Textbox(visible=False, value="")
 
                         with gr.Row():
                             preset = gr.Dropdown(
@@ -531,23 +947,169 @@ def create_gui() -> gr.Blocks:
                                 quality = gr.Radio(
                                     choices=[0, 1],
                                     value=0,
-                                    label="Quality Mode",
-                                    info="0 = Best quality, 1 = Performance"
+                                    label="Quality Priority",
+                                    info="0=Best quality (slower, recommended), 1=Faster processing (slightly lower quality)"
                                 )
                                 crf = gr.Slider(
                                     minimum=15,
                                     maximum=28,
                                     value=20,
                                     step=1,
-                                    label="CRF (Quality)",
-                                    info="Lower = better quality, larger file"
+                                    label="Video Quality",
+                                    info="15=highest quality (huge file), 20=great quality (recommended), 28=smaller file (visible compression)"
                                 )
-                            encoder = gr.Dropdown(
-                                choices=["hevc_nvenc", "h264_nvenc", "libx265", "libx264"],
-                                value="hevc_nvenc",
-                                label="Encoder",
-                                info="NVENC for GPU acceleration, libx for CPU"
-                            )
+                            with gr.Row():
+                                encoder = gr.Dropdown(
+                                    choices=["hevc_nvenc", "h264_nvenc", "libx265", "libx264"],
+                                    value="hevc_nvenc",
+                                    label="Video Encoder",
+                                    info="hevc_nvenc=best (NVIDIA GPU, H.265), h264_nvenc=compatible (NVIDIA, H.264), libx265/libx264=CPU encoding (no GPU needed, slower)"
+                                )
+                                upscale_engine = gr.Dropdown(
+                                    choices=["auto", "maxine", "realesrgan", "ffmpeg"],
+                                    value="auto",
+                                    label="AI Upscaler",
+                                    info="auto=picks best for your system, maxine=NVIDIA RTX only (fastest), realesrgan=any GPU (AMD/Intel/NVIDIA), ffmpeg=CPU only (slowest)"
+                                )
+                            with gr.Row():
+                                hdr_mode = gr.Dropdown(
+                                    choices=["sdr", "hdr10", "hlg"],
+                                    value="sdr",
+                                    label="HDR Output",
+                                    info="sdr=standard (works everywhere), hdr10=HDR for TVs/monitors, hlg=HDR for broadcast/streaming (wider compatibility)"
+                                )
+
+                            # === Conditional: Real-ESRGAN Options ===
+                            with gr.Group(visible=False) as realesrgan_options:
+                                gr.Markdown("**🎨 Real-ESRGAN Settings** - AI upscaling that works on AMD, Intel, and NVIDIA GPUs")
+                                with gr.Row():
+                                    realesrgan_model = gr.Dropdown(
+                                        choices=["realesrgan-x4plus", "realesrgan-x4plus-anime",
+                                                 "realesr-animevideov3", "realesrnet-x4plus"],
+                                        value="realesrgan-x4plus",
+                                        label="AI Model",
+                                        info="x4plus=real-world video (best for VHS), anime=cartoons/animation, animevideo=animated shows"
+                                    )
+                                    realesrgan_denoise = gr.Slider(
+                                        minimum=0, maximum=1, value=0.5, step=0.1,
+                                        label="Noise Reduction",
+                                        info="How much grain/static to remove. 0=keep original noise, 0.5=balanced, 1=maximum smoothing (may look artificial)"
+                                    )
+
+                            # === Conditional: FFmpeg Upscale Options ===
+                            with gr.Group(visible=False) as ffmpeg_options:
+                                gr.Markdown("**🔧 FFmpeg Upscale Settings** - CPU-based upscaling (no GPU required, slower but works everywhere)")
+                                with gr.Row():
+                                    ffmpeg_scale_algo = gr.Dropdown(
+                                        choices=["lanczos", "bicubic", "bilinear", "spline", "neighbor"],
+                                        value="lanczos",
+                                        label="Upscale Method",
+                                        info="lanczos=sharpest (recommended), bicubic=smoother, bilinear=fastest, neighbor=pixelated retro look"
+                                    )
+
+                            # === Conditional: HDR Options ===
+                            with gr.Group(visible=False) as hdr_options:
+                                gr.Markdown("**🎨 HDR Settings** - Makes colors brighter and more vivid on HDR TVs/monitors")
+                                with gr.Row():
+                                    hdr_brightness = gr.Slider(
+                                        minimum=100, maximum=1000, value=400, step=50,
+                                        label="Peak Brightness",
+                                        info="How bright highlights can get (in nits). 400=most TVs, 600+=premium TVs, 1000=top-end displays"
+                                    )
+                                    hdr_color_depth = gr.Radio(
+                                        choices=[8, 10],
+                                        value=10,
+                                        label="Color Depth",
+                                        info="10-bit=smoother gradients, no banding (recommended for HDR). 8-bit=smaller file, may show color banding"
+                                    )
+
+                        with gr.Accordion("🔊 Audio Options", open=False):
+                            gr.Markdown("*Clean up audio, reduce noise, and optionally create surround sound from stereo*")
+                            with gr.Row():
+                                audio_enhance = gr.Dropdown(
+                                    choices=["none", "light", "moderate", "aggressive", "voice", "music"],
+                                    value="none",
+                                    label="Audio Cleanup",
+                                    info="none=keep original, light=subtle cleanup, moderate=balanced, aggressive=heavy noise removal, voice=optimize for dialogue, music=preserve musical dynamics"
+                                )
+                                audio_upmix = gr.Dropdown(
+                                    choices=["none", "simple", "surround", "prologic", "demucs"],
+                                    value="none",
+                                    label="Surround Sound Creation",
+                                    info="none=keep original, simple=basic expansion, surround=FFmpeg filters, prologic=Dolby-style, demucs=AI separates instruments (best quality, slowest)"
+                                )
+                            with gr.Row():
+                                audio_layout = gr.Dropdown(
+                                    choices=["original", "stereo", "5.1", "7.1", "mono"],
+                                    value="original",
+                                    label="Speaker Layout",
+                                    info="original=don't change, stereo=2 speakers, 5.1=home theater (6 speakers), 7.1=premium home theater (8 speakers)"
+                                )
+                                audio_format = gr.Dropdown(
+                                    choices=["aac", "ac3", "eac3", "dts", "flac"],
+                                    value="aac",
+                                    label="Audio Codec",
+                                    info="aac=best for streaming/phones, ac3/eac3=Dolby (home theater), dts=high quality surround, flac=lossless (largest files)"
+                                )
+
+                            # === Conditional: Audio Enhancement Options ===
+                            with gr.Group(visible=False) as audio_enhance_options:
+                                gr.Markdown("**🎚️ Audio Cleanup Settings** - Fine-tune how audio is processed")
+                                with gr.Row():
+                                    audio_target_loudness = gr.Slider(
+                                        minimum=-24, maximum=-9, value=-14, step=1,
+                                        label="Volume Level",
+                                        info="How loud the output should be. -14=YouTube/Spotify standard, -16=TV broadcast, -23=movie theater (quieter, more dynamic)"
+                                    )
+                                    audio_noise_floor = gr.Slider(
+                                        minimum=-30, maximum=-10, value=-20, step=1,
+                                        label="Noise Removal Threshold",
+                                        info="Sounds quieter than this are treated as noise. -20=balanced, -30=remove more noise (may affect quiet sounds), -10=preserve more audio"
+                                    )
+
+                            # === Conditional: Demucs Options ===
+                            with gr.Group(visible=False) as demucs_options:
+                                gr.Markdown("**🤖 Demucs AI Settings** - AI that separates vocals, drums, bass & instruments to create realistic surround sound")
+                                with gr.Row():
+                                    demucs_model = gr.Dropdown(
+                                        choices=["htdemucs", "htdemucs_ft", "mdx_extra", "mdx_extra_q"],
+                                        value="htdemucs",
+                                        label="AI Model",
+                                        info="htdemucs=good & fast, htdemucs_ft=best quality (fine-tuned), mdx_extra=alternative model, mdx_extra_q=mdx with quantization"
+                                    )
+                                    demucs_device = gr.Dropdown(
+                                        choices=["auto", "cuda", "cpu"],
+                                        value="auto",
+                                        label="Processing Device",
+                                        info="auto=use GPU if available (recommended), cuda=force NVIDIA GPU, cpu=use processor only (slower but always works)"
+                                    )
+                                with gr.Row():
+                                    demucs_shifts = gr.Slider(
+                                        minimum=0, maximum=5, value=1, step=1,
+                                        label="Quality Passes",
+                                        info="How many times to analyze the audio. 0=fastest, 1=good balance, 5=best quality but 5x slower"
+                                    )
+
+                            # === Conditional: Surround Options ===
+                            with gr.Group(visible=False) as surround_options:
+                                gr.Markdown("**🔊 Surround Sound Settings** - Fine-tune how audio is distributed to your speakers")
+                                with gr.Row():
+                                    lfe_crossover = gr.Slider(
+                                        minimum=60, maximum=200, value=120, step=10,
+                                        label="Subwoofer Cutoff",
+                                        info="Bass frequencies below this go to subwoofer. 80Hz=THX standard, 120Hz=most systems, higher=more bass to sub"
+                                    )
+                                    center_mix = gr.Slider(
+                                        minimum=0.0, maximum=1.0, value=0.707, step=0.05,
+                                        label="Center Speaker Volume",
+                                        info="How loud dialogue/vocals are. 0.707=standard (-3dB), 1.0=full volume, lower=quieter center"
+                                    )
+                                with gr.Row():
+                                    surround_delay = gr.Slider(
+                                        minimum=0, maximum=50, value=15, step=5,
+                                        label="Rear Speaker Delay",
+                                        info="Milliseconds to delay rear speakers. Creates sense of space/depth. 0=no delay, 15-20ms=natural sounding, 50ms=very spacious"
+                                    )
 
                         add_btn = gr.Button("➕ Add to Queue", variant="primary", size="lg")
                         status_msg = gr.Textbox(label="Status", interactive=False)
@@ -563,6 +1125,23 @@ def create_gui() -> gr.Blocks:
                         | **youtube** | YouTube downloads |
                         | **clean** | Already clean sources |
                         | **auto** | Auto-detect settings |
+                        """)
+
+                        gr.Markdown("### 💡 Quick Tips")
+                        gr.Markdown("""
+                        - Use **hevc_nvenc** for best compression
+                        - Lower **CRF** = better quality, larger files
+                        - **1080p** is ideal for most VHS content
+
+                        **No NVIDIA GPU?**
+                        - Use **realesrgan** engine (AMD/Intel)
+                        - Use **ffmpeg** for CPU-only upscaling
+
+                        **Audio Enhancement:**
+                        - **voice** - Best for VHS/dialogue
+                        - **music** - Preserves dynamics
+                        - **demucs** - AI upmix (best 5.1)
+                        - Use **eac3** for 5.1 surround
                         """)
 
             # =====================================================================
@@ -591,10 +1170,21 @@ def create_gui() -> gr.Blocks:
                     )
                     batch_quality = gr.Radio(choices=[0, 1], value=0, label="Quality")
                     batch_crf = gr.Slider(15, 28, value=20, step=1, label="CRF")
+                with gr.Row():
                     batch_encoder = gr.Dropdown(
                         choices=["hevc_nvenc", "h264_nvenc", "libx265", "libx264"],
                         value="hevc_nvenc",
                         label="Encoder"
+                    )
+                    batch_engine = gr.Dropdown(
+                        choices=["auto", "maxine", "realesrgan", "ffmpeg"],
+                        value="auto",
+                        label="Upscale Engine"
+                    )
+                    batch_hdr = gr.Dropdown(
+                        choices=["sdr", "hdr10", "hlg"],
+                        value="sdr",
+                        label="HDR Mode"
                     )
 
                 batch_add_btn = gr.Button("➕ Add All to Queue", variant="primary", size="lg")
@@ -604,12 +1194,20 @@ def create_gui() -> gr.Blocks:
             # Tab 3: Queue
             # =====================================================================
             with gr.TabItem("📋 Queue", id=3):
+                # Stats dashboard
+                gr.Markdown("### Queue Overview")
+                stats_display = gr.HTML(
+                    value=get_stats_display(),
+                    label="Statistics"
+                )
+
                 with gr.Row():
-                    start_btn = gr.Button("▶️ Start", variant="primary")
+                    start_btn = gr.Button("▶️ Start Processing", variant="primary", size="lg")
                     pause_btn = gr.Button("⏸️ Pause", variant="secondary")
-                    clear_btn = gr.Button("🗑️ Clear Done", variant="secondary")
+                    clear_btn = gr.Button("🗑️ Clear Completed", variant="secondary")
                     refresh_btn = gr.Button("🔄 Refresh", variant="secondary")
 
+                gr.Markdown("### Job Queue")
                 queue_display = gr.HTML(
                     value=get_queue_display(),
                     label="Queue"
@@ -645,6 +1243,21 @@ def create_gui() -> gr.Blocks:
                     output_dir_btn = gr.Button("Set Directory")
 
                 output_dir_status = gr.Textbox(label="Status", interactive=False)
+
+                gr.Markdown("---")
+                gr.Markdown("### Appearance")
+
+                with gr.Row():
+                    dark_mode_checkbox = gr.Checkbox(
+                        label="🌙 Dark Mode",
+                        value=False,
+                        info="Enable dark mode for easier viewing"
+                    )
+                    theme_status = gr.Textbox(
+                        value="Light mode active",
+                        label="Theme Status",
+                        interactive=False
+                    )
 
                 gr.Markdown("---")
                 gr.Markdown("### System Information")
@@ -688,10 +1301,10 @@ def create_gui() -> gr.Blocks:
             # Tab 6: About
             # =====================================================================
             with gr.TabItem("ℹ️ About", id=6):
-                gr.Markdown("""
+                gr.Markdown(f"""
                 ### About VHS Video Upscaler
 
-                **Version:** 1.0.0
+                **Version:** {__version__}
                 **License:** MIT (Open Source)
 
                 ---
@@ -701,7 +1314,9 @@ def create_gui() -> gr.Blocks:
                 - 📺 **VHS Restoration** - Optimized presets for vintage footage
                 - ⬇️ **YouTube Integration** - Download and upscale in one step
                 - 📋 **Queue System** - Batch process multiple videos
-                - 👁️ **Watch Folder** - Automatic processing of new files
+                - 📁 **Drag & Drop** - Easy file upload support
+                - 👁️ **Video Preview** - See file info before processing
+                - 🌙 **Dark Mode** - Easy on the eyes
                 - 🚀 **GPU Accelerated** - RTX Tensor Core optimization
 
                 ---
@@ -730,25 +1345,87 @@ def create_gui() -> gr.Blocks:
         # Event Handlers
         # =====================================================================
 
-        # Single video
+        # File upload handler
+        def on_file_upload(file_path):
+            if file_path:
+                path, preview = handle_file_upload(file_path)
+                return path, preview, path
+            return "", "<div class='info-card'>Upload a video file to see preview info</div>", ""
+
+        file_upload.change(
+            fn=on_file_upload,
+            inputs=[file_upload],
+            outputs=[input_source, file_preview, final_input]
+        )
+
+        # URL input updates final_input
+        input_source.change(
+            fn=lambda x: x,
+            inputs=[input_source],
+            outputs=[final_input]
+        )
+
+        # Helper to get the right input source
+        def add_video_to_queue(file_path, url_input, preset, resolution, quality, crf, encoder,
+                               engine, hdr, model, esrgan_denoise, ffmpeg_algo,
+                               hdr_bright, hdr_depth,
+                               aud_enhance, aud_upmix, aud_layout, aud_format,
+                               aud_loudness, aud_noise,
+                               dem_model, dem_device, dem_shifts,
+                               lfe_cross, cent_mix, surr_delay):
+            # Prefer file upload, fall back to URL/path input
+            source = file_path if file_path else url_input
+            return add_to_queue(
+                source, preset, resolution, quality, crf, encoder,
+                engine, hdr, model, esrgan_denoise, ffmpeg_algo,
+                hdr_bright, hdr_depth,
+                aud_enhance, aud_upmix, aud_layout, aud_format,
+                aud_loudness, aud_noise,
+                dem_model, dem_device, dem_shifts,
+                lfe_cross, cent_mix, surr_delay
+            )
+
+        # Single video - use combined handler
         add_btn.click(
-            fn=add_to_queue,
-            inputs=[input_source, preset, resolution, quality, crf, encoder],
+            fn=add_video_to_queue,
+            inputs=[
+                final_input, input_source, preset, resolution, quality, crf, encoder,
+                upscale_engine, hdr_mode, realesrgan_model, realesrgan_denoise, ffmpeg_scale_algo,
+                hdr_brightness, hdr_color_depth,
+                audio_enhance, audio_upmix, audio_layout, audio_format,
+                audio_target_loudness, audio_noise_floor,
+                demucs_model, demucs_device, demucs_shifts,
+                lfe_crossover, center_mix, surround_delay
+            ],
             outputs=[status_msg, queue_display]
         )
 
-        # Batch
+        # Batch - simplified (uses same audio settings from single tab as default)
         batch_add_btn.click(
             fn=add_multiple_to_queue,
-            inputs=[batch_input, batch_preset, batch_resolution, batch_quality, batch_crf, batch_encoder],
+            inputs=[batch_input, batch_preset, batch_resolution, batch_quality, batch_crf,
+                    batch_encoder, batch_engine, batch_hdr,
+                    audio_enhance, audio_upmix, audio_layout, audio_format],
             outputs=[batch_status, queue_display]
         )
 
-        # Queue controls
-        start_btn.click(fn=start_queue, outputs=[queue_status, queue_display])
-        pause_btn.click(fn=pause_queue, outputs=[queue_status, queue_display])
-        clear_btn.click(fn=clear_completed, outputs=[queue_status, queue_display])
-        refresh_btn.click(fn=refresh_display, outputs=[queue_display, logs_display])
+        # Queue controls with stats update
+        def start_queue_with_stats():
+            result = start_queue()
+            return result[0], result[1], get_stats_display()
+
+        def pause_queue_with_stats():
+            result = pause_queue()
+            return result[0], result[1], get_stats_display()
+
+        def clear_completed_with_stats():
+            result = clear_completed()
+            return result[0], result[1], get_stats_display()
+
+        start_btn.click(fn=start_queue_with_stats, outputs=[queue_status, queue_display, stats_display])
+        pause_btn.click(fn=pause_queue_with_stats, outputs=[queue_status, queue_display, stats_display])
+        clear_btn.click(fn=clear_completed_with_stats, outputs=[queue_status, queue_display, stats_display])
+        refresh_btn.click(fn=refresh_display, outputs=[queue_display, stats_display, logs_display])
 
         # Logs
         logs_refresh_btn.click(fn=get_logs_display, outputs=[logs_display])
@@ -760,8 +1437,86 @@ def create_gui() -> gr.Blocks:
             outputs=[output_dir_status]
         )
 
-        # Auto-refresh queue every 2 seconds
-        app.load(fn=get_queue_display, outputs=[queue_display], every=2)
+        # Dark mode toggle handler
+        def toggle_theme(enabled):
+            AppState.dark_mode = enabled
+            status = "🌙 Dark mode active" if enabled else "☀️ Light mode active"
+            AppState.add_log(f"Theme changed: {status}")
+            return status
+
+        dark_mode_checkbox.change(
+            fn=toggle_theme,
+            inputs=[dark_mode_checkbox],
+            outputs=[theme_status]
+        )
+
+        # =====================================================================
+        # Conditional Option Visibility Handlers
+        # =====================================================================
+
+        # Upscale engine options visibility
+        def update_engine_options(engine):
+            """Show/hide engine-specific options based on selection."""
+            return {
+                realesrgan_options: gr.update(visible=(engine == "realesrgan")),
+                ffmpeg_options: gr.update(visible=(engine == "ffmpeg")),
+            }
+
+        upscale_engine.change(
+            fn=update_engine_options,
+            inputs=[upscale_engine],
+            outputs=[realesrgan_options, ffmpeg_options]
+        )
+
+        # HDR options visibility
+        def update_hdr_options(mode):
+            """Show HDR settings when HDR mode is enabled."""
+            return gr.update(visible=(mode != "sdr"))
+
+        hdr_mode.change(
+            fn=update_hdr_options,
+            inputs=[hdr_mode],
+            outputs=[hdr_options]
+        )
+
+        # Audio enhancement options visibility
+        def update_audio_enhance_options(enhance_mode):
+            """Show enhancement settings when audio enhancement is enabled."""
+            return gr.update(visible=(enhance_mode != "none"))
+
+        audio_enhance.change(
+            fn=update_audio_enhance_options,
+            inputs=[audio_enhance],
+            outputs=[audio_enhance_options]
+        )
+
+        # Demucs options visibility
+        def update_demucs_options(upmix_mode):
+            """Show Demucs settings when Demucs upmix is selected."""
+            return gr.update(visible=(upmix_mode == "demucs"))
+
+        audio_upmix.change(
+            fn=update_demucs_options,
+            inputs=[audio_upmix],
+            outputs=[demucs_options]
+        )
+
+        # Surround options visibility
+        def update_surround_options(layout):
+            """Show surround settings when 5.1 or 7.1 layout is selected."""
+            return gr.update(visible=(layout in ["5.1", "7.1"]))
+
+        audio_layout.change(
+            fn=update_surround_options,
+            inputs=[audio_layout],
+            outputs=[surround_options]
+        )
+
+        # Auto-refresh queue and stats every 2 seconds
+        def auto_refresh():
+            return get_queue_display(), get_stats_display()
+
+        app.load(fn=auto_refresh, outputs=[queue_display, stats_display], every=2)
 
     return app
 

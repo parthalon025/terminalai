@@ -34,6 +34,12 @@ try:
 except ImportError:
     HAS_YAML = False
 
+try:
+    from .audio_processor import AudioProcessor, AudioConfig, AudioEnhanceMode, UpmixMode, AudioChannelLayout, AudioFormat
+    HAS_AUDIO_PROCESSOR = True
+except ImportError:
+    HAS_AUDIO_PROCESSOR = False
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -311,6 +317,33 @@ class ProcessingConfig:
     nvenc_preset: str = "p7"
     keep_temp: bool = False
     skip_maxine: bool = False  # For testing without Maxine
+    # Video upscale options
+    upscale_engine: str = "auto"  # auto, maxine, realesrgan, ffmpeg
+    realesrgan_path: str = ""  # Path to realesrgan-ncnn-vulkan
+    realesrgan_model: str = "realesrgan-x4plus"  # Model name
+    realesrgan_denoise: float = 0.5  # 0-1 denoise strength for Real-ESRGAN
+    ffmpeg_scale_algo: str = "lanczos"  # lanczos, bicubic, bilinear, spline, neighbor
+    hdr_mode: str = "sdr"  # sdr, hdr10, hlg
+    hdr_brightness: int = 400  # Peak brightness in nits for HDR
+    color_depth: int = 10  # 8 or 10 bit
+    # Audio processing options
+    audio_enhance: str = "none"  # none, light, moderate, aggressive, voice, music
+    audio_upmix: str = "none"  # none, simple, surround, prologic, demucs
+    audio_layout: str = "original"  # original, stereo, 5.1, 7.1, mono
+    audio_format: str = "aac"  # aac, ac3, eac3, dts, flac
+    audio_bitrate: str = "192k"
+    audio_normalize: bool = True
+    # Audio enhancement advanced options
+    audio_target_loudness: float = -14.0  # LUFS target (-24 to -9)
+    audio_noise_floor: float = -20.0  # dB noise floor (-30 to -10)
+    # Demucs advanced options
+    demucs_model: str = "htdemucs"  # htdemucs, htdemucs_ft, mdx_extra, mdx_extra_q
+    demucs_device: str = "auto"  # auto, cuda, cpu
+    demucs_shifts: int = 1  # 0-5, more = better quality, slower
+    # Surround advanced options
+    lfe_crossover: int = 120  # Hz (60-200)
+    center_mix: float = 0.707  # 0-1, 0.707 = -3dB
+    surround_delay: int = 15  # ms (0-50)
 
 
 # ============================================================================
@@ -352,10 +385,15 @@ class VHSUpscaler:
         }
     }
 
+    # Available upscale engines with priority
+    UPSCALE_ENGINES = ["maxine", "realesrgan", "ffmpeg"]
+
     def __init__(self, config: ProcessingConfig, progress: UnifiedProgress = None):
         self.config = config
         self.progress = progress
+        self.available_engines = []
         self._validate_dependencies()
+        self._detect_upscale_engine()
 
     def _validate_dependencies(self):
         """Verify all required tools are available."""
@@ -366,26 +404,94 @@ class VHSUpscaler:
                 capture_output=True, text=True, check=True
             )
             logger.debug(f"FFmpeg found: {result.stdout.split(chr(10))[0]}")
+            self.available_engines.append("ffmpeg")
         except (subprocess.CalledProcessError, FileNotFoundError):
             raise RuntimeError("FFmpeg not found. Install from https://ffmpeg.org")
 
-        # Check Maxine VideoEffectsApp (skip if testing)
-        if not self.config.skip_maxine:
-            maxine_exe = Path(self.config.maxine_path) / "VideoEffectsApp.exe"
-            if not maxine_exe.exists():
-                # Try environment variable
-                maxine_home = os.environ.get("MAXINE_HOME", "")
-                if maxine_home:
-                    maxine_exe = Path(maxine_home) / "bin" / "VideoEffectsApp.exe"
-                    if maxine_exe.exists():
-                        self.config.maxine_path = str(Path(maxine_home) / "bin")
-                        self.config.model_dir = str(Path(maxine_home) / "bin" / "models")
+        # Check NVIDIA Maxine
+        maxine_exe = Path(self.config.maxine_path) / "VideoEffectsApp.exe"
+        if not maxine_exe.exists():
+            maxine_home = os.environ.get("MAXINE_HOME", "")
+            if maxine_home:
+                maxine_exe = Path(maxine_home) / "bin" / "VideoEffectsApp.exe"
+                if maxine_exe.exists():
+                    self.config.maxine_path = str(Path(maxine_home) / "bin")
+                    self.config.model_dir = str(Path(maxine_home) / "bin" / "models")
+        if maxine_exe.exists():
+            self.available_engines.append("maxine")
+            logger.debug("NVIDIA Maxine found")
 
-                if not maxine_exe.exists():
-                    logger.warning(
-                        f"NVIDIA Maxine not found. Use --skip-maxine for FFmpeg-only upscaling."
-                    )
-                    self.config.skip_maxine = True
+        # Check Real-ESRGAN ncnn-vulkan
+        realesrgan_exe = self._find_realesrgan()
+        if realesrgan_exe:
+            self.config.realesrgan_path = str(realesrgan_exe)
+            self.available_engines.append("realesrgan")
+            logger.debug(f"Real-ESRGAN found: {realesrgan_exe}")
+
+    def _find_realesrgan(self) -> Optional[Path]:
+        """Find Real-ESRGAN ncnn-vulkan executable."""
+        # Check config path first
+        if self.config.realesrgan_path:
+            exe = Path(self.config.realesrgan_path)
+            if exe.exists():
+                return exe
+
+        # Common executable names
+        exe_names = [
+            "realesrgan-ncnn-vulkan",
+            "realesrgan-ncnn-vulkan.exe",
+            "realesrgan",
+        ]
+
+        # Check PATH
+        for name in exe_names:
+            exe = shutil.which(name)
+            if exe:
+                return Path(exe)
+
+        # Check common install locations
+        common_paths = [
+            Path.home() / "realesrgan-ncnn-vulkan",
+            Path("/usr/local/bin"),
+            Path("/opt/realesrgan"),
+            Path("C:/Program Files/realesrgan-ncnn-vulkan"),
+            Path(os.environ.get("REALESRGAN_HOME", "")),
+        ]
+
+        for base_path in common_paths:
+            if not base_path.exists():
+                continue
+            for name in exe_names:
+                exe = base_path / name
+                if exe.exists():
+                    return exe
+
+        return None
+
+    def _detect_upscale_engine(self):
+        """Auto-detect best available upscale engine."""
+        if self.config.upscale_engine != "auto":
+            if self.config.upscale_engine not in self.available_engines:
+                logger.warning(
+                    f"Requested engine '{self.config.upscale_engine}' not available. "
+                    f"Available: {', '.join(self.available_engines)}"
+                )
+                self.config.upscale_engine = "ffmpeg"
+            return
+
+        # Auto-select best available engine
+        priority = ["maxine", "realesrgan", "ffmpeg"]
+        for engine in priority:
+            if engine in self.available_engines:
+                self.config.upscale_engine = engine
+                logger.info(f"Auto-selected upscale engine: {engine}")
+                return
+
+        self.config.upscale_engine = "ffmpeg"
+
+    def get_available_engines(self) -> List[str]:
+        """Return list of available upscale engines."""
+        return self.available_engines.copy()
 
     def _get_video_duration(self, input_path: Path) -> float:
         """Get video duration in seconds."""
@@ -485,66 +591,24 @@ class VHSUpscaler:
         return video_out, audio_out if audio_out.exists() else None
 
     def upscale(self, input_path: Path, temp_dir: Path) -> Path:
-        """Apply AI upscaling."""
+        """Apply AI upscaling using selected engine."""
         self.progress.start_stage("upscale")
 
         output_path = temp_dir / "upscaled.mp4"
+        engine = self.config.upscale_engine
 
-        if self.config.skip_maxine:
-            # FFmpeg fallback upscaling
-            cmd = [
-                self.config.ffmpeg_path,
-                "-y", "-i", str(input_path),
-                "-vf", f"scale=-2:{self.config.resolution}:flags=lanczos",
-                "-c:v", "libx264",
-                "-crf", "18",
-                "-preset", "slow",
-                "-progress", "pipe:1",
-                str(output_path)
-            ]
+        # Handle legacy skip_maxine flag
+        if self.config.skip_maxine and engine == "maxine":
+            engine = "realesrgan" if "realesrgan" in self.available_engines else "ffmpeg"
 
-            duration = self._get_video_duration(input_path)
-            process = subprocess.Popen(
-                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-            )
+        logger.info(f"Using upscale engine: {engine}")
 
-            for line in process.stdout:
-                if line.startswith("out_time_ms="):
-                    try:
-                        ms = int(line.split("=")[1])
-                        if duration > 0:
-                            self.progress.update((ms / 1000000) / duration * 100)
-                    except:
-                        pass
-
-            process.wait()
+        if engine == "realesrgan":
+            output_path = self._upscale_realesrgan(input_path, temp_dir)
+        elif engine == "maxine":
+            output_path = self._upscale_maxine(input_path, temp_dir)
         else:
-            # NVIDIA Maxine upscaling
-            maxine_exe = Path(self.config.maxine_path) / "VideoEffectsApp.exe"
-            cmd = [
-                str(maxine_exe),
-                "--progress",
-                "--effect=SuperRes",
-                f"--mode={self.config.quality_mode}",
-                f"--model_dir={self.config.model_dir}",
-                f"--in_file={input_path}",
-                f"--resolution={self.config.resolution}",
-                f"--out_file={output_path}"
-            ]
-
-            process = subprocess.Popen(
-                cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
-            )
-
-            for line in process.stdout:
-                if "%" in line:
-                    try:
-                        pct = float(line.split("%")[0].split()[-1])
-                        self.progress.update(pct)
-                    except:
-                        pass
-
-            process.wait()
+            output_path = self._upscale_ffmpeg(input_path, temp_dir)
 
         if not output_path.exists():
             raise RuntimeError("Upscaling failed to produce output")
@@ -552,9 +616,214 @@ class VHSUpscaler:
         self.progress.complete_stage()
         return output_path
 
+    def _upscale_ffmpeg(self, input_path: Path, temp_dir: Path) -> Path:
+        """FFmpeg-based upscaling (works on any hardware)."""
+        output_path = temp_dir / "upscaled.mp4"
+
+        cmd = [
+            self.config.ffmpeg_path,
+            "-y", "-i", str(input_path),
+            "-vf", f"scale=-2:{self.config.resolution}:flags=lanczos",
+            "-c:v", "libx264",
+            "-crf", "18",
+            "-preset", "slow",
+            "-progress", "pipe:1",
+            str(output_path)
+        ]
+
+        duration = self._get_video_duration(input_path)
+        process = subprocess.Popen(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+        )
+
+        for line in process.stdout:
+            if line.startswith("out_time_ms="):
+                try:
+                    ms = int(line.split("=")[1])
+                    if duration > 0:
+                        self.progress.update((ms / 1000000) / duration * 100)
+                except:
+                    pass
+
+        process.wait()
+        return output_path
+
+    def _upscale_realesrgan(self, input_path: Path, temp_dir: Path) -> Path:
+        """Real-ESRGAN ncnn-vulkan upscaling (works on AMD/Intel/NVIDIA GPUs)."""
+        frames_dir = temp_dir / "frames"
+        upscaled_dir = temp_dir / "upscaled_frames"
+        frames_dir.mkdir(exist_ok=True)
+        upscaled_dir.mkdir(exist_ok=True)
+
+        output_path = temp_dir / "upscaled.mp4"
+
+        # Get video info
+        duration = self._get_video_duration(input_path)
+        fps = self._get_video_fps(input_path)
+
+        # Extract frames
+        logger.info("Extracting frames for Real-ESRGAN...")
+        extract_cmd = [
+            self.config.ffmpeg_path, "-y", "-i", str(input_path),
+            "-qscale:v", "1", "-qmin", "1", "-qmax", "1", "-vsync", "0",
+            str(frames_dir / "frame%08d.png")
+        ]
+        subprocess.run(extract_cmd, capture_output=True, check=True)
+
+        # Count frames
+        frame_files = list(frames_dir.glob("*.png"))
+        total_frames = len(frame_files)
+        logger.info(f"Extracted {total_frames} frames")
+
+        # Determine scale factor based on target resolution
+        # Real-ESRGAN typically does 4x, so we may need to resize after
+        scale = 4 if self.config.resolution >= 2160 else 4
+
+        # Run Real-ESRGAN
+        logger.info("Running Real-ESRGAN upscaling...")
+        realesrgan_cmd = [
+            self.config.realesrgan_path,
+            "-i", str(frames_dir),
+            "-o", str(upscaled_dir),
+            "-n", self.config.realesrgan_model,
+            "-s", str(scale),
+        ]
+
+        process = subprocess.Popen(
+            realesrgan_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
+        )
+
+        processed = 0
+        for line in process.stdout:
+            # Real-ESRGAN outputs progress like "0.00%", "1.23%", etc.
+            if "%" in line:
+                try:
+                    pct = float(line.split("%")[0].split()[-1])
+                    self.progress.update(pct)
+                except:
+                    pass
+            # Also count processed frames from output
+            if "done" in line.lower() or ".png" in line:
+                processed += 1
+                self.progress.update((processed / total_frames) * 100)
+
+        process.wait()
+        if process.returncode != 0:
+            raise RuntimeError("Real-ESRGAN upscaling failed")
+
+        # Reassemble video with target resolution
+        logger.info("Reassembling video...")
+        assemble_cmd = [
+            self.config.ffmpeg_path, "-y",
+            "-framerate", str(fps),
+            "-i", str(upscaled_dir / "frame%08d.png"),
+            "-vf", f"scale=-2:{self.config.resolution}:flags=lanczos",
+            "-c:v", "libx264",
+            "-crf", "18",
+            "-preset", "slow",
+            "-pix_fmt", "yuv420p",
+            str(output_path)
+        ]
+        subprocess.run(assemble_cmd, capture_output=True, check=True)
+
+        return output_path
+
+    def _upscale_maxine(self, input_path: Path, temp_dir: Path) -> Path:
+        """NVIDIA Maxine upscaling (requires RTX GPU)."""
+        output_path = temp_dir / "upscaled.mp4"
+
+        maxine_exe = Path(self.config.maxine_path) / "VideoEffectsApp.exe"
+        cmd = [
+            str(maxine_exe),
+            "--progress",
+            "--effect=SuperRes",
+            f"--mode={self.config.quality_mode}",
+            f"--model_dir={self.config.model_dir}",
+            f"--in_file={input_path}",
+            f"--resolution={self.config.resolution}",
+            f"--out_file={output_path}"
+        ]
+
+        process = subprocess.Popen(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
+        )
+
+        for line in process.stdout:
+            if "%" in line:
+                try:
+                    pct = float(line.split("%")[0].split()[-1])
+                    self.progress.update(pct)
+                except:
+                    pass
+
+        process.wait()
+        return output_path
+
+    def _get_video_fps(self, input_path: Path) -> float:
+        """Get video frame rate."""
+        cmd = [
+            "ffprobe", "-v", "quiet",
+            "-select_streams", "v:0",
+            "-show_entries", "stream=r_frame_rate",
+            "-of", "json",
+            str(input_path)
+        ]
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            data = json.loads(result.stdout)
+            fps_str = data.get("streams", [{}])[0].get("r_frame_rate", "30/1")
+            num, den = map(int, fps_str.split("/"))
+            return num / den if den != 0 else 30.0
+        except:
+            return 30.0
+
+    def _build_hdr_filter(self) -> str:
+        """Build FFmpeg filter for HDR conversion."""
+        if self.config.hdr_mode == "sdr":
+            return ""
+
+        # HDR10 conversion filter
+        if self.config.hdr_mode == "hdr10":
+            return (
+                "zscale=t=linear:npl=100,format=gbrpf32le,"
+                "zscale=p=bt2020:t=bt2020-10:m=bt2020nc:r=tv,"
+                "format=yuv420p10le"
+            )
+
+        # HLG conversion filter
+        if self.config.hdr_mode == "hlg":
+            return (
+                "zscale=t=linear:npl=100,format=gbrpf32le,"
+                "zscale=p=bt2020:t=arib-std-b67:m=bt2020nc:r=tv,"
+                "format=yuv420p10le"
+            )
+
+        return ""
+
+    def _process_audio(self, input_path: Path, output_path: Path):
+        """Process audio with enhancement and/or upmixing."""
+        if not HAS_AUDIO_PROCESSOR:
+            logger.warning("Audio processor not available, skipping audio enhancement")
+            return
+
+        # Build audio config from processing config
+        audio_config = AudioConfig(
+            enhance_mode=AudioEnhanceMode(self.config.audio_enhance),
+            upmix_mode=UpmixMode(self.config.audio_upmix),
+            output_layout=AudioChannelLayout(self.config.audio_layout),
+            output_format=AudioFormat(self.config.audio_format),
+            output_bitrate=self.config.audio_bitrate,
+            normalize=self.config.audio_normalize,
+        )
+
+        processor = AudioProcessor(audio_config, self.config.ffmpeg_path)
+        processor.process(input_path, output_path)
+        logger.info(f"Audio processed: enhance={self.config.audio_enhance}, "
+                    f"upmix={self.config.audio_upmix}, layout={self.config.audio_layout}")
+
     def postprocess(self, video_path: Path, audio_path: Optional[Path],
                     output_path: Path, duration: float):
-        """Post-process: encode and remux audio."""
+        """Post-process: encode with optional HDR and remux audio."""
         self.progress.start_stage("postprocess")
 
         cmd = [self.config.ffmpeg_path, "-y", "-i", str(video_path)]
@@ -562,14 +831,74 @@ class VHSUpscaler:
         if audio_path and audio_path.exists():
             cmd.extend(["-i", str(audio_path)])
 
+        # Build video filter chain
+        vf_filters = []
+        hdr_filter = self._build_hdr_filter()
+        if hdr_filter:
+            vf_filters.append(hdr_filter)
+
+        if vf_filters:
+            cmd.extend(["-vf", ",".join(vf_filters)])
+
+        # Select encoder and pixel format based on HDR mode
+        encoder = self.config.encoder
+        pix_fmt = "yuv420p"
+
+        if self.config.hdr_mode != "sdr":
+            # HDR requires 10-bit encoding
+            pix_fmt = "yuv420p10le"
+            # Use x265 for HDR if NVENC not available for 10-bit
+            if encoder == "hevc_nvenc":
+                # Check if NVENC supports 10-bit (most modern cards do)
+                cmd.extend(["-profile:v", "main10"])
+            elif encoder == "libx265":
+                cmd.extend(["-profile:v", "main10"])
+
         cmd.extend([
-            "-c:v", self.config.encoder,
+            "-c:v", encoder,
             "-preset", self.config.nvenc_preset,
             "-cq", str(self.config.crf),
+            "-pix_fmt", pix_fmt,
         ])
 
+        # Add HDR metadata if needed
+        if self.config.hdr_mode == "hdr10":
+            cmd.extend([
+                "-color_primaries", "bt2020",
+                "-color_trc", "smpte2084",
+                "-colorspace", "bt2020nc",
+            ])
+        elif self.config.hdr_mode == "hlg":
+            cmd.extend([
+                "-color_primaries", "bt2020",
+                "-color_trc", "arib-std-b67",
+                "-colorspace", "bt2020nc",
+            ])
+
+        # Audio processing
         if audio_path and audio_path.exists():
-            cmd.extend(["-c:a", "aac", "-b:a", "192k"])
+            # Check if audio processing is needed
+            needs_audio_processing = (
+                self.config.audio_enhance != "none" or
+                self.config.audio_upmix != "none" or
+                self.config.audio_layout != "original"
+            )
+
+            if needs_audio_processing and HAS_AUDIO_PROCESSOR:
+                # Process audio separately with AudioProcessor
+                processed_audio = output_path.parent / f"{output_path.stem}_audio_processed.wav"
+                self._process_audio(audio_path, processed_audio)
+                cmd.extend(["-i", str(processed_audio)])
+                cmd.extend(["-map", "0:v", "-map", "2:a"])  # Map processed audio
+
+                # Set audio codec based on layout
+                if self.config.audio_layout in ["5.1", "7.1"]:
+                    cmd.extend(["-c:a", self.config.audio_format, "-b:a", "640k"])
+                else:
+                    cmd.extend(["-c:a", self.config.audio_format, "-b:a", self.config.audio_bitrate])
+            else:
+                # Standard audio passthrough/encoding
+                cmd.extend(["-c:a", self.config.audio_format, "-b:a", self.config.audio_bitrate])
         else:
             cmd.extend(["-an"])
 
@@ -709,6 +1038,10 @@ Examples:
   YouTube:       python vhs_upscale.py -i "https://youtube.com/watch?v=..." -o out.mp4
   Watch folder:  python vhs_upscale.py --watch -i ./input -o ./output
   4K output:     python vhs_upscale.py -i video.mp4 -o out.mp4 -r 2160
+  HDR output:    python vhs_upscale.py -i video.mp4 -o out.mp4 --hdr hdr10
+  No NVIDIA:     python vhs_upscale.py -i video.mp4 -o out.mp4 --engine realesrgan
+  5.1 audio:     python vhs_upscale.py -i video.mp4 -o out.mp4 --audio-layout 5.1 --audio-upmix surround
+  Clean audio:   python vhs_upscale.py -i video.mp4 -o out.mp4 --audio-enhance voice
         """
     )
 
@@ -733,7 +1066,39 @@ Examples:
                         choices=["hevc_nvenc", "h264_nvenc", "libx265", "libx264"],
                         help="Output encoder (default: hevc_nvenc)")
     parser.add_argument("--skip-maxine", action="store_true",
-                        help="Use FFmpeg upscaling instead of Maxine")
+                        help="Use FFmpeg upscaling instead of Maxine (deprecated, use --engine)")
+
+    # New options for engine and HDR
+    parser.add_argument("--engine", default="auto",
+                        choices=["auto", "maxine", "realesrgan", "ffmpeg"],
+                        help="Upscaling engine: auto (detect best), maxine (NVIDIA RTX), "
+                             "realesrgan (AMD/Intel/NVIDIA), ffmpeg (any CPU)")
+    parser.add_argument("--hdr", default="sdr",
+                        choices=["sdr", "hdr10", "hlg"],
+                        help="HDR mode: sdr (standard), hdr10 (HDR10), hlg (HLG broadcast)")
+    parser.add_argument("--realesrgan-model", default="realesrgan-x4plus",
+                        choices=["realesrgan-x4plus", "realesrgan-x4plus-anime",
+                                 "realesr-animevideov3", "realesrnet-x4plus"],
+                        help="Real-ESRGAN model (default: realesrgan-x4plus)")
+
+    # Audio processing options
+    parser.add_argument("--audio-enhance", default="none",
+                        choices=["none", "light", "moderate", "aggressive", "voice", "music"],
+                        help="Audio enhancement: none, light, moderate, aggressive, voice, music")
+    parser.add_argument("--audio-upmix", default="none",
+                        choices=["none", "simple", "surround", "prologic", "demucs"],
+                        help="Surround upmix: none, simple, surround (FFmpeg), prologic, demucs (AI)")
+    parser.add_argument("--audio-layout", default="original",
+                        choices=["original", "stereo", "5.1", "7.1", "mono"],
+                        help="Output audio layout (default: original)")
+    parser.add_argument("--audio-format", default="aac",
+                        choices=["aac", "ac3", "eac3", "dts", "flac"],
+                        help="Output audio format (default: aac)")
+    parser.add_argument("--audio-bitrate", default="192k",
+                        help="Audio bitrate (default: 192k, use 640k for 5.1)")
+    parser.add_argument("--no-audio-normalize", action="store_true",
+                        help="Disable audio loudness normalization")
+
     parser.add_argument("--config", type=Path, default=Path("config.yaml"),
                         help="Config file path")
     parser.add_argument("--keep-temp", action="store_true",
@@ -767,6 +1132,18 @@ Examples:
         encoder=args.encoder,
         keep_temp=args.keep_temp,
         skip_maxine=args.skip_maxine,
+        # Video options
+        upscale_engine=args.engine,
+        realesrgan_path=file_config.get("realesrgan_path", ""),
+        realesrgan_model=args.realesrgan_model,
+        hdr_mode=args.hdr,
+        # Audio options
+        audio_enhance=args.audio_enhance,
+        audio_upmix=args.audio_upmix,
+        audio_layout=args.audio_layout,
+        audio_format=args.audio_format,
+        audio_bitrate=args.audio_bitrate,
+        audio_normalize=not args.no_audio_normalize,
     )
 
     # Apply preset
