@@ -41,6 +41,11 @@ class QueueJob:
     crf: int = 20
     encoder: str = "hevc_nvenc"
 
+    # New options for engine and HDR
+    upscale_engine: str = "auto"  # auto, maxine, realesrgan, ffmpeg
+    hdr_mode: str = "sdr"  # sdr, hdr10, hlg
+    realesrgan_model: str = "realesrgan-x4plus"
+
     # Runtime state
     status: JobStatus = JobStatus.PENDING
     progress: float = 0.0
@@ -134,7 +139,10 @@ class VideoQueue:
                 resolution: int = 1080,
                 quality: int = 0,
                 crf: int = 20,
-                encoder: str = "hevc_nvenc") -> QueueJob:
+                encoder: str = "hevc_nvenc",
+                upscale_engine: str = "auto",
+                hdr_mode: str = "sdr",
+                realesrgan_model: str = "realesrgan-x4plus") -> QueueJob:
         """Add a new job to the queue."""
         job = QueueJob(
             id=str(uuid.uuid4())[:8],
@@ -144,7 +152,10 @@ class VideoQueue:
             resolution=resolution,
             quality=quality,
             crf=crf,
-            encoder=encoder
+            encoder=encoder,
+            upscale_engine=upscale_engine,
+            hdr_mode=hdr_mode,
+            realesrgan_model=realesrgan_model
         )
 
         with self._lock:

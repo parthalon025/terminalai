@@ -6,7 +6,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/parthalon025/terminalai/releases"><img src="https://img.shields.io/badge/version-1.1.0-blue?style=flat-square" alt="Version 1.1.0"></a>
+  <a href="https://github.com/parthalon025/terminalai/releases"><img src="https://img.shields.io/badge/version-1.2.0-blue?style=flat-square" alt="Version 1.2.0"></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.10+-blue?style=flat-square&logo=python&logoColor=white" alt="Python 3.10+"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License"></a>
   <a href="https://developer.nvidia.com/maxine"><img src="https://img.shields.io/badge/NVIDIA-Maxine-76B900?style=flat-square&logo=nvidia&logoColor=white" alt="NVIDIA Maxine"></a>
@@ -80,7 +80,7 @@ Opens automatically at **http://localhost:7860**
 
 | Feature | Description |
 |---------|-------------|
-| 🎬 **AI Video Upscaling** | NVIDIA Maxine SuperRes - upscale to 1080p or 4K |
+| 🎬 **AI Video Upscaling** | Multiple engines: NVIDIA Maxine, Real-ESRGAN, FFmpeg |
 | 📺 **VHS Restoration** | Optimized presets for vintage footage (deinterlace + denoise) |
 | ⬇️ **YouTube Integration** | Download and upscale YouTube videos in one step |
 | 📁 **Drag & Drop Upload** | Simply drag video files into the browser |
@@ -89,6 +89,18 @@ Opens automatically at **http://localhost:7860**
 | 📋 **Queue System** | Batch process multiple videos with pause/resume |
 | 👁️ **Video Preview** | See file info (resolution, duration, codec) before processing |
 | 🚀 **GPU Accelerated** | RTX Tensor Core + NVENC hardware encoding |
+| 🎨 **HDR Output** | Convert to HDR10 or HLG format |
+| 💻 **Works Without NVIDIA** | Real-ESRGAN supports AMD/Intel GPUs, FFmpeg for CPU-only |
+
+### What's New in v1.2.0
+
+- **Multiple Upscale Engines**:
+  - **NVIDIA Maxine** - Best quality for RTX GPUs
+  - **Real-ESRGAN** - Works on AMD, Intel, and NVIDIA GPUs via Vulkan
+  - **FFmpeg** - CPU-only fallback for any system
+- **HDR Output**: Convert SDR videos to HDR10 or HLG format
+- **Auto Engine Detection**: Automatically selects best available engine
+- **Real-ESRGAN Models**: Choose from multiple AI models for different content types
 
 ### What's New in v1.1.0
 
@@ -160,6 +172,15 @@ python -m vhs_upscaler.vhs_upscale -i video.mp4 -o upscaled_4k.mp4 -r 2160
 
 # Watch folder mode (auto-process new files)
 python -m vhs_upscaler.vhs_upscale --watch -i ./input -o ./output
+
+# Use Real-ESRGAN (no NVIDIA required)
+python -m vhs_upscaler.vhs_upscale -i video.mp4 -o out.mp4 --engine realesrgan
+
+# Output as HDR10
+python -m vhs_upscaler.vhs_upscale -i video.mp4 -o out_hdr.mp4 --hdr hdr10
+
+# CPU-only mode (no GPU required)
+python -m vhs_upscaler.vhs_upscale -i video.mp4 -o out.mp4 --engine ffmpeg --encoder libx265
 ```
 
 ### CLI Options
@@ -171,8 +192,19 @@ python -m vhs_upscaler.vhs_upscale --watch -i ./input -o ./output
 | `-r, --resolution` | Target height (720/1080/1440/2160) | 1080 |
 | `-p, --preset` | vhs/dvd/webcam/youtube/clean | vhs |
 | `--crf` | Quality (lower=better, 15-28) | 20 |
-| `--encoder` | hevc_nvenc/h264_nvenc/libx265 | hevc_nvenc |
+| `--encoder` | hevc_nvenc/h264_nvenc/libx265/libx264 | hevc_nvenc |
+| `--engine` | Upscale engine: auto/maxine/realesrgan/ffmpeg | auto |
+| `--hdr` | HDR mode: sdr/hdr10/hlg | sdr |
+| `--realesrgan-model` | Real-ESRGAN model selection | realesrgan-x4plus |
 | `-v, --verbose` | Verbose logging | Off |
+
+### Upscale Engines
+
+| Engine | GPU Required | Quality | Speed | Best For |
+|--------|--------------|---------|-------|----------|
+| **maxine** | NVIDIA RTX | ⭐⭐⭐⭐⭐ | Fast | RTX users |
+| **realesrgan** | AMD/Intel/NVIDIA | ⭐⭐⭐⭐ | Medium | Non-NVIDIA GPUs |
+| **ffmpeg** | None (CPU) | ⭐⭐⭐ | Slow | Any system |
 
 ---
 
@@ -194,17 +226,24 @@ python -m vhs_upscaler.vhs_upscale --watch -i ./input -o ./output
 
 | Component | Minimum | Recommended |
 |-----------|---------|-------------|
-| **GPU** | RTX 2060 (Tensor Cores) | RTX 3080+ |
-| **VRAM** | 6GB | 12GB+ for 4K |
+| **GPU** | None required* | RTX 3080+ |
+| **VRAM** | 2GB (Real-ESRGAN) | 12GB+ for 4K |
 | **RAM** | 8GB | 16GB+ |
 | **Storage** | 10GB free | SSD recommended |
+
+*GPU is optional - FFmpeg engine works on CPU only
 
 ### Software
 
 - **Python** 3.10+
-- **NVIDIA Driver** 535+
-- **FFmpeg** with NVENC support
-- **NVIDIA Maxine Video Effects SDK** (for AI upscaling)
+- **FFmpeg** (required)
+
+### Optional (for better quality/speed)
+
+- **NVIDIA Driver** 535+ (for NVENC encoder)
+- **NVIDIA Maxine SDK** (for best AI upscaling on RTX)
+- **Real-ESRGAN ncnn-vulkan** (for AI upscaling on AMD/Intel/NVIDIA)
+  - Download: [github.com/xinntao/Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN/releases)
 
 ### Python Dependencies
 

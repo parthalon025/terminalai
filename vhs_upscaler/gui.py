@@ -37,7 +37,7 @@ from logger import get_logger, VHSLogger
 logger = get_logger(verbose=True, log_to_file=True)
 
 # Version info
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 
 
 # =============================================================================
@@ -133,7 +133,9 @@ def process_job(job: QueueJob, progress_callback) -> bool:
             crf=job.crf,
             preset=job.preset,
             encoder=job.encoder,
-            skip_maxine=True,  # For testing; remove in production
+            upscale_engine=getattr(job, 'upscale_engine', 'auto'),
+            hdr_mode=getattr(job, 'hdr_mode', 'sdr'),
+            realesrgan_model=getattr(job, 'realesrgan_model', 'realesrgan-x4plus'),
         )
 
         # Apply preset
@@ -368,7 +370,9 @@ def generate_output_path(input_source: str, resolution: int) -> str:
 # =============================================================================
 
 def add_to_queue(input_source: str, preset: str, resolution: int,
-                 quality: int, crf: int, encoder: str) -> Tuple[str, str]:
+                 quality: int, crf: int, encoder: str,
+                 upscale_engine: str = "auto", hdr_mode: str = "sdr",
+                 realesrgan_model: str = "realesrgan-x4plus") -> Tuple[str, str]:
     """Add a video to the processing queue."""
     initialize_queue()
 
@@ -384,7 +388,10 @@ def add_to_queue(input_source: str, preset: str, resolution: int,
         resolution=resolution,
         quality=quality,
         crf=crf,
-        encoder=encoder
+        encoder=encoder,
+        upscale_engine=upscale_engine,
+        hdr_mode=hdr_mode,
+        realesrgan_model=realesrgan_model
     )
 
     AppState.add_log(f"Added to queue: {input_source[:50]}...")
@@ -393,7 +400,8 @@ def add_to_queue(input_source: str, preset: str, resolution: int,
 
 
 def add_multiple_to_queue(urls_text: str, preset: str, resolution: int,
-                          quality: int, crf: int, encoder: str) -> Tuple[str, str]:
+                          quality: int, crf: int, encoder: str,
+                          upscale_engine: str = "auto", hdr_mode: str = "sdr") -> Tuple[str, str]:
     """Add multiple videos to the queue."""
     initialize_queue()
 
@@ -412,7 +420,9 @@ def add_multiple_to_queue(urls_text: str, preset: str, resolution: int,
             resolution=resolution,
             quality=quality,
             crf=crf,
-            encoder=encoder
+            encoder=encoder,
+            upscale_engine=upscale_engine,
+            hdr_mode=hdr_mode
         )
         added += 1
 
@@ -896,12 +906,33 @@ def create_gui() -> gr.Blocks:
                                     label="CRF (Quality)",
                                     info="Lower = better quality, larger file"
                                 )
-                            encoder = gr.Dropdown(
-                                choices=["hevc_nvenc", "h264_nvenc", "libx265", "libx264"],
-                                value="hevc_nvenc",
-                                label="Encoder",
-                                info="NVENC for GPU acceleration, libx for CPU"
-                            )
+                            with gr.Row():
+                                encoder = gr.Dropdown(
+                                    choices=["hevc_nvenc", "h264_nvenc", "libx265", "libx264"],
+                                    value="hevc_nvenc",
+                                    label="Encoder",
+                                    info="NVENC for GPU acceleration, libx for CPU"
+                                )
+                                upscale_engine = gr.Dropdown(
+                                    choices=["auto", "maxine", "realesrgan", "ffmpeg"],
+                                    value="auto",
+                                    label="Upscale Engine",
+                                    info="auto=best available, maxine=NVIDIA RTX, realesrgan=any GPU, ffmpeg=CPU only"
+                                )
+                            with gr.Row():
+                                hdr_mode = gr.Dropdown(
+                                    choices=["sdr", "hdr10", "hlg"],
+                                    value="sdr",
+                                    label="HDR Mode",
+                                    info="sdr=standard, hdr10=HDR10, hlg=HLG broadcast"
+                                )
+                                realesrgan_model = gr.Dropdown(
+                                    choices=["realesrgan-x4plus", "realesrgan-x4plus-anime",
+                                             "realesr-animevideov3", "realesrnet-x4plus"],
+                                    value="realesrgan-x4plus",
+                                    label="Real-ESRGAN Model",
+                                    info="Model for Real-ESRGAN upscaling (if selected)"
+                                )
 
                         add_btn = gr.Button("➕ Add to Queue", variant="primary", size="lg")
                         status_msg = gr.Textbox(label="Status", interactive=False)
@@ -925,6 +956,16 @@ def create_gui() -> gr.Blocks:
                         - Lower **CRF** = better quality, larger files
                         - **1080p** is ideal for most VHS content
                         - **4K (2160p)** best for DVD sources
+
+                        **No NVIDIA GPU?**
+                        - Use **realesrgan** engine (AMD/Intel)
+                        - Use **ffmpeg** for CPU-only upscaling
+                        - Use **libx265** encoder instead of NVENC
+
+                        **HDR Output:**
+                        - **HDR10** - Best for modern TVs
+                        - **HLG** - Better for broadcast/web
+                        - Note: True HDR requires HDR source
                         """)
 
             # =====================================================================
@@ -953,10 +994,21 @@ def create_gui() -> gr.Blocks:
                     )
                     batch_quality = gr.Radio(choices=[0, 1], value=0, label="Quality")
                     batch_crf = gr.Slider(15, 28, value=20, step=1, label="CRF")
+                with gr.Row():
                     batch_encoder = gr.Dropdown(
                         choices=["hevc_nvenc", "h264_nvenc", "libx265", "libx264"],
                         value="hevc_nvenc",
                         label="Encoder"
+                    )
+                    batch_engine = gr.Dropdown(
+                        choices=["auto", "maxine", "realesrgan", "ffmpeg"],
+                        value="auto",
+                        label="Upscale Engine"
+                    )
+                    batch_hdr = gr.Dropdown(
+                        choices=["sdr", "hdr10", "hlg"],
+                        value="sdr",
+                        label="HDR Mode"
                     )
 
                 batch_add_btn = gr.Button("➕ Add All to Queue", variant="primary", size="lg")
@@ -1138,22 +1190,26 @@ def create_gui() -> gr.Blocks:
         )
 
         # Helper to get the right input source
-        def add_video_to_queue(file_path, url_input, preset, resolution, quality, crf, encoder):
+        def add_video_to_queue(file_path, url_input, preset, resolution, quality, crf, encoder,
+                               engine, hdr, model):
             # Prefer file upload, fall back to URL/path input
             source = file_path if file_path else url_input
-            return add_to_queue(source, preset, resolution, quality, crf, encoder)
+            return add_to_queue(source, preset, resolution, quality, crf, encoder,
+                                engine, hdr, model)
 
         # Single video - use combined handler
         add_btn.click(
             fn=add_video_to_queue,
-            inputs=[final_input, input_source, preset, resolution, quality, crf, encoder],
+            inputs=[final_input, input_source, preset, resolution, quality, crf, encoder,
+                    upscale_engine, hdr_mode, realesrgan_model],
             outputs=[status_msg, queue_display]
         )
 
         # Batch
         batch_add_btn.click(
             fn=add_multiple_to_queue,
-            inputs=[batch_input, batch_preset, batch_resolution, batch_quality, batch_crf, batch_encoder],
+            inputs=[batch_input, batch_preset, batch_resolution, batch_quality, batch_crf,
+                    batch_encoder, batch_engine, batch_hdr],
             outputs=[batch_status, queue_display]
         )
 
