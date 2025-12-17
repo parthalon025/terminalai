@@ -45,6 +45,24 @@ pip install -e .              # Recommended: editable install
 pip install -r requirements.txt  # Just dependencies
 ```
 
+### Using Install Scripts
+
+**Linux/Mac:**
+```bash
+chmod +x install.sh
+./install.sh         # Standard install
+./install.sh --dev   # With dev dependencies
+```
+
+**Windows (PowerShell):**
+```powershell
+# Allow script execution (run once)
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+
+.\install.ps1        # Standard install
+.\install.ps1 -Dev   # With dev dependencies
+```
+
 ### Launch the GUI
 
 ```bash
@@ -213,6 +231,8 @@ terminalai/
 │   ├── test_gui_integration.py
 │   └── test_queue_manager.py
 ├── download_youtube.py     # Standalone downloader
+├── install.sh              # Linux/Mac installer
+├── install.ps1             # Windows installer
 ├── requirements.txt        # Dependencies
 ├── pyproject.toml          # Package config
 └── README.md
