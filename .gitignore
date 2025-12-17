@@ -1,0 +1,112 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+build/
+out/
+*.tsbuildinfo
+
+# Coverage and test reports
+coverage/
+.nyc_output/
+test-results/
+junit.xml
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+.env.development
+.env.test
+.env.production
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# IDE and editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*.swn
+*~
+*.sublime-workspace
+*.sublime-project
+
+# Cache directories
+.cache/
+.turbo/
+.eslintcache
+.prettiercache
+*.tscache
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+*.bak
+
+# Package manager debug
+.npm/
+.yarn/
+
+# Optional npm cache
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Microbundle cache
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+
+# Binaries
+*.exe
+*.dll
+*.so
+*.dylib
+dist/bin/
+
+# Secrets and credentials
+*.pem
+*.key
+credentials.json
+secrets.json
+*.secret
+
+# Local configuration
+.local/
+local.config.*
+
+# Benchmark results
+benchmark-results/
+
+# Documentation build
+docs/api/
+docs/_site/
+
+# Husky
+.husky/_/

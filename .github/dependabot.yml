@@ -1,0 +1,78 @@
+# Dependabot configuration
+# Automatically creates PRs to update dependencies
+
+version: 2
+updates:
+  # NPM dependencies
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/Chicago"
+    open-pull-requests-limit: 10
+    # Group updates to reduce PR noise
+    groups:
+      # Development dependencies
+      dev-dependencies:
+        dependency-type: "development"
+        update-types:
+          - "minor"
+          - "patch"
+      # Production dependencies (more careful)
+      prod-dependencies:
+        dependency-type: "production"
+        update-types:
+          - "patch"
+      # TypeScript ecosystem
+      typescript:
+        patterns:
+          - "typescript"
+          - "@typescript-eslint/*"
+          - "tsup"
+          - "tsx"
+      # Testing tools
+      testing:
+        patterns:
+          - "vitest"
+          - "@vitest/*"
+      # Linting tools
+      linting:
+        patterns:
+          - "eslint*"
+          - "prettier"
+    labels:
+      - "dependencies"
+      - "automated"
+    commit-message:
+      prefix: "chore(deps)"
+    reviewers:
+      - "parthalon025"
+    # Ignore specific updates
+    ignore:
+      # Major version updates require manual review
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    # Allow updates even if CI fails (for investigation)
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "production"
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "ci"
+      - "automated"
+      - "github-actions"
+    commit-message:
+      prefix: "ci(deps)"
+    groups:
+      actions:
+        patterns:
+          - "*"

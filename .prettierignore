@@ -1,0 +1,44 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+out/
+
+# Coverage reports
+coverage/
+
+# Logs
+*.log
+
+# Lock files (formatted by package managers)
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+
+# Generated files
+*.generated.*
+*.min.js
+*.min.css
+
+# IDE/Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Cache
+.cache/
+.turbo/
+.eslintcache
+
+# Environment files
+.env*
+
+# Binaries
+dist/bin/

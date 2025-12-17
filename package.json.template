@@ -1,0 +1,110 @@
+{
+  "name": "terminalai",
+  "version": "0.1.0",
+  "description": "AI-powered terminal assistant",
+  "type": "module",
+  "main": "./dist/index.js",
+  "bin": {
+    "terminalai": "./dist/cli.js",
+    "tai": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "dev": "tsx watch src/cli.ts",
+    "build": "tsup",
+    "build:binary": "pkg . --compress GZip",
+    "start": "node dist/cli.js",
+    "test": "vitest run",
+    "test:unit": "vitest run --dir tests/unit",
+    "test:integration": "vitest run --dir tests/integration",
+    "test:e2e": "vitest run --dir tests/e2e",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint . --ext .ts,.tsx",
+    "lint:fix": "eslint . --ext .ts,.tsx --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "type-check": "tsc --noEmit",
+    "clean": "rimraf dist coverage",
+    "prepare": "husky",
+    "precommit": "lint-staged",
+    "version:patch": "npm version patch",
+    "version:minor": "npm version minor",
+    "version:major": "npm version major"
+  },
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "commander": "^12.0.0",
+    "ora": "^8.0.0",
+    "openai": "^4.20.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "@vitest/coverage-v8": "^1.0.0",
+    "eslint": "^8.56.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-import": "^2.29.0",
+    "husky": "^9.0.0",
+    "lint-staged": "^15.2.0",
+    "prettier": "^3.2.0",
+    "rimraf": "^5.0.0",
+    "tsup": "^8.0.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.0",
+    "vitest": "^1.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/parthalon025/terminalai.git"
+  },
+  "keywords": [
+    "ai",
+    "terminal",
+    "cli",
+    "assistant",
+    "openai",
+    "gpt"
+  ],
+  "author": "parthalon025",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/parthalon025/terminalai/issues"
+  },
+  "homepage": "https://github.com/parthalon025/terminalai#readme",
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,yml,yaml}": [
+      "prettier --write"
+    ]
+  },
+  "pkg": {
+    "scripts": "dist/**/*.js",
+    "assets": "dist/**/*",
+    "targets": [
+      "node20-linux-x64",
+      "node20-linux-arm64",
+      "node20-macos-x64",
+      "node20-macos-arm64",
+      "node20-win-x64"
+    ],
+    "outputPath": "dist/bin"
+  }
+}
