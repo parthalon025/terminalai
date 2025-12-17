@@ -23,7 +23,7 @@ import sys
 import tempfile
 import time
 import threading
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import timedelta
 from pathlib import Path
 from typing import Optional, List
