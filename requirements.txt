@@ -1,4 +1,4 @@
-# TerminalAI Requirements v1.4.2
+# TerminalAI Requirements v1.4.4
 # ===============================
 # Install: pip install -r requirements.txt
 # Or full install: pip install -e .

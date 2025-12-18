@@ -6,7 +6,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/parthalon025/terminalai/releases"><img src="https://img.shields.io/badge/version-1.4.2-blue?style=flat-square" alt="Version 1.4.2"></a>
+  <a href="https://github.com/parthalon025/terminalai/releases"><img src="https://img.shields.io/badge/version-1.4.4-blue?style=flat-square" alt="Version 1.4.4"></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.10+-blue?style=flat-square&logo=python&logoColor=white" alt="Python 3.10+"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License"></a>
   <a href="https://developer.nvidia.com/maxine"><img src="https://img.shields.io/badge/NVIDIA-Maxine-76B900?style=flat-square&logo=nvidia&logoColor=white" alt="NVIDIA Maxine"></a>
@@ -25,42 +25,41 @@
 
 ## 🚀 Quick Install
 
-### One-Line Install (Recommended)
+### Automated Installer (Recommended)
 
 ```bash
-# Clone and install in one command
-git clone https://github.com/parthalon025/terminalai.git && cd terminalai && pip install -e .
+# Clone the repository
+git clone https://github.com/parthalon025/terminalai.git
+cd terminalai
+
+# Run comprehensive installer
+python install.py              # Basic installation
+# OR
+python install.py --full       # Full installation with all features
+python install.py --dev        # Development installation
+python install.py --audio      # With audio AI features (Demucs)
 ```
 
-### Or Step by Step
+The installer will:
+- ✓ Verify Python 3.10+ and pip
+- ✓ Install TerminalAI package with dependencies
+- ✓ Check for FFmpeg, NVIDIA GPU, Maxine SDK, Real-ESRGAN
+- ✓ Install optional features (VapourSynth, GFPGAN) if --full
+- ✓ Verify installation is working
+- ✓ Provide next steps and recommendations
+
+### Manual Install
 
 ```bash
 # 1. Clone the repository
 git clone https://github.com/parthalon025/terminalai.git
 cd terminalai
 
-# 2. Install (choose one method)
-pip install -e .              # Recommended: editable install
-# OR
-pip install -r requirements.txt  # Just dependencies
-```
-
-### Using Install Scripts
-
-**Linux/Mac:**
-```bash
-chmod +x install.sh
-./install.sh         # Standard install
-./install.sh --dev   # With dev dependencies
-```
-
-**Windows (PowerShell):**
-```powershell
-# Allow script execution (run once)
-Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-
-.\install.ps1        # Standard install
-.\install.ps1 -Dev   # With dev dependencies
+# 2. Install package (choose one)
+pip install -e .                    # Basic install
+pip install -e ".[dev]"             # With dev tools
+pip install -e ".[audio]"           # With audio AI (Demucs)
+pip install -e ".[full]"            # Everything
 ```
 
 ### Launch the GUI
