@@ -13,7 +13,7 @@ pytest-mock>=3.10,<4.0
 black>=23.0,<26.0
 ruff>=0.1.0,<1.0
 mypy>=1.0,<2.0
-isort>=5.12,<6.0
+isort>=5.12,<8.0
 
 # Type Stubs
 types-PyYAML>=6.0
