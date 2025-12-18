@@ -25,7 +25,25 @@
 
 ## 🚀 Quick Install
 
-### Automated Installer (Recommended)
+### One-Shot Install (Fastest)
+
+Complete automated setup - from zero to ready in one command:
+
+```bash
+# Linux/Mac - Downloads and installs everything automatically
+curl -sSL https://raw.githubusercontent.com/parthalon025/terminalai/main/one_shot_install.sh | bash
+```
+
+This installer will:
+- ✓ Install Python 3.10+ if needed
+- ✓ Install FFmpeg and system dependencies
+- ✓ Clone repository and install TerminalAI
+- ✓ Install all optional features (VapourSynth, GFPGAN, audio AI)
+- ✓ Download and configure Real-ESRGAN
+- ✓ Create shortcuts and verify installation
+- ✓ Take you from zero to fully operational in minutes
+
+### Automated Installer (Alternative)
 
 ```bash
 # Clone the repository
