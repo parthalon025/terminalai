@@ -15,17 +15,13 @@ Features:
 - Comprehensive logging and error handling
 """
 
-__version__ = "1.4.3"
+__version__ = "1.4.4"
 __author__ = "TerminalAI Contributors"
 
-from .vhs_upscale import VHSUpscaler, ProcessingConfig, YouTubeDownloader
 from .queue_manager import VideoQueue, QueueJob, JobStatus
 from .logger import get_logger, VHSLogger
 
 __all__ = [
-    "VHSUpscaler",
-    "ProcessingConfig",
-    "YouTubeDownloader",
     "VideoQueue",
     "QueueJob",
     "JobStatus",

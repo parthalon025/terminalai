@@ -1,0 +1,93 @@
+version: '3.8'
+
+services:
+  # Main application with GPU support
+  terminalai-gpu:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    image: terminalai:latest
+    container_name: terminalai-app
+    restart: unless-stopped
+    ports:
+      - "7860:7860"
+    volumes:
+      - ./input:/app/input:ro
+      - ./output:/app/output:rw
+      - ./models:/app/models:rw
+      - ./config.yaml:/app/config.yaml:ro
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility,video
+      - GRADIO_SERVER_NAME=0.0.0.0
+      - GRADIO_SERVER_PORT=7860
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    networks:
+      - terminalai-net
+
+  # CPU-only variant (no GPU required)
+  terminalai-cpu:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    image: terminalai:cpu
+    container_name: terminalai-app-cpu
+    restart: unless-stopped
+    ports:
+      - "7861:7860"
+    volumes:
+      - ./input:/app/input:ro
+      - ./output:/app/output:rw
+      - ./models:/app/models:rw
+    environment:
+      - GRADIO_SERVER_NAME=0.0.0.0
+      - GRADIO_SERVER_PORT=7860
+    networks:
+      - terminalai-net
+    profiles:
+      - cpu
+
+  # Development environment
+  terminalai-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    image: terminalai:dev
+    container_name: terminalai-dev
+    volumes:
+      - .:/app:rw
+      - ./input:/app/input:ro
+      - ./output:/app/output:rw
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - PYTHONPATH=/app
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    networks:
+      - terminalai-net
+    profiles:
+      - dev
+    stdin_open: true
+    tty: true
+
+networks:
+  terminalai-net:
+    driver: bridge
+
+volumes:
+  models:
+    driver: local

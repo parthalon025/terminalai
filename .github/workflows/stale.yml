@@ -1,0 +1,71 @@
+name: Stale Issues and PRs
+
+on:
+  schedule:
+    - cron: '0 0 * * *'  # Daily at midnight
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  stale:
+    name: Clean Stale Issues and PRs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/stale@v9
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+          # Issues configuration
+          days-before-issue-stale: 60
+          days-before-issue-close: 14
+          stale-issue-label: 'stale'
+          exempt-issue-labels: 'pinned,security,bug,enhancement,good-first-issue'
+
+          stale-issue-message: |
+            This issue has been automatically marked as stale because it has not had
+            recent activity. It will be closed in 14 days if no further activity occurs.
+
+            If you believe this issue is still relevant, please:
+            - Add a comment explaining why it should stay open
+            - Update the issue with new information
+            - Reference it in a pull request
+
+            Thank you for your contributions!
+
+          close-issue-message: |
+            This issue was automatically closed due to inactivity.
+
+            If you believe this was closed in error, please reopen it and provide
+            additional context or information.
+
+          # Pull requests configuration
+          days-before-pr-stale: 30
+          days-before-pr-close: 7
+          stale-pr-label: 'stale'
+          exempt-pr-labels: 'pinned,security,work-in-progress'
+
+          stale-pr-message: |
+            This pull request has been automatically marked as stale because it has not had
+            recent activity. It will be closed in 7 days if no further activity occurs.
+
+            To keep this PR open:
+            - Push new commits
+            - Respond to review comments
+            - Rebase on latest main branch
+            - Comment explaining the status
+
+          close-pr-message: |
+            This pull request was automatically closed due to inactivity.
+
+            If you'd like to continue this work, please:
+            - Rebase on the latest main branch
+            - Address any review comments
+            - Reopen the PR or create a new one
+
+          # Other options
+          operations-per-run: 100
+          remove-stale-when-updated: true
+          ascending: false

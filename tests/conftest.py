@@ -130,3 +130,53 @@ def completed_job():
         output_size=1024 * 1024 * 500,  # 500 MB
         processing_time=3600  # 1 hour
     )
+
+
+@pytest.fixture
+def processing_config():
+    """Create a ProcessingConfig for testing."""
+    from vhs_upscaler.vhs_upscale import ProcessingConfig
+
+    return ProcessingConfig(
+        resolution=1080,
+        quality_mode="medium",
+        crf=20,
+        encoder="hevc_nvenc",
+        deinterlace=True,
+        deinterlace_algorithm="yadif",
+        denoise=True,
+        denoise_strength=(4.0, 3.0, 6.0, 4.5)
+    )
+
+
+@pytest.fixture
+def mock_subprocess_run():
+    """Mock subprocess.run for FFmpeg/external commands."""
+    with patch('subprocess.run') as mock:
+        mock.return_value = MagicMock(returncode=0, stdout="", stderr="")
+        yield mock
+
+
+@pytest.fixture
+def sample_videos(temp_dir):
+    """Create multiple sample video files."""
+    videos = []
+    for i in range(3):
+        video = temp_dir / f"video_{i}.mp4"
+        video.write_bytes(b"fake video content")
+        videos.append(video)
+    return videos
+
+
+@pytest.fixture
+def mock_video_info():
+    """Mock video metadata information."""
+    return {
+        "width": 720,
+        "height": 480,
+        "duration": 120.5,
+        "codec": "h264",
+        "bitrate": 5000000,
+        "fps": 29.97,
+        "interlaced": True
+    }

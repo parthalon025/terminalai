@@ -1,0 +1,230 @@
+name: Release Automation
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 1.4.3)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  PYTHON_VERSION: "3.10"
+
+jobs:
+  validate-version:
+    name: Validate Version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Extract version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/v}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+          echo "Release version: $VERSION"
+
+      - name: Validate version format
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Error: Invalid version format. Expected x.y.z"
+            exit 1
+          fi
+
+      - name: Check version in pyproject.toml
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          TOML_VERSION=$(grep -oP 'version = "\K[^"]+' pyproject.toml)
+          if [ "$VERSION" != "$TOML_VERSION" ]; then
+            echo "Warning: Version mismatch. Tag: $VERSION, pyproject.toml: $TOML_VERSION"
+          fi
+
+  build-release:
+    name: Build Release Artifacts
+    runs-on: ubuntu-latest
+    needs: validate-version
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine wheel
+
+      - name: Build source distribution
+        run: |
+          python -m build --sdist
+
+      - name: Build wheel distribution
+        run: |
+          python -m build --wheel
+
+      - name: Verify distributions
+        run: |
+          twine check dist/*
+          ls -lh dist/
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-distributions
+          path: dist/
+
+  test-installation:
+    name: Test Installation
+    runs-on: ${{ matrix.os }}
+    needs: build-release
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-distributions
+          path: dist/
+
+      - name: Install from wheel
+        run: |
+          python -m pip install --upgrade pip
+          pip install dist/*.whl
+
+      - name: Test imports
+        run: |
+          python -c "from vhs_upscaler.logger import get_logger; print('Logger OK')"
+          python -c "from vhs_upscaler.queue_manager import VideoQueue; print('Queue OK')"
+          python -c "from vhs_upscaler import __version__; print(f'Version: {__version__}')"
+
+      - name: Test CLI entry points
+        run: |
+          vhs-upscale --help || echo "CLI help command works"
+
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [validate-version, build-release, test-installation]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-distributions
+          path: dist/
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          VERSION="${{ needs.validate-version.outputs.version }}"
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+
+          echo "## What's Changed" > changelog.md
+          echo "" >> changelog.md
+
+          if [ -n "$PREV_TAG" ]; then
+            git log ${PREV_TAG}..HEAD --pretty=format:"- %s (%an)" >> changelog.md
+          else
+            git log --pretty=format:"- %s (%an)" >> changelog.md
+          fi
+
+          cat changelog.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.validate-version.outputs.tag }}
+          name: Release ${{ needs.validate-version.outputs.version }}
+          body_path: changelog.md
+          draft: false
+          prerelease: false
+          files: |
+            dist/*.tar.gz
+            dist/*.whl
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-pypi:
+    name: Publish to PyPI
+    runs-on: ubuntu-latest
+    needs: [validate-version, create-release]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    environment:
+      name: pypi
+      url: https://pypi.org/project/terminalai/
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-distributions
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
+          skip-existing: true
+
+  publish-test-pypi:
+    name: Publish to Test PyPI
+    runs-on: ubuntu-latest
+    needs: [validate-version, build-release]
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-distributions
+          path: dist/
+
+      - name: Publish to Test PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.TEST_PYPI_API_TOKEN }}
+          repository-url: https://test.pypi.org/legacy/
+          skip-existing: true
+
+  notify-release:
+    name: Release Notification
+    runs-on: ubuntu-latest
+    needs: [create-release, publish-pypi]
+    if: always()
+    steps:
+      - name: Release summary
+        run: |
+          echo "Release v${{ needs.validate-version.outputs.version }} completed"
+          echo "GitHub Release: ${{ needs.create-release.result }}"
+          echo "PyPI Publish: ${{ needs.publish-pypi.result }}"

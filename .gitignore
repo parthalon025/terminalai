@@ -1,9 +1,11 @@
-# Python
+# Python bytecode and cache
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
+
+# Python packaging
 build/
 develop-eggs/
 dist/
@@ -16,40 +18,138 @@ parts/
 sdist/
 var/
 wheels/
+pip-wheel-metadata/
+share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+MANIFEST
 
 # Virtual environments
 venv/
 ENV/
 env/
+.venv
 
-# IDE
+# IDE and editors
 .idea/
 .vscode/
 *.swp
 *.swo
+*~
+.project
+.pydevproject
+.settings/
 
-# Temp files
-*.tmp
-*.temp
+# Operating System files
 .DS_Store
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+nul
 
-# Video processing temp
-vhs_upscale_*/
+# Testing
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+*.cover
+*.py,cover
+.cache
+nosetests.xml
+coverage.xml
+test-results/
+test_logs/
+test/
+__main__/
 
 # Logs
 logs/
 *.log
+pip-log.txt
+pip-delete-this-directory.txt
 
-# Queue state
+# Video processing temporary files
+vhs_upscale_*/
+temp_*/
+*.temp
+*.tmp
+
+# Application state
 queue_state.json
+app_state.json
 
-# Output
+# Output directories
 output/
+downloads/
+models/
+uploads/
 
-# Pytest
-.pytest_cache/
-.coverage
-htmlcov/
+# Video files (generally large and shouldn't be in repo)
+*.mp4
+*.avi
+*.mkv
+*.mov
+*.wmv
+*.flv
+*.webm
+*.m4v
+*.mpg
+*.mpeg
+
+# Audio files (generated/temporary)
+*.wav
+*.mp3
+*.aac
+*.flac
+*.ogg
+*.m4a
+
+# Sensitive files (safety check)
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+credentials.json
+secrets.yaml
+config.local.yaml
+
+# MyPy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Type checkers
+.pyre/
+.pytype/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Documentation builds
+docs/_build/
+docs/_static/
+docs/_templates/
+site/
+
+# macOS
+.AppleDouble
+.LSOverride
+
+# Windows
+ehthumbs.db
+ehthumbs_vista.db
+
+# Claude AI (local settings only)
+.claude/settings.local.json
+
+# Large installers (download separately)
+*.exe
+*.msi
+*.dmg
+*.pkg

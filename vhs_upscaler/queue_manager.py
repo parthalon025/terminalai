@@ -71,6 +71,19 @@ class QueueJob:
     center_mix: float = 0.707  # 0-1, 0.707 = -3dB
     surround_delay: int = 15  # ms (0-50)
 
+    # LUT color grading options
+    lut_file: Optional[str] = None  # Path to .cube LUT file
+    lut_strength: float = 1.0  # 0.0-1.0 blend intensity
+
+    # Face restoration options
+    face_restore: bool = False  # Enable AI face restoration
+    face_restore_strength: float = 0.5  # 0.0-1.0 restoration strength
+    face_restore_upscale: int = 2  # Upscale factor (1, 2, or 4)
+
+    # Deinterlacing options
+    deinterlace_algorithm: str = "yadif"  # yadif, bwdif, w3fdif, qtgmc
+    qtgmc_preset: Optional[str] = None  # draft, medium, slow, very_slow
+
     # Runtime state
     status: JobStatus = JobStatus.PENDING
     progress: float = 0.0
@@ -183,7 +196,14 @@ class VideoQueue:
                 demucs_shifts: int = 1,
                 lfe_crossover: int = 120,
                 center_mix: float = 0.707,
-                surround_delay: int = 15) -> QueueJob:
+                surround_delay: int = 15,
+                lut_file: Optional[str] = None,
+                lut_strength: float = 1.0,
+                face_restore: bool = False,
+                face_restore_strength: float = 0.5,
+                face_restore_upscale: int = 2,
+                deinterlace_algorithm: str = "yadif",
+                qtgmc_preset: Optional[str] = None) -> QueueJob:
         """Add a new job to the queue."""
         job = QueueJob(
             id=str(uuid.uuid4())[:8],
@@ -212,7 +232,14 @@ class VideoQueue:
             demucs_shifts=demucs_shifts,
             lfe_crossover=lfe_crossover,
             center_mix=center_mix,
-            surround_delay=surround_delay
+            surround_delay=surround_delay,
+            lut_file=lut_file,
+            lut_strength=lut_strength,
+            face_restore=face_restore,
+            face_restore_strength=face_restore_strength,
+            face_restore_upscale=face_restore_upscale,
+            deinterlace_algorithm=deinterlace_algorithm,
+            qtgmc_preset=qtgmc_preset
         )
 
         with self._lock:
@@ -281,6 +308,14 @@ class VideoQueue:
             for jid in to_remove:
                 del self.jobs[jid]
                 self.job_order.remove(jid)
+            self._notify_queue_update()
+            self.save_state()
+
+    def clear_all(self):
+        """Remove all jobs from the queue."""
+        with self._lock:
+            self.jobs.clear()
+            self.job_order.clear()
             self._notify_queue_update()
             self.save_state()
 

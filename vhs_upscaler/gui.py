@@ -15,14 +15,22 @@ Features:
 
 import gradio as gr
 import json
-import sys
 import subprocess
+import sys
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional, List, Tuple, Dict, Any
-import tempfile
+from typing import Dict, Any, List, Optional, Tuple
 import base64
 import hashlib
+import tempfile
+
+# Fix Windows console encoding for unicode characters
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+        sys.stderr.reconfigure(encoding='utf-8')
+    except AttributeError:
+        pass
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent))
@@ -34,7 +42,7 @@ from logger import get_logger
 logger = get_logger(verbose=True, log_to_file=True)
 
 # Version info
-__version__ = "1.4.3"
+__version__ = "1.4.2"
 
 
 # =============================================================================
@@ -106,9 +114,14 @@ class AppState:
 
 def process_job(job: QueueJob, progress_callback) -> bool:
     """Process a single job through the pipeline."""
-    from vhs_upscale import (
-        VHSUpscaler, ProcessingConfig, YouTubeDownloader
-    )
+    try:
+        from vhs_upscale import (
+            VHSUpscaler, ProcessingConfig, YouTubeDownloader
+        )
+    except ImportError as e:
+        job.error_message = f"Failed to import processing modules: {e}"
+        AppState.add_log(f"✗ Import error: {e}")
+        return False
 
     AppState.add_log(f"Starting job: {job.input_source[:50]}...")
 
@@ -154,7 +167,38 @@ def process_job(job: QueueJob, progress_callback) -> bool:
             lfe_crossover=getattr(job, 'lfe_crossover', 120),
             center_mix=getattr(job, 'center_mix', 0.707),
             surround_delay=getattr(job, 'surround_delay', 15),
+            # LUT color grading options
+            lut_file=Path(getattr(job, 'lut_file', '')) if getattr(job, 'lut_file', None) else None,
+            lut_strength=getattr(job, 'lut_strength', 1.0),
+            # Face restoration options
+            face_restore=getattr(job, 'face_restore', False),
+            face_restore_strength=getattr(job, 'face_restore_strength', 0.5),
+            face_restore_upscale=getattr(job, 'face_restore_upscale', 2),
+            # Deinterlacing options
+            deinterlace_algorithm=getattr(job, 'deinterlace_algorithm', 'yadif'),
+            qtgmc_preset=getattr(job, 'qtgmc_preset', None),
         )
+
+        # Validate optional features and warn if not available
+        if config.face_restore:
+            try:
+                from vhs_upscale import HAS_FACE_RESTORATION
+                if not HAS_FACE_RESTORATION:
+                    AppState.add_log("⚠️ Face restoration requested but module not available - feature will be skipped")
+                    logger.warning("Face restoration requested but not available")
+            except:
+                AppState.add_log("⚠️ Face restoration not available - feature will be skipped")
+
+        if config.deinterlace_algorithm == "qtgmc":
+            try:
+                from vhs_upscale import HAS_DEINTERLACE
+                if not HAS_DEINTERLACE:
+                    AppState.add_log("⚠️ QTGMC deinterlacing requested but VapourSynth not available - falling back to yadif")
+                    logger.warning("QTGMC requested but deinterlace module not available")
+                    config.deinterlace_algorithm = "yadif"
+            except:
+                AppState.add_log("⚠️ QTGMC not available - falling back to yadif")
+                config.deinterlace_algorithm = "yadif"
 
         # Apply preset
         if job.preset in VHSUpscaler.PRESETS:
@@ -399,7 +443,11 @@ def add_to_queue(input_source: str, preset: str, resolution: int,
                  audio_target_loudness: float = -14.0, audio_noise_floor: float = -20.0,
                  demucs_model: str = "htdemucs", demucs_device: str = "auto",
                  demucs_shifts: int = 1, lfe_crossover: int = 120,
-                 center_mix: float = 0.707, surround_delay: int = 15) -> Tuple[str, str]:
+                 center_mix: float = 0.707, surround_delay: int = 15,
+                 lut_file: str = "", lut_strength: float = 1.0,
+                 face_restore: bool = False, face_restore_strength: float = 0.5,
+                 face_restore_upscale: int = 2,
+                 deinterlace_algorithm: str = "yadif", qtgmc_preset: str = "medium") -> Tuple[str, str]:
     """Add a video to the processing queue."""
     initialize_queue()
 
@@ -434,7 +482,14 @@ def add_to_queue(input_source: str, preset: str, resolution: int,
         demucs_shifts=demucs_shifts,
         lfe_crossover=lfe_crossover,
         center_mix=center_mix,
-        surround_delay=surround_delay
+        surround_delay=surround_delay,
+        lut_file=lut_file if lut_file.strip() else None,
+        lut_strength=lut_strength,
+        face_restore=face_restore,
+        face_restore_strength=face_restore_strength,
+        face_restore_upscale=face_restore_upscale,
+        deinterlace_algorithm=deinterlace_algorithm,
+        qtgmc_preset=qtgmc_preset if qtgmc_preset != "none" else None
     )
 
     AppState.add_log(f"Added to queue: {input_source[:50]}...")
@@ -502,6 +557,15 @@ def clear_completed() -> Tuple[str, str]:
     AppState.queue.clear_completed()
     AppState.add_log("Cleared completed jobs")
     return "🗑️ Cleared completed jobs", get_queue_display()
+
+
+def clear_all_queue() -> Tuple[str, str]:
+    """Clear all jobs from queue (stops processing if active)."""
+    initialize_queue()
+    AppState.queue.pause_processing()
+    AppState.queue.clear_all()
+    AppState.add_log("Cleared all jobs from queue")
+    return "🗑️ Cleared all jobs", get_queue_display()
 
 
 def get_queue_display() -> str:
@@ -875,12 +939,7 @@ def create_gui() -> gr.Blocks:
     """
 
     with gr.Blocks(
-        title="VHS Upscaler",
-        theme=gr.themes.Soft(
-            primary_hue="blue",
-            secondary_hue="slate",
-        ),
-        css=custom_css
+        title="VHS Upscaler"
     ) as app:
 
         # Header with version badge
@@ -1018,6 +1077,62 @@ def create_gui() -> gr.Blocks:
                                         value=10,
                                         label="Color Depth",
                                         info="USE 10-bit for HDR (required for smooth gradients). USE 8-bit only if storage is critical or device doesn't support 10-bit."
+                                    )
+
+                        with gr.Accordion("🎨 Video Enhancement Options", open=False):
+                            gr.Markdown("*Advanced video enhancement features: color grading, face restoration, deinterlacing*")
+
+                            # LUT Color Grading
+                            with gr.Group():
+                                gr.Markdown("**🎨 LUT Color Grading** - Apply cinematic color grading with .cube LUT files")
+                                with gr.Row():
+                                    lut_file = gr.Textbox(
+                                        label="LUT File Path",
+                                        placeholder="Path to .cube LUT file (e.g., luts/vhs_restore.cube)",
+                                        info="USE to fix VHS color issues or add cinematic look. SKIP if colors look good already."
+                                    )
+                                    lut_strength = gr.Slider(
+                                        minimum=0.0, maximum=1.0, value=1.0, step=0.1,
+                                        label="LUT Strength",
+                                        info="USE 0.5-0.7 for subtle correction, 1.0 for full effect. Lower = more natural blend."
+                                    )
+
+                            # Face Restoration
+                            with gr.Group():
+                                gr.Markdown("**👤 AI Face Restoration** - Enhance faces using GFPGAN (requires additional install)")
+                                with gr.Row():
+                                    face_restore = gr.Checkbox(
+                                        label="Enable Face Restoration",
+                                        value=False,
+                                        info="USE for home videos with faces. SKIP for landscapes, animation, or if no faces present."
+                                    )
+                                    face_restore_strength = gr.Slider(
+                                        minimum=0.0, maximum=1.0, value=0.5, step=0.1,
+                                        label="Restoration Strength",
+                                        info="USE 0.5 for balance, 0.8+ for heavily damaged faces. Too high may look artificial."
+                                    )
+                                    face_restore_upscale = gr.Radio(
+                                        choices=[1, 2, 4],
+                                        value=2,
+                                        label="Face Upscale Factor",
+                                        info="USE 2 for most cases, 4 only if faces are very small/distant."
+                                    )
+
+                            # Deinterlacing
+                            with gr.Group():
+                                gr.Markdown("**📼 Deinterlacing Method** - Remove interlacing artifacts from VHS/DVD/broadcast sources")
+                                with gr.Row():
+                                    deinterlace_algorithm = gr.Dropdown(
+                                        choices=["yadif", "bwdif", "w3fdif", "qtgmc"],
+                                        value="yadif",
+                                        label="Algorithm",
+                                        info="USE yadif for speed (good), bwdif for motion (better), w3fdif for detail (better), qtgmc for quality (best, slow)."
+                                    )
+                                    qtgmc_preset = gr.Dropdown(
+                                        choices=["none", "draft", "medium", "slow", "very_slow"],
+                                        value="medium",
+                                        label="QTGMC Preset",
+                                        info="Only for qtgmc algorithm. USE medium for balance, very_slow for archival quality. Requires VapourSynth."
                                     )
 
                         with gr.Accordion("🔊 Audio Options", open=False):
@@ -1227,6 +1342,7 @@ def create_gui() -> gr.Blocks:
                     start_btn = gr.Button("▶️ Start Processing", variant="primary", size="lg")
                     pause_btn = gr.Button("⏸️ Pause", variant="secondary")
                     clear_btn = gr.Button("🗑️ Clear Completed", variant="secondary")
+                    clear_all_btn = gr.Button("🗑️ Clear All", variant="stop")
                     refresh_btn = gr.Button("🔄 Refresh", variant="secondary")
 
                 gr.Markdown("### Job Queue")
@@ -1393,7 +1509,9 @@ def create_gui() -> gr.Blocks:
                                aud_enhance, aud_upmix, aud_layout, aud_format,
                                aud_loudness, aud_noise,
                                dem_model, dem_device, dem_shifts,
-                               lfe_cross, cent_mix, surr_delay):
+                               lfe_cross, cent_mix, surr_delay,
+                               lut_path, lut_str, face_rest, face_str, face_up,
+                               deint_algo, qtgmc_pres):
             # Prefer file upload, fall back to URL/path input
             source = file_path if file_path else url_input
             return add_to_queue(
@@ -1403,7 +1521,9 @@ def create_gui() -> gr.Blocks:
                 aud_enhance, aud_upmix, aud_layout, aud_format,
                 aud_loudness, aud_noise,
                 dem_model, dem_device, dem_shifts,
-                lfe_cross, cent_mix, surr_delay
+                lfe_cross, cent_mix, surr_delay,
+                lut_path, lut_str, face_rest, face_str, face_up,
+                deint_algo, qtgmc_pres
             )
 
         # Single video - use combined handler
@@ -1416,7 +1536,9 @@ def create_gui() -> gr.Blocks:
                 audio_enhance, audio_upmix, audio_layout, audio_format,
                 audio_target_loudness, audio_noise_floor,
                 demucs_model, demucs_device, demucs_shifts,
-                lfe_crossover, center_mix, surround_delay
+                lfe_crossover, center_mix, surround_delay,
+                lut_file, lut_strength, face_restore, face_restore_strength, face_restore_upscale,
+                deinterlace_algorithm, qtgmc_preset
             ],
             outputs=[status_msg, queue_display]
         )
@@ -1443,9 +1565,14 @@ def create_gui() -> gr.Blocks:
             result = clear_completed()
             return result[0], result[1], get_stats_display()
 
+        def clear_all_with_stats():
+            result = clear_all_queue()
+            return result[0], result[1], get_stats_display()
+
         start_btn.click(fn=start_queue_with_stats, outputs=[queue_status, queue_display, stats_display])
         pause_btn.click(fn=pause_queue_with_stats, outputs=[queue_status, queue_display, stats_display])
         clear_btn.click(fn=clear_completed_with_stats, outputs=[queue_status, queue_display, stats_display])
+        clear_all_btn.click(fn=clear_all_with_stats, outputs=[queue_status, queue_display, stats_display])
         refresh_btn.click(fn=refresh_display, outputs=[queue_display, stats_display, logs_display])
 
         # Logs
@@ -1537,7 +1664,15 @@ def create_gui() -> gr.Blocks:
         def auto_refresh():
             return get_queue_display(), get_stats_display()
 
-        app.load(fn=auto_refresh, outputs=[queue_display, stats_display], every=2)
+        # Gradio 6.x uses different syntax for periodic updates
+        try:
+            # Try Gradio 6.x syntax - Timer with value parameter
+            timer = gr.Timer(value=2)
+            timer.tick(fn=auto_refresh, outputs=[queue_display, stats_display])
+        except (AttributeError, TypeError):
+            # If Timer doesn't work, use manual refresh button instead
+            # Auto-refresh is not critical, users can manually refresh
+            pass
 
     return app
 

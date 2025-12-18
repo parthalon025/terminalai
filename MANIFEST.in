@@ -1,0 +1,51 @@
+# Include documentation
+include README.md
+include LICENSE
+include SECURITY.md
+include CLAUDE.md
+
+# Include requirements files
+include requirements.txt
+include requirements-dev.txt
+include requirements-audio.txt
+
+# Include configuration files
+include pyproject.toml
+include pytest.ini
+include .pre-commit-config.yaml
+
+# Include LUT files
+recursive-include luts *.cube
+
+# Include VapourSynth scripts
+recursive-include vhs_upscaler/vapoursynth_scripts *.vpy
+include vhs_upscaler/vapoursynth_scripts/README.md
+
+# Include setup scripts
+include scripts/generate_luts.py
+include scripts/video_analyzer.sh
+include setup_maxine.py
+include verify_setup.py
+include install.sh
+include install.ps1
+
+# Include Docker files
+include Dockerfile
+include docker-compose.yml
+include .dockerignore
+
+# Exclude test files and documentation from wheel
+exclude test_*.py
+exclude tests/*
+prune tests
+prune docs
+prune htmlcov
+prune .github
+
+# Exclude development artifacts
+global-exclude __pycache__
+global-exclude *.py[cod]
+global-exclude *.so
+global-exclude .DS_Store
+global-exclude *.log
+global-exclude *.tmp

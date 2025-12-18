@@ -1,0 +1,80 @@
+# Labeler configuration for automatic PR labeling
+# https://github.com/actions/labeler
+
+# Core components
+'component: upscaler':
+  - changed-files:
+    - any-glob-to-any-file: 'vhs_upscaler/vhs_upscale.py'
+
+'component: gui':
+  - changed-files:
+    - any-glob-to-any-file: 'vhs_upscaler/gui.py'
+
+'component: queue':
+  - changed-files:
+    - any-glob-to-any-file: 'vhs_upscaler/queue_manager.py'
+
+'component: audio':
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'vhs_upscaler/audio_processor.py'
+      - 'vhs_upscaler/*audio*'
+
+'component: deinterlace':
+  - changed-files:
+    - any-glob-to-any-file: 'vhs_upscaler/deinterlace.py'
+
+# File types
+'type: documentation':
+  - changed-files:
+    - any-glob-to-any-file:
+      - '**/*.md'
+      - 'docs/**/*'
+
+'type: tests':
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'tests/**/*'
+      - 'test_*.py'
+
+'type: ci/cd':
+  - changed-files:
+    - any-glob-to-any-file:
+      - '.github/**/*'
+      - 'Dockerfile'
+      - 'docker-compose.yml'
+      - '.pre-commit-config.yaml'
+      - 'Makefile'
+
+'type: configuration':
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'pyproject.toml'
+      - 'pytest.ini'
+      - 'config.yaml'
+      - '.ruff.toml'
+
+# Dependencies
+'dependencies':
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'requirements.txt'
+      - 'pyproject.toml'
+
+# Scripts
+'type: scripts':
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'scripts/**/*'
+      - 'download_youtube.py'
+      - 'setup_maxine.py'
+
+# Analysis features
+'component: analysis':
+  - changed-files:
+    - any-glob-to-any-file: 'vhs_upscaler/analysis/**/*'
+
+# LUTs
+'component: luts':
+  - changed-files:
+    - any-glob-to-any-file: 'luts/**/*'

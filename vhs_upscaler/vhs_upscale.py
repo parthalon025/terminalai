@@ -40,6 +40,25 @@ try:
 except ImportError:
     HAS_AUDIO_PROCESSOR = False
 
+try:
+    from .analysis import AnalyzerWrapper, VideoAnalysis, AnalyzerBackend
+    from .presets import get_preset_from_analysis, get_recommended_settings_from_analysis
+    HAS_ANALYSIS = True
+except ImportError:
+    HAS_ANALYSIS = False
+
+try:
+    from .face_restoration import FaceRestorer
+    HAS_FACE_RESTORATION = True
+except ImportError:
+    HAS_FACE_RESTORATION = False
+
+try:
+    from .deinterlace import DeinterlaceProcessor, DeinterlaceEngine
+    HAS_DEINTERLACE = True
+except ImportError:
+    HAS_DEINTERLACE = False
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -129,37 +148,48 @@ class UnifiedProgress:
             total_remaining = stage_remaining + (remaining_stages * stage_elapsed * 100 / max(self.stage_progress, 1))
             eta_str = f"ETA: {timedelta(seconds=int(total_remaining))}"
 
-        # Build progress bar
+        # Build progress bar (ASCII-safe for Windows console)
         bar_width = 40
         filled = int(bar_width * overall / 100)
-        bar = "█" * filled + "▒" * (bar_width - filled)
+        bar = "#" * filled + "-" * (bar_width - filled)
 
-        # Stage indicators
+        # Stage indicators (ASCII-safe)
         stage_dots = ""
         for i, (_, name) in enumerate(self.active_stages):
             if i < self.current_stage_idx:
-                stage_dots += "●"  # Completed
+                stage_dots += "*"  # Completed
             elif i == self.current_stage_idx:
-                stage_dots += "◐"  # In progress
+                stage_dots += ">"  # In progress
             else:
-                stage_dots += "○"  # Pending
+                stage_dots += "."  # Pending
 
-        # Build output line
-        line = f"\r{stage_dots} [{bar}] {overall:5.1f}% │ {stage_name}: {self.stage_progress:5.1f}%"
+        # Build output line (use | instead of │ for ASCII compatibility)
+        line = f"\r{stage_dots} [{bar}] {overall:5.1f}% | {stage_name}: {self.stage_progress:5.1f}%"
         if eta_str:
-            line += f" │ {eta_str}"
+            line += f" | {eta_str}"
 
         # Pad to clear previous content
         line = line.ljust(120)
-        print(line, end="", flush=True)
+        try:
+            print(line, end="", flush=True)
+        except UnicodeEncodeError:
+            # Fallback if encoding still fails
+            pass
 
     def finish(self, success: bool = True):
         """Display final status."""
         elapsed = time.time() - self.start_time
-        status = "✓ Complete" if success else "✗ Failed"
-        print(f"\n\n{status} in {timedelta(seconds=int(elapsed))}")
-        if self.video_title:
-            print(f"Video: {self.video_title}")
+        status = "[OK] Complete" if success else "[FAILED] Failed"
+        # Use ASCII-safe output for Windows console compatibility
+        try:
+            print(f"\n\n{status} in {timedelta(seconds=int(elapsed))}")
+            if self.video_title:
+                print(f"Video: {self.video_title}")
+        except UnicodeEncodeError:
+            # Fallback for encoding issues
+            print(f"\n\n{status} in {int(elapsed)} seconds")
+            if self.video_title:
+                print(f"Video: {self.video_title}")
 
 
 # ============================================================================
@@ -311,6 +341,8 @@ class ProcessingConfig:
     crf: int = 20
     preset: str = "vhs"
     deinterlace: bool = True
+    deinterlace_algorithm: str = "yadif"  # yadif, bwdif, w3fdif, qtgmc
+    qtgmc_preset: Optional[str] = None  # draft, medium, slow, very_slow (for QTGMC only)
     denoise: bool = True
     denoise_strength: tuple = (3, 2, 3, 2)  # hqdn3d parameters
     encoder: str = "hevc_nvenc"
@@ -344,6 +376,13 @@ class ProcessingConfig:
     lfe_crossover: int = 120  # Hz (60-200)
     center_mix: float = 0.707  # 0-1, 0.707 = -3dB
     surround_delay: int = 15  # ms (0-50)
+    # LUT (Look-Up Table) color grading options
+    lut_file: Optional[Path] = None  # Path to .cube LUT file
+    lut_strength: float = 1.0  # 0.0-1.0 blend intensity
+    # Face restoration options (GFPGAN)
+    face_restore: bool = False  # Enable AI face restoration
+    face_restore_strength: float = 0.5  # 0.0-1.0 restoration strength
+    face_restore_upscale: int = 2  # Upscale factor (1, 2, or 4)
 
 
 # ============================================================================
@@ -392,10 +431,8 @@ class VHSUpscaler:
         self.config = config
         self.progress = progress
         self.available_engines = []
-        self.available_encoders = []
         self._validate_dependencies()
         self._detect_upscale_engine()
-        self._detect_best_encoder()
 
     def _validate_dependencies(self):
         """Verify all required tools are available."""
@@ -429,9 +466,6 @@ class VHSUpscaler:
             self.config.realesrgan_path = str(realesrgan_exe)
             self.available_engines.append("realesrgan")
             logger.debug(f"Real-ESRGAN found: {realesrgan_exe}")
-
-        # Check available video encoders
-        self._detect_available_encoders()
 
     def _find_realesrgan(self) -> Optional[Path]:
         """Find Real-ESRGAN ncnn-vulkan executable."""
@@ -494,85 +528,9 @@ class VHSUpscaler:
 
         self.config.upscale_engine = "ffmpeg"
 
-    def _detect_available_encoders(self):
-        """Detect which video encoders are available in FFmpeg."""
-        # Query FFmpeg for available encoders
-        try:
-            result = subprocess.run(
-                [self.config.ffmpeg_path, "-encoders"],
-                capture_output=True, text=True, check=True
-            )
-            encoder_output = result.stdout
-
-            # Check for NVIDIA NVENC encoders
-            if "hevc_nvenc" in encoder_output:
-                self.available_encoders.append("hevc_nvenc")
-                logger.debug("NVIDIA NVENC HEVC encoder available")
-            if "h264_nvenc" in encoder_output:
-                self.available_encoders.append("h264_nvenc")
-                logger.debug("NVIDIA NVENC H.264 encoder available")
-
-            # Check for AMD AMF encoders
-            if "hevc_amf" in encoder_output:
-                self.available_encoders.append("hevc_amf")
-                logger.debug("AMD AMF HEVC encoder available")
-            if "h264_amf" in encoder_output:
-                self.available_encoders.append("h264_amf")
-                logger.debug("AMD AMF H.264 encoder available")
-
-            # Check for Intel QuickSync encoders
-            if "hevc_qsv" in encoder_output:
-                self.available_encoders.append("hevc_qsv")
-                logger.debug("Intel QuickSync HEVC encoder available")
-            if "h264_qsv" in encoder_output:
-                self.available_encoders.append("h264_qsv")
-                logger.debug("Intel QuickSync H.264 encoder available")
-
-            # CPU encoders (always available with FFmpeg)
-            if "libx265" in encoder_output:
-                self.available_encoders.append("libx265")
-            if "libx264" in encoder_output:
-                self.available_encoders.append("libx264")
-
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            # Fallback to CPU encoders
-            self.available_encoders = ["libx265", "libx264"]
-            logger.warning("Could not detect encoders, using CPU fallback")
-
-    def _detect_best_encoder(self):
-        """Auto-select best available encoder if current one is unavailable."""
-        current = self.config.encoder
-
-        # If current encoder is available, keep it
-        if current in self.available_encoders:
-            return
-
-        # Priority order: NVIDIA > AMD > Intel > CPU
-        encoder_priority = [
-            "hevc_nvenc", "h264_nvenc",  # NVIDIA (fastest)
-            "hevc_amf", "h264_amf",       # AMD
-            "hevc_qsv", "h264_qsv",       # Intel
-            "libx265", "libx264"          # CPU (slowest)
-        ]
-
-        for encoder in encoder_priority:
-            if encoder in self.available_encoders:
-                old_encoder = self.config.encoder
-                self.config.encoder = encoder
-                logger.info(f"Auto-selected encoder: {encoder} (requested {old_encoder} not available)")
-                return
-
-        # Ultimate fallback
-        self.config.encoder = "libx264"
-        logger.warning("No preferred encoders found, using libx264")
-
     def get_available_engines(self) -> List[str]:
         """Return list of available upscale engines."""
         return self.available_engines.copy()
-
-    def get_available_encoders(self) -> List[str]:
-        """Return list of available video encoders."""
-        return self.available_encoders.copy()
 
     def _get_video_duration(self, input_path: Path) -> float:
         """Get video duration in seconds."""
@@ -610,34 +568,127 @@ class VHSUpscaler:
         return False
 
     def preprocess(self, input_path: Path, temp_dir: Path, duration: float) -> tuple:
-        """Pre-process video: deinterlace, denoise, extract audio."""
+        """Pre-process video: deinterlace, denoise, LUT color grading, extract audio."""
         self.progress.start_stage("preprocess")
 
         video_out = temp_dir / "prepped_video.mp4"
         audio_out = temp_dir / "audio.aac"
 
-        # Build video filter chain
-        vf_filters = []
+        # Handle deinterlacing with multi-engine support
+        working_video = input_path
         if self.config.deinterlace:
-            vf_filters.append("yadif=1")
+            deinterlace_algo = self.config.deinterlace_algorithm.lower()
+
+            # QTGMC requires separate processing with VapourSynth
+            if deinterlace_algo == "qtgmc" and HAS_DEINTERLACE:
+                logger.info(f"Deinterlacing with QTGMC (preset: {self.config.qtgmc_preset or 'medium'})")
+                try:
+                    deinterlacer = DeinterlaceProcessor(DeinterlaceEngine.QTGMC)
+                    deinterlaced_video = temp_dir / "deinterlaced.mp4"
+
+                    # Detect field order (TFF/BFF)
+                    tff = True  # Default to TFF
+                    if self._is_interlaced(input_path):
+                        # Try to detect field order
+                        cmd = [
+                            "ffprobe", "-v", "quiet",
+                            "-select_streams", "v:0",
+                            "-show_entries", "stream=field_order",
+                            "-of", "json",
+                            str(input_path)
+                        ]
+                        try:
+                            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+                            data = json.loads(result.stdout)
+                            field_order = data.get("streams", [{}])[0].get("field_order", "tt")
+                            tff = field_order != "bb"  # bb = bottom field first
+                        except:
+                            pass
+
+                    deinterlacer.deinterlace(
+                        input_path,
+                        deinterlaced_video,
+                        preset=self.config.qtgmc_preset or "medium",
+                        tff=tff
+                    )
+                    working_video = deinterlaced_video
+                    logger.info("QTGMC deinterlacing complete")
+
+                except Exception as e:
+                    logger.warning(f"QTGMC deinterlacing failed: {e}, falling back to yadif")
+                    deinterlace_algo = "yadif"
+
+            elif deinterlace_algo == "qtgmc" and not HAS_DEINTERLACE:
+                logger.warning("QTGMC requested but deinterlace module not available, falling back to yadif")
+                deinterlace_algo = "yadif"
+
+        # Build video filter chain for remaining processing
+        vf_filters = []
+
+        # Add FFmpeg-based deinterlacing if not using QTGMC
+        if self.config.deinterlace and working_video == input_path:
+            deinterlace_algo = self.config.deinterlace_algorithm.lower()
+            if deinterlace_algo == "bwdif":
+                vf_filters.append("bwdif=1")  # Better motion compensation
+            elif deinterlace_algo == "w3fdif":
+                vf_filters.append("w3fdif")  # Better detail preservation
+            else:  # yadif (default fallback)
+                vf_filters.append("yadif=1")  # Fast, good quality
+
+        # Denoise filter
         if self.config.denoise:
             ds = self.config.denoise_strength
             vf_filters.append(f"hqdn3d={ds[0]}:{ds[1]}:{ds[2]}:{ds[3]}")
 
+        # Apply LUT color grading (after denoise, before upscale)
+        if self.config.lut_file and self.config.lut_file.exists():
+            lut_path = str(self.config.lut_file).replace("\\", "/")  # FFmpeg needs forward slashes
+            if self.config.lut_strength < 1.0:
+                # Blend LUT with original using colorchannelmixer
+                # Formula: output = original * (1 - strength) + lut * strength
+                strength = self.config.lut_strength
+                inv_strength = 1.0 - strength
+                # Use split and blend to mix original and LUT-transformed video
+                vf_filters.append(
+                    f"split[main][lut];"
+                    f"[lut]lut3d='{lut_path}'[graded];"
+                    f"[main][graded]blend=all_mode=normal:all_opacity={strength}"
+                )
+            else:
+                # Apply LUT at full strength
+                vf_filters.append(f"lut3d='{lut_path}'")
+            logger.info(f"Applying LUT: {self.config.lut_file.name} (strength: {self.config.lut_strength})")
+
         vf_string = ",".join(vf_filters) if vf_filters else "null"
 
-        # Process video
-        video_cmd = [
-            self.config.ffmpeg_path,
-            "-y", "-i", str(input_path),
-            "-vf", vf_string,
-            "-an",
-            "-c:v", "libx264",
-            "-crf", "15",
-            "-preset", "fast",
-            "-progress", "pipe:1",
-            str(video_out)
-        ]
+        # Process video (use GPU encoding if available)
+        use_nvenc = self.config.encoder in ["hevc_nvenc", "h264_nvenc"]
+        if use_nvenc:
+            # Don't use hwaccel for decoding when applying CPU filters
+            # The NVENC encoder will still use GPU
+            video_cmd = [
+                self.config.ffmpeg_path,
+                "-y", "-i", str(working_video),
+                "-vf", vf_string,
+                "-an",
+                "-c:v", "h264_nvenc",
+                "-preset", "p4",
+                "-cq", "18",
+                "-progress", "pipe:1",
+                str(video_out)
+            ]
+        else:
+            video_cmd = [
+                self.config.ffmpeg_path,
+                "-y", "-i", str(working_video),
+                "-vf", vf_string,
+                "-an",
+                "-c:v", "libx264",
+                "-crf", "15",
+                "-preset", "fast",
+                "-progress", "pipe:1",
+                str(video_out)
+            ]
 
         process = subprocess.Popen(
             video_cmd,
@@ -646,6 +697,17 @@ class VHSUpscaler:
             text=True
         )
 
+        # Read stderr in separate thread to prevent pipe deadlock
+        stderr_lines = []
+        def read_stderr():
+            for line in process.stderr:
+                stderr_lines.append(line)
+
+        import threading
+        stderr_thread = threading.Thread(target=read_stderr, daemon=True)
+        stderr_thread.start()
+
+        # Read progress from stdout
         for line in process.stdout:
             if line.startswith("out_time_ms="):
                 try:
@@ -656,8 +718,11 @@ class VHSUpscaler:
                     pass
 
         process.wait()
+        stderr_thread.join(timeout=1)
+
         if process.returncode != 0:
-            raise RuntimeError(f"Pre-processing failed: {process.stderr.read()}")
+            error_output = ''.join(stderr_lines)
+            raise RuntimeError(f"Pre-processing failed: {error_output}")
 
         # Extract audio
         audio_cmd = [
@@ -701,22 +766,50 @@ class VHSUpscaler:
         """FFmpeg-based upscaling (works on any hardware)."""
         output_path = temp_dir / "upscaled.mp4"
 
-        cmd = [
-            self.config.ffmpeg_path,
-            "-y", "-i", str(input_path),
-            "-vf", f"scale=-2:{self.config.resolution}:flags=lanczos",
-            "-c:v", "libx264",
-            "-crf", "18",
-            "-preset", "slow",
-            "-progress", "pipe:1",
-            str(output_path)
-        ]
+        # Use GPU encoding if available
+        use_nvenc = self.config.encoder in ["hevc_nvenc", "h264_nvenc"]
+        if use_nvenc:
+            # Use hwupload_cuda to convert from CPU to CUDA format for scaling
+            cmd = [
+                self.config.ffmpeg_path,
+                "-y", "-i", str(input_path),
+                "-vf", f"hwupload_cuda,scale_cuda=-2:{self.config.resolution}",
+                "-an",  # No audio (audio is handled in final encoding)
+                "-c:v", "h264_nvenc",
+                "-preset", "p4",
+                "-cq", "18",
+                "-progress", "pipe:1",
+                str(output_path)
+            ]
+        else:
+            cmd = [
+                self.config.ffmpeg_path,
+                "-y", "-i", str(input_path),
+                "-vf", f"scale=-2:{self.config.resolution}:flags=lanczos",
+                "-an",  # No audio (audio is handled in final encoding)
+                "-c:v", "libx264",
+                "-crf", "18",
+                "-preset", "slow",
+                "-progress", "pipe:1",
+                str(output_path)
+            ]
 
         duration = self._get_video_duration(input_path)
         process = subprocess.Popen(
             cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
         )
 
+        # Read stderr in separate thread to prevent pipe deadlock
+        import threading
+        stderr_output = []
+        def read_stderr():
+            for line in process.stderr:
+                stderr_output.append(line)  # Capture stderr for error checking
+
+        stderr_thread = threading.Thread(target=read_stderr, daemon=True)
+        stderr_thread.start()
+
+        # Read progress from stdout
         for line in process.stdout:
             if line.startswith("out_time_ms="):
                 try:
@@ -727,6 +820,17 @@ class VHSUpscaler:
                     pass
 
         process.wait()
+        stderr_thread.join(timeout=1)
+
+        # Check if FFmpeg failed
+        if process.returncode != 0:
+            error_msg = ''.join(stderr_output[-20:])  # Last 20 lines of stderr
+            raise RuntimeError(f"FFmpeg upscaling failed with code {process.returncode}: {error_msg}")
+
+        # Verify the output file is valid
+        if not output_path.exists() or output_path.stat().st_size < 1000:
+            raise RuntimeError(f"Upscaling produced invalid output file")
+
         return output_path
 
     def _upscale_realesrgan(self, input_path: Path, temp_dir: Path) -> Path:
@@ -857,6 +961,57 @@ class VHSUpscaler:
             return num / den if den != 0 else 30.0
         except:
             return 30.0
+
+    def _apply_face_restoration(self, input_path: Path, temp_dir: Path) -> Path:
+        """
+        Apply GFPGAN face restoration to video.
+
+        Args:
+            input_path: Input video file
+            temp_dir: Temporary directory for processing
+
+        Returns:
+            Path to video with restored faces
+        """
+        if not HAS_FACE_RESTORATION:
+            logger.warning("Face restoration module not available, skipping")
+            return input_path
+
+        output_path = temp_dir / "face_restored.mp4"
+
+        try:
+            logger.info("Applying GFPGAN face restoration...")
+            logger.info(f"  Strength: {self.config.face_restore_strength}")
+            logger.info(f"  Upscale: {self.config.face_restore_upscale}x")
+
+            # Initialize face restorer
+            restorer = FaceRestorer(ffmpeg_path=self.config.ffmpeg_path)
+
+            # Check if GFPGAN is actually available
+            if not restorer.has_gfpgan:
+                logger.warning("GFPGAN not properly installed, skipping face restoration")
+                logger.info("To enable face restoration:")
+                logger.info("  1. pip install gfpgan basicsr opencv-python torch")
+                logger.info("  2. Download model: vhs-upscale --download-gfpgan-model")
+                return input_path
+
+            # Apply face restoration
+            restorer.restore_faces(
+                input_path=input_path,
+                output_path=output_path,
+                upscale=self.config.face_restore_upscale,
+                weight=self.config.face_restore_strength,
+                only_center_face=False,
+                aligned=False
+            )
+
+            logger.info("Face restoration complete")
+            return output_path
+
+        except Exception as e:
+            logger.error(f"Face restoration failed: {e}")
+            logger.warning("Continuing without face restoration")
+            return input_path
 
     def _build_hdr_filter(self) -> str:
         """Build FFmpeg filter for HDR conversion."""
@@ -989,6 +1144,17 @@ class VHSUpscaler:
             cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
         )
 
+        # Read stderr in separate thread to prevent pipe deadlock
+        import threading
+        stderr_lines = []
+        def read_stderr():
+            for line in process.stderr:
+                stderr_lines.append(line)
+
+        stderr_thread = threading.Thread(target=read_stderr, daemon=True)
+        stderr_thread.start()
+
+        # Read progress from stdout
         for line in process.stdout:
             if line.startswith("out_time_ms="):
                 try:
@@ -999,8 +1165,11 @@ class VHSUpscaler:
                     pass
 
         process.wait()
+        stderr_thread.join(timeout=1)
+
         if process.returncode != 0:
-            raise RuntimeError(f"Post-processing failed: {process.stderr.read()}")
+            error_output = ''.join(stderr_lines)
+            raise RuntimeError(f"Post-processing failed: {error_output}")
 
         self.progress.complete_stage()
 
@@ -1047,6 +1216,10 @@ class VHSUpscaler:
 
             # Stage 2: AI Upscaling
             upscaled_video = self.upscale(prepped_video, temp_dir)
+
+            # Stage 2.5: Face Restoration (if enabled)
+            if self.config.face_restore:
+                upscaled_video = self._apply_face_restoration(upscaled_video, temp_dir)
 
             # Stage 3: Post-processing
             output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1109,12 +1282,18 @@ def load_config(config_path: Path) -> dict:
     return {}
 
 
-def main():
+def main_legacy():
+    """
+    Legacy main function for backwards compatibility.
+
+    This function implements the original flat CLI argument structure.
+    It's called when legacy arguments (-i/--input) are detected.
+    """
     parser = argparse.ArgumentParser(
-        description="VHS Video Upscaler - Accepts files or YouTube URLs",
+        description="VHS Video Upscaler - Accepts files or YouTube URLs (Legacy Mode)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-Examples:
+Legacy Examples:
   Local file:    python vhs_upscale.py -i video.mp4 -o upscaled.mp4
   YouTube:       python vhs_upscale.py -i "https://youtube.com/watch?v=..." -o out.mp4
   Watch folder:  python vhs_upscale.py --watch -i ./input -o ./output
@@ -1123,6 +1302,12 @@ Examples:
   No NVIDIA:     python vhs_upscale.py -i video.mp4 -o out.mp4 --engine realesrgan
   5.1 audio:     python vhs_upscale.py -i video.mp4 -o out.mp4 --audio-layout 5.1 --audio-upmix surround
   Clean audio:   python vhs_upscale.py -i video.mp4 -o out.mp4 --audio-enhance voice
+
+New Subcommand Syntax (recommended):
+  vhs-upscale upscale video.mp4 -o upscaled.mp4
+  vhs-upscale analyze video.mp4
+  vhs-upscale preview video.mp4 -o preview.mp4
+  vhs-upscale batch input_folder/ output_folder/
         """
     )
 
@@ -1180,6 +1365,29 @@ Examples:
     parser.add_argument("--no-audio-normalize", action="store_true",
                         help="Disable audio loudness normalization")
 
+    # LUT color grading options
+    parser.add_argument("--lut", type=Path,
+                        help="Apply LUT color grading (.cube file)")
+    parser.add_argument("--lut-strength", type=float, default=1.0,
+                        help="LUT blend strength 0.0-1.0 (default: 1.0)")
+
+    # Face restoration options
+    parser.add_argument("--face-restore", action="store_true",
+                        help="Enable GFPGAN AI face restoration")
+    parser.add_argument("--face-restore-strength", type=float, default=0.5,
+                        help="Face restoration strength 0.0-1.0 (default: 0.5)")
+    parser.add_argument("--face-restore-upscale", type=int, default=2, choices=[1, 2, 4],
+                        help="Face restoration upscale factor (default: 2)")
+
+    # Deinterlacing options
+    parser.add_argument("--deinterlace-algorithm", default="yadif",
+                        choices=["yadif", "bwdif", "w3fdif", "qtgmc"],
+                        help="Deinterlacing algorithm: yadif (fast), bwdif (better motion), "
+                             "w3fdif (better detail), qtgmc (best quality, requires VapourSynth)")
+    parser.add_argument("--qtgmc-preset", default=None,
+                        choices=["draft", "medium", "slow", "very_slow"],
+                        help="QTGMC quality preset (only for --deinterlace-algorithm qtgmc)")
+
     parser.add_argument("--config", type=Path, default=Path("config.yaml"),
                         help="Config file path")
     parser.add_argument("--keep-temp", action="store_true",
@@ -1187,14 +1395,112 @@ Examples:
     parser.add_argument("-v", "--verbose", action="store_true",
                         help="Verbose output")
 
+    # Video analysis options
+    parser.add_argument("--analyze-only", action="store_true",
+                        help="Analyze video and print report without processing")
+    parser.add_argument("--auto-detect", action="store_true",
+                        help="Auto-detect optimal settings based on video analysis")
+    parser.add_argument("--analysis-config", type=Path,
+                        help="Load pre-analyzed configuration JSON file")
+    parser.add_argument("--save-analysis", type=Path,
+                        help="Export analysis results to JSON file")
+    parser.add_argument("--force-backend", choices=["python", "bash", "basic"],
+                        help="Force specific analyzer backend (for testing)")
+
     args = parser.parse_args()
 
     if args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)
 
+    # ========================================================================
+    # Video Analysis Integration
+    # ========================================================================
+    if args.analyze_only or args.auto_detect or args.analysis_config:
+        if not HAS_ANALYSIS:
+            logger.error("Video analysis module not available. Install required dependencies.")
+            sys.exit(1)
+
+        # Determine which file to analyze
+        analyze_path = args.input
+
+        # Skip download for YouTube URLs in analyze mode
+        if YouTubeDownloader.is_youtube_url(args.input):
+            if args.analyze_only:
+                logger.error("Cannot analyze YouTube URLs directly. Download the video first.")
+                sys.exit(1)
+            # For auto-detect, we'll download first then analyze
+            logger.info("YouTube URL detected - will download before analysis")
+
+        # Load or run analysis
+        analysis = None
+
+        if args.analysis_config:
+            # Load pre-analyzed config
+            logger.info(f"Loading analysis config from {args.analysis_config}")
+            analysis = VideoAnalysis.from_json(str(args.analysis_config))
+            logger.info("Analysis loaded successfully")
+
+        elif args.analyze_only or args.auto_detect:
+            # Run analysis
+            logger.info("Starting video analysis...")
+
+            # Determine backend
+            backend = None
+            if args.force_backend:
+                backend_map = {
+                    "python": AnalyzerBackend.PYTHON_OPENCV,
+                    "bash": AnalyzerBackend.BASH,
+                    "basic": AnalyzerBackend.FFPROBE_ONLY,
+                }
+                backend = backend_map[args.force_backend]
+
+            # Create wrapper and analyze
+            wrapper = AnalyzerWrapper(force_backend=backend)
+            analysis = wrapper.analyze(analyze_path)
+
+            # Print analysis report
+            print("\n" + analysis.get_summary())
+
+            # Save if requested
+            if args.save_analysis:
+                analysis.to_json(str(args.save_analysis))
+                logger.info(f"Analysis saved to {args.save_analysis}")
+
+            # Exit if analyze-only mode
+            if args.analyze_only:
+                sys.exit(0)
+
+        # Apply analysis recommendations for auto-detect mode
+        if args.auto_detect and analysis:
+            logger.info("Applying recommended settings from analysis...")
+
+            # Get recommended preset
+            recommended_preset = get_preset_from_analysis(analysis)
+            logger.info(f"Recommended preset: {recommended_preset}")
+
+            # Override args with recommendations
+            args.preset = recommended_preset
+
+            # Get detailed settings
+            recommended_settings = get_recommended_settings_from_analysis(analysis)
+
+            # Apply resolution based on source
+            if analysis.width < 1280:
+                # SD source: upscale to 1080p
+                args.resolution = 1080
+            elif analysis.width < 1920:
+                # 720p source: upscale to 1080p or 1440p
+                args.resolution = 1440
+            else:
+                # Already HD: minimal upscale
+                args.resolution = analysis.height
+
+            logger.info(f"Target resolution: {args.resolution}p")
+            logger.info("Analysis recommendations applied")
+
     # Auto-detect YouTube and switch preset
     is_youtube = YouTubeDownloader.is_youtube_url(args.input)
-    if is_youtube and args.preset == "vhs":
+    if is_youtube and args.preset == "vhs" and not args.auto_detect:
         args.preset = "youtube"
         logger.info("Auto-selected 'youtube' preset for URL input")
 
@@ -1225,6 +1531,16 @@ Examples:
         audio_format=args.audio_format,
         audio_bitrate=args.audio_bitrate,
         audio_normalize=not args.no_audio_normalize,
+        # LUT color grading
+        lut_file=args.lut if hasattr(args, 'lut') else None,
+        lut_strength=args.lut_strength if hasattr(args, 'lut_strength') else 1.0,
+        # Face restoration
+        face_restore=args.face_restore if hasattr(args, 'face_restore') else False,
+        face_restore_strength=args.face_restore_strength if hasattr(args, 'face_restore_strength') else 0.5,
+        face_restore_upscale=args.face_restore_upscale if hasattr(args, 'face_restore_upscale') else 2,
+        # Deinterlacing
+        deinterlace_algorithm=args.deinterlace_algorithm if hasattr(args, 'deinterlace_algorithm') else "yadif",
+        qtgmc_preset=args.qtgmc_preset if hasattr(args, 'qtgmc_preset') else None,
     )
 
     # Apply preset
@@ -1244,11 +1560,137 @@ Examples:
 
     output_path = Path(args.output)
 
+    # If output_path is a directory, generate filename
+    if output_path.is_dir() or (not output_path.suffix and not output_path.exists()):
+        # Extract filename from input
+        input_path = Path(args.input)
+        base_name = input_path.stem
+        output_filename = f"{base_name}_{args.resolution}p.mp4"
+        output_path = output_path / output_filename
+
     if args.watch:
-        upscaler.watch_folder(Path(args.input), output_path)
+        upscaler.watch_folder(Path(args.input), output_path.parent)
     else:
         success = upscaler.process(args.input, output_path)
         sys.exit(0 if success else 1)
+
+
+def main():
+    """
+    Main entry point with subcommand support.
+
+    Implements modern CLI architecture with subcommands:
+      - upscale: Process a single video
+      - analyze: Analyze video characteristics
+      - preview: Generate comparison preview
+      - batch: Process multiple videos
+      - test-presets: Test multiple presets
+
+    Maintains backwards compatibility by detecting legacy arguments
+    (-i/--input) and routing to main_legacy().
+    """
+    # Check for legacy mode (backwards compatibility)
+    # If -i or --input is in arguments, use legacy parser
+    if '-i' in sys.argv or '--input' in sys.argv:
+        logger.info("Legacy argument mode detected, using backwards-compatible parser")
+        return main_legacy()
+
+    # Modern subcommand-based CLI
+    try:
+        from .cli import (
+            setup_upscale_parser,
+            setup_analyze_parser,
+            setup_preview_parser,
+            setup_batch_parser,
+            setup_test_presets_parser,
+            handle_upscale,
+            handle_analyze,
+            handle_preview,
+            handle_batch,
+            handle_test_presets,
+        )
+    except ImportError as e:
+        logger.error(f"Failed to import CLI modules: {e}")
+        logger.error("Falling back to legacy mode")
+        return main_legacy()
+
+    # Create main parser with subcommands
+    parser = argparse.ArgumentParser(
+        prog='vhs-upscale',
+        description='VHS Video Upscaler - AI-powered video enhancement',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  Upscale a video:
+    vhs-upscale upscale input.mp4 -o output.mp4 -p vhs -r 2160
+
+  Analyze video first:
+    vhs-upscale analyze input.mp4 --recommend
+
+  Generate preview:
+    vhs-upscale preview input.mp4 -o preview.mp4 --start 60
+
+  Batch process folder:
+    vhs-upscale batch ./input_videos/ ./output_videos/ -p vhs
+
+  Test multiple presets:
+    vhs-upscale test-presets input.mp4 -o test_results/
+
+For more help on a specific subcommand:
+  vhs-upscale <subcommand> --help
+
+Legacy syntax (deprecated but supported):
+  vhs-upscale -i input.mp4 -o output.mp4 -p vhs
+        """
+    )
+
+    # Add version argument
+    parser.add_argument(
+        '--version',
+        action='version',
+        version='VHS Upscaler v1.4.2 (CLI v2.0.0)'
+    )
+
+    # Create subparsers
+    subparsers = parser.add_subparsers(
+        dest='subcommand',
+        title='Available subcommands',
+        description='Use these commands for different operations',
+        help='Subcommand to execute'
+    )
+
+    # Setup each subcommand parser
+    setup_upscale_parser(subparsers)
+    setup_analyze_parser(subparsers)
+    setup_preview_parser(subparsers)
+    setup_batch_parser(subparsers)
+    setup_test_presets_parser(subparsers)
+
+    # Parse arguments
+    args = parser.parse_args()
+
+    # If no subcommand provided, show help
+    if not args.subcommand:
+        parser.print_help()
+        sys.exit(0)
+
+    # Dispatch to appropriate handler
+    handlers = {
+        'upscale': handle_upscale,
+        'analyze': handle_analyze,
+        'preview': handle_preview,
+        'batch': handle_batch,
+        'test-presets': handle_test_presets,
+    }
+
+    handler = handlers.get(args.subcommand)
+    if handler:
+        exit_code = handler(args)
+        sys.exit(exit_code)
+    else:
+        logger.error(f"Unknown subcommand: {args.subcommand}")
+        parser.print_help()
+        sys.exit(1)
 
 
 if __name__ == "__main__":

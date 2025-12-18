@@ -1,0 +1,70 @@
+# Git files
+.git
+.gitignore
+.gitattributes
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+*.cover
+.hypothesis/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Documentation
+docs/_build/
+*.md
+!README.md
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+azure-pipelines.yml
+
+# Temporary files
+*.log
+*.tmp
+temp/
+tmp/
+.cache/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Project specific
+output/
+downloads/
+models/
+*.mp4
+*.avi
+*.mkv
+*.mov
+*.wmv
+test_videos/
+nul
