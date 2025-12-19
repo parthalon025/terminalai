@@ -332,6 +332,9 @@ def extract_sdk(zip_path: Path, target_dir: Path) -> bool:
     """
     Extract SDK ZIP file to target directory with progress.
 
+    Security: Implements ZIP slip protection by validating all extracted paths
+    to prevent path traversal attacks.
+
     Args:
         zip_path: Path to the ZIP file
         target_dir: Target installation directory
@@ -349,8 +352,30 @@ def extract_sdk(zip_path: Path, target_dir: Path) -> bool:
             # Create target directory
             target_dir.mkdir(parents=True, exist_ok=True)
 
-            # Extract with progress
+            # Resolve target directory to absolute path for security validation
+            target_dir_resolved = target_dir.resolve()
+
+            # Extract with progress and ZIP slip protection
             for i, member in enumerate(members, 1):
+                # SECURITY: Validate extraction path to prevent ZIP slip vulnerability
+                # This prevents malicious ZIP files from writing outside the target directory
+                member_path = (target_dir / member).resolve()
+
+                # Ensure the extracted file path is within the target directory
+                try:
+                    member_path.relative_to(target_dir_resolved)
+                except ValueError:
+                    print_error(f"Security: Blocked path traversal attempt: {member}")
+                    print_error(f"  Attempted path: {member_path}")
+                    print_error(f"  Target directory: {target_dir_resolved}")
+                    return False
+
+                # Additional check for absolute paths and parent directory references
+                if member.startswith('/') or member.startswith('\\') or '..' in Path(member).parts:
+                    print_error(f"Security: Blocked suspicious path in ZIP: {member}")
+                    return False
+
+                # Safe to extract
                 zf.extract(member, target_dir)
 
                 # Show progress every 10% or for small archives every file

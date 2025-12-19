@@ -13,12 +13,14 @@ Supports:
 
 import logging
 import os
+import re
 import smtplib
 import time
 import traceback
 from dataclasses import dataclass, field
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email.utils import parseaddr, formataddr
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -453,9 +455,89 @@ class Notifier:
     # Email Methods
     # ========================================================================
 
+    def _sanitize_email_header(self, value: str, header_name: str = "header") -> str:
+        """
+        Sanitize email header values to prevent header injection attacks.
+
+        Security: Removes newlines, carriage returns, and null bytes that could
+        be used to inject additional email headers or commands.
+
+        Args:
+            value: Header value to sanitize
+            header_name: Name of header (for logging)
+
+        Returns:
+            Sanitized header value
+
+        Raises:
+            ValueError: If the value contains injection attempts
+        """
+        if not value:
+            return ""
+
+        original_value = value
+
+        # Remove dangerous characters that could inject headers
+        # Email headers are separated by CRLF (\r\n), so these must be removed
+        dangerous_chars = ['\r', '\n', '\0', '\x0b', '\x0c']
+        for char in dangerous_chars:
+            if char in value:
+                logger.warning(f"SECURITY: Blocked email header injection attempt in {header_name}")
+                logger.warning(f"  Original value: {repr(original_value)}")
+                value = value.replace(char, '')
+
+        # Additional check: reject if the sanitized value is very different
+        # This could indicate a sophisticated injection attempt
+        if len(value) < len(original_value) * 0.5 and len(original_value) > 10:
+            logger.error(f"SECURITY: Email header {header_name} rejected - too many dangerous characters")
+            logger.error(f"  Original: {repr(original_value)}")
+            raise ValueError(f"Email {header_name} contains suspicious content")
+
+        # Limit header length to prevent buffer overflow attacks
+        max_length = 998  # RFC 2822 limit
+        if len(value) > max_length:
+            logger.warning(f"Email header {header_name} truncated to {max_length} characters")
+            value = value[:max_length]
+
+        return value.strip()
+
+    def _validate_email_address(self, email: str) -> bool:
+        """
+        Validate email address format.
+
+        Security: Prevents injection through malformed email addresses.
+
+        Args:
+            email: Email address to validate
+
+        Returns:
+            True if valid, False otherwise
+        """
+        if not email:
+            return False
+
+        # Parse email address
+        name, addr = parseaddr(email)
+
+        # Basic format check
+        email_pattern = re.compile(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
+
+        if not email_pattern.match(addr):
+            logger.error(f"Invalid email address format: {email}")
+            return False
+
+        # Check for suspicious characters
+        if any(char in email for char in ['\r', '\n', '\0', ';', ',', '|']):
+            logger.error(f"SECURITY: Email address contains suspicious characters: {email}")
+            return False
+
+        return True
+
     def send_email(self, subject: str, body: str) -> bool:
         """
-        Send email notification.
+        Send email notification with header injection protection.
+
+        Security: Sanitizes all email headers to prevent SMTP header injection attacks.
 
         Args:
             subject: Email subject
@@ -468,14 +550,37 @@ class Notifier:
             return False
 
         try:
+            # SECURITY: Validate email addresses before use
+            if not self._validate_email_address(self.config.from_email):
+                logger.error(f"Invalid FROM email address: {self.config.from_email}")
+                return False
+
+            if not self._validate_email_address(self.config.to_email):
+                logger.error(f"Invalid TO email address: {self.config.to_email}")
+                return False
+
+            # SECURITY: Sanitize subject line to prevent header injection
+            # Email subject is a header field and must not contain CRLF
+            try:
+                safe_subject = self._sanitize_email_header(subject, "Subject")
+            except ValueError as e:
+                logger.error(f"Email subject rejected: {e}")
+                return False
+
             # Create message
             msg = MIMEMultipart('alternative')
-            msg['From'] = self.config.from_email
-            msg['To'] = self.config.to_email
-            msg['Subject'] = f"[TerminalAI] {subject}"
+
+            # SECURITY: Use validated and formatted email addresses
+            msg['From'] = formataddr(parseaddr(self.config.from_email))
+            msg['To'] = formataddr(parseaddr(self.config.to_email))
+            msg['Subject'] = f"[TerminalAI] {safe_subject}"
+
+            # Body is not a header, but we still sanitize it for safety
+            # Note: Body can contain newlines, we just remove null bytes
+            safe_body = body.replace('\0', '')
 
             # Attach body
-            msg.attach(MIMEText(body, 'plain'))
+            msg.attach(MIMEText(safe_body, 'plain'))
 
             # Send via SMTP
             with smtplib.SMTP(self.config.smtp_server, self.config.smtp_port, timeout=30) as server:

@@ -659,22 +659,35 @@ class VHSUpscaler:
 
         # Apply LUT color grading (after denoise, before upscale)
         if self.config.lut_file and self.config.lut_file.exists():
+            # SECURITY: Escape special characters in file path to prevent command injection
+            # FFmpeg filter strings can execute arbitrary commands if not properly escaped
             lut_path = str(self.config.lut_file).replace("\\", "/")  # FFmpeg needs forward slashes
-            if self.config.lut_strength < 1.0:
-                # Blend LUT with original using colorchannelmixer
-                # Formula: output = original * (1 - strength) + lut * strength
-                strength = self.config.lut_strength
-                inv_strength = 1.0 - strength
-                # Use split and blend to mix original and LUT-transformed video
-                vf_filters.append(
-                    f"split[main][lut];"
-                    f"[lut]lut3d='{lut_path}'[graded];"
-                    f"[main][graded]blend=all_mode=normal:all_opacity={strength}"
-                )
+
+            # Escape single quotes and backslashes for FFmpeg filter syntax
+            # This prevents filter chain injection through malicious file paths
+            lut_path_escaped = lut_path.replace("\\", "\\\\").replace("'", "\\'").replace(":", "\\:")
+
+            # Additional validation: Reject paths with suspicious characters
+            suspicious_chars = [';', '|', '&', '$', '`', '\n', '\r']
+            if any(char in lut_path for char in suspicious_chars):
+                logger.warning(f"Rejecting LUT file with suspicious characters: {lut_path}")
+                logger.warning("LUT path must not contain: ; | & $ ` newlines")
             else:
-                # Apply LUT at full strength
-                vf_filters.append(f"lut3d='{lut_path}'")
-            logger.info(f"Applying LUT: {self.config.lut_file.name} (strength: {self.config.lut_strength})")
+                if self.config.lut_strength < 1.0:
+                    # Blend LUT with original using colorchannelmixer
+                    # Formula: output = original * (1 - strength) + lut * strength
+                    strength = self.config.lut_strength
+                    inv_strength = 1.0 - strength
+                    # Use split and blend to mix original and LUT-transformed video
+                    vf_filters.append(
+                        f"split[main][lut];"
+                        f"[lut]lut3d='{lut_path_escaped}'[graded];"
+                        f"[main][graded]blend=all_mode=normal:all_opacity={strength}"
+                    )
+                else:
+                    # Apply LUT at full strength
+                    vf_filters.append(f"lut3d='{lut_path_escaped}'")
+                logger.info(f"Applying LUT: {self.config.lut_file.name} (strength: {self.config.lut_strength})")
 
         vf_string = ",".join(vf_filters) if vf_filters else "null"
 

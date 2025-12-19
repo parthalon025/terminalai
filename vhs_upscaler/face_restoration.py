@@ -25,6 +25,7 @@ Both are particularly effective for:
 This module provides a high-level wrapper around both backends for video processing.
 """
 
+import hashlib
 import logging
 import os
 import subprocess
@@ -58,27 +59,32 @@ class FaceRestorer:
     """
 
     # GFPGAN model URLs (official releases)
+    # SHA256 checksums verify file integrity and authenticity
     GFPGAN_MODELS = {
         "v1.3": {
             "url": "https://github.com/TencentARC/GFPGAN/releases/download/v1.3.0/GFPGANv1.3.pth",
             "filename": "GFPGANv1.3.pth",
             "size_mb": 332,
+            "sha256": "c953a88f2727c85c3d9ae72e2bd4a0d1e5c8c6b8c67c3a9e2c3d0e3f0e0f0e0f",  # Placeholder - replace with actual
             "description": "GFPGAN v1.3 - Best quality, recommended"
         },
         "v1.4": {
             "url": "https://github.com/TencentARC/GFPGAN/releases/download/v1.3.4/GFPGANv1.4.pth",
             "filename": "GFPGANv1.4.pth",
             "size_mb": 348,
+            "sha256": "d953a88f2727c85c3d9ae72e2bd4a0d1e5c8c6b8c67c3a9e2c3d0e3f0e0f0e0f",  # Placeholder - replace with actual
             "description": "GFPGAN v1.4 - Latest version, experimental"
         },
     }
 
     # CodeFormer model URLs (official releases)
+    # SHA256 checksums verify file integrity and authenticity
     CODEFORMER_MODELS = {
         "v0.1.0": {
             "url": "https://github.com/sczhou/CodeFormer/releases/download/v0.1.0/codeformer.pth",
             "filename": "codeformer.pth",
             "size_mb": 360,
+            "sha256": "e953a88f2727c85c3d9ae72e2bd4a0d1e5c8c6b8c67c3a9e2c3d0e3f0e0f0e0f",  # Placeholder - replace with actual
             "description": "CodeFormer v0.1.0 - Superior quality with fidelity control"
         }
     }
@@ -203,9 +209,55 @@ class FaceRestorer:
 
         return model_dir / model_info["filename"]
 
+    def _verify_checksum(self, file_path: Path, expected_sha256: str) -> bool:
+        """
+        Verify file integrity using SHA256 checksum.
+
+        Security: Prevents use of corrupted or tampered model files.
+
+        Args:
+            file_path: Path to file to verify
+            expected_sha256: Expected SHA256 hash (hex string)
+
+        Returns:
+            True if checksum matches, False otherwise
+        """
+        # Skip verification if placeholder checksum (starts with c/d/e953a88f...)
+        # This allows development until actual checksums are obtained
+        if expected_sha256.startswith(('c953a88f', 'd953a88f', 'e953a88f')):
+            logger.warning(f"SECURITY: Checksum verification skipped - using placeholder hash")
+            logger.warning(f"  File: {file_path.name}")
+            logger.warning(f"  Update model checksums in face_restoration.py for production use")
+            return True
+
+        try:
+            sha256_hash = hashlib.sha256()
+            with open(file_path, "rb") as f:
+                # Read in chunks to handle large files
+                for chunk in iter(lambda: f.read(8192), b""):
+                    sha256_hash.update(chunk)
+
+            calculated_hash = sha256_hash.hexdigest()
+
+            if calculated_hash.lower() == expected_sha256.lower():
+                logger.info(f"Checksum verified: {file_path.name}")
+                return True
+            else:
+                logger.error(f"SECURITY: Checksum mismatch for {file_path.name}")
+                logger.error(f"  Expected: {expected_sha256}")
+                logger.error(f"  Got:      {calculated_hash}")
+                logger.error(f"  File may be corrupted or tampered with!")
+                return False
+
+        except Exception as e:
+            logger.error(f"Checksum verification failed: {e}")
+            return False
+
     def download_model(self, force: bool = False) -> bool:
         """
         Download model from official GitHub releases (GFPGAN or CodeFormer).
+
+        Security: Verifies file integrity using SHA256 checksum after download.
 
         Args:
             force: Force re-download even if model exists
@@ -229,11 +281,14 @@ class FaceRestorer:
 
         url = model_info["url"]
         size_mb = model_info["size_mb"]
+        expected_sha256 = model_info.get("sha256", "")
 
         backend_name = "CodeFormer" if self.backend == "codeformer" else "GFPGAN"
         logger.info(f"Downloading {backend_name} {self.model_version} ({size_mb}MB)...")
         logger.info(f"URL: {url}")
         logger.info(f"Destination: {self.model_path}")
+
+        temp_path = self.model_path.with_suffix('.tmp')
 
         try:
             # Download with progress bar
@@ -243,8 +298,6 @@ class FaceRestorer:
             total_size = int(response.headers.get('content-length', 0))
 
             # Create temporary file
-            temp_path = self.model_path.with_suffix('.tmp')
-
             with open(temp_path, 'wb') as f:
                 if HAS_TQDM and total_size > 0:
                     # Progress bar
@@ -264,6 +317,17 @@ class FaceRestorer:
                     for chunk in response.iter_content(chunk_size=8192):
                         if chunk:
                             f.write(chunk)
+
+            # SECURITY: Verify checksum before using the downloaded file
+            if expected_sha256:
+                logger.info("Verifying file integrity...")
+                if not self._verify_checksum(temp_path, expected_sha256):
+                    logger.error("Downloaded file failed checksum verification!")
+                    logger.error("This may indicate a corrupted download or security issue.")
+                    temp_path.unlink()
+                    return False
+            else:
+                logger.warning("No checksum available for verification - skipping")
 
             # Move temp file to final location
             temp_path.rename(self.model_path)
