@@ -12,8 +12,9 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch, Mock
 
-# Add parent directory to path for imports
+# Add parent directory and scripts/installation to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).parent.parent / "scripts" / "installation"))
 
 from verify_installation import (
     ComponentStatus,
