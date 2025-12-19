@@ -266,11 +266,12 @@ class TestAudioSRIntegration(unittest.TestCase):
     @patch('vhs_upscaler.audio_processor.AudioProcessor._upsample_audiosr')
     @patch('vhs_upscaler.audio_processor.AudioProcessor._extract_audio')
     @patch('vhs_upscaler.audio_processor.AudioProcessor._encode_audio')
+    @patch('vhs_upscaler.audio_processor.AudioProcessor._normalize_audio')
     @patch('tempfile.mkdtemp')
     @patch('shutil.rmtree')
     def test_audiosr_in_process_pipeline(
-        self, mock_rmtree, mock_mkdtemp, mock_encode,
-        mock_extract, mock_audiosr, mock_info
+        self, mock_rmtree, mock_mkdtemp, mock_normalize,
+        mock_encode, mock_extract, mock_audiosr, mock_info
     ):
         """Test AudioSR integration in full processing pipeline."""
         mock_mkdtemp.return_value = str(self.temp_dir)
