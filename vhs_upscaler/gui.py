@@ -151,6 +151,10 @@ def process_job(job: QueueJob, progress_callback) -> bool:
             ffmpeg_scale_algo=getattr(job, 'ffmpeg_scale_algo', 'lanczos'),
             hdr_brightness=getattr(job, 'hdr_brightness', 400),
             color_depth=getattr(job, 'hdr_color_depth', 10),
+            # RTX Video SDK options (v1.5.1+)
+            rtxvideo_artifact_reduction=getattr(job, 'rtxvideo_artifact_reduction', True),
+            rtxvideo_artifact_strength=getattr(job, 'rtxvideo_artifact_strength', 0.5),
+            rtxvideo_hdr_conversion=getattr(job, 'rtxvideo_hdr', False),
             # Audio options
             audio_enhance=getattr(job, 'audio_enhance', 'none'),
             audio_upmix=getattr(job, 'audio_upmix', 'none'),
@@ -442,6 +446,11 @@ def add_to_queue(input_source: str, preset: str, resolution: int,
                  realesrgan_denoise: float = 0.5,
                  ffmpeg_scale_algo: str = "lanczos",
                  hdr_brightness: int = 400, hdr_color_depth: int = 10,
+                 # RTX Video SDK options (v1.5.1+)
+                 rtxvideo_artifact_reduction: bool = True,
+                 rtxvideo_artifact_strength: float = 0.5,
+                 rtxvideo_hdr: bool = False,
+                 # Audio options
                  audio_enhance: str = "none", audio_upmix: str = "none",
                  audio_layout: str = "original", audio_format: str = "aac",
                  audio_target_loudness: float = -14.0, audio_noise_floor: float = -20.0,
@@ -477,6 +486,10 @@ def add_to_queue(input_source: str, preset: str, resolution: int,
         ffmpeg_scale_algo=ffmpeg_scale_algo,
         hdr_brightness=hdr_brightness,
         hdr_color_depth=hdr_color_depth,
+        # RTX Video SDK options
+        rtxvideo_artifact_reduction=rtxvideo_artifact_reduction,
+        rtxvideo_artifact_strength=rtxvideo_artifact_strength,
+        rtxvideo_hdr=rtxvideo_hdr,
         audio_enhance=audio_enhance,
         audio_upmix=audio_upmix,
         audio_layout=audio_layout,
@@ -1164,10 +1177,10 @@ def create_gui() -> gr.Blocks:
                                     info="hevc_nvenc=best (NVIDIA GPU, H.265), h264_nvenc=compatible (NVIDIA, H.264), libx265/libx264=CPU encoding (no GPU needed, slower)"
                                 )
                                 upscale_engine = gr.Dropdown(
-                                    choices=["auto", "maxine", "realesrgan", "ffmpeg"],
+                                    choices=["auto", "rtxvideo", "realesrgan", "ffmpeg"],
                                     value="auto",
                                     label="AI Upscaler",
-                                    info="auto=picks best for your system, maxine=NVIDIA RTX only (fastest), realesrgan=any GPU (AMD/Intel/NVIDIA), ffmpeg=CPU only (slowest)"
+                                    info="auto=picks best for your system, rtxvideo=NVIDIA RTX 20+ (best, new SDK), realesrgan=any GPU (AMD/Intel/NVIDIA), ffmpeg=CPU only (slowest)"
                                 )
                             with gr.Row():
                                 hdr_mode = gr.Dropdown(
@@ -1176,6 +1189,27 @@ def create_gui() -> gr.Blocks:
                                     label="HDR Output",
                                     info="sdr=standard (works everywhere), hdr10=HDR for TVs/monitors, hlg=HDR for broadcast/streaming (wider compatibility)"
                                 )
+
+                            # === Conditional: RTX Video SDK Options (v1.5.1+) ===
+                            with gr.Group(visible=False) as rtxvideo_options:
+                                gr.Markdown("**🚀 RTX Video SDK Settings** - AI upscaling with Super Resolution, artifact reduction, and HDR conversion. Requires RTX 20+ GPU.")
+                                with gr.Row():
+                                    rtxvideo_artifact_reduction = gr.Checkbox(
+                                        label="Enable Artifact Reduction",
+                                        value=True,
+                                        info="USE for VHS/DVD (removes compression artifacts). SKIP for clean digital sources."
+                                    )
+                                    rtxvideo_artifact_strength = gr.Slider(
+                                        minimum=0.0, maximum=1.0, value=0.5, step=0.1,
+                                        label="Artifact Strength",
+                                        info="USE 0.7-1.0 for VHS, 0.3-0.5 for DVD, 0.1-0.2 for light cleanup."
+                                    )
+                                with gr.Row():
+                                    rtxvideo_hdr = gr.Checkbox(
+                                        label="Enable SDR to HDR Conversion",
+                                        value=False,
+                                        info="USE for HDR TV playback. SKIP for web uploads or SDR displays."
+                                    )
 
                             # === Conditional: Real-ESRGAN Options ===
                             with gr.Group(visible=False) as realesrgan_options:
@@ -1668,6 +1702,7 @@ def create_gui() -> gr.Blocks:
         def add_video_to_queue(file_path, url_input, preset, resolution, quality, crf, encoder,
                                engine, hdr, model, esrgan_denoise, ffmpeg_algo,
                                hdr_bright, hdr_depth,
+                               rtx_artifact_reduction, rtx_artifact_strength, rtx_hdr,
                                aud_enhance, aud_upmix, aud_layout, aud_format,
                                aud_loudness, aud_noise,
                                dem_model, dem_device, dem_shifts,
@@ -1681,6 +1716,7 @@ def create_gui() -> gr.Blocks:
                 source, preset, resolution, quality, crf, encoder,
                 engine, hdr, model, esrgan_denoise, ffmpeg_algo,
                 hdr_bright, hdr_depth,
+                rtx_artifact_reduction, rtx_artifact_strength, rtx_hdr,
                 aud_enhance, aud_upmix, aud_layout, aud_format,
                 aud_loudness, aud_noise,
                 dem_model, dem_device, dem_shifts,
@@ -1697,6 +1733,9 @@ def create_gui() -> gr.Blocks:
                 final_input, input_source, preset, resolution, quality, crf, encoder,
                 upscale_engine, hdr_mode, realesrgan_model, realesrgan_denoise, ffmpeg_scale_algo,
                 hdr_brightness, hdr_color_depth,
+                # RTX Video SDK options
+                rtxvideo_artifact_reduction, rtxvideo_artifact_strength, rtxvideo_hdr,
+                # Audio options
                 audio_enhance, audio_upmix, audio_layout, audio_format,
                 audio_target_loudness, audio_noise_floor,
                 demucs_model, demucs_device, demucs_shifts,
@@ -1771,6 +1810,7 @@ def create_gui() -> gr.Blocks:
         def update_engine_options(engine):
             """Show/hide engine-specific options based on selection."""
             return {
+                rtxvideo_options: gr.update(visible=(engine == "rtxvideo")),
                 realesrgan_options: gr.update(visible=(engine == "realesrgan")),
                 ffmpeg_options: gr.update(visible=(engine == "ffmpeg")),
             }
@@ -1778,7 +1818,7 @@ def create_gui() -> gr.Blocks:
         upscale_engine.change(
             fn=update_engine_options,
             inputs=[upscale_engine],
-            outputs=[realesrgan_options, ffmpeg_options]
+            outputs=[rtxvideo_options, realesrgan_options, ffmpeg_options]
         )
 
         # HDR options visibility
@@ -1914,6 +1954,29 @@ def create_gui() -> gr.Blocks:
 # Main Entry Point
 # =============================================================================
 
+def _print_rtx_video_status():
+    """Print RTX Video SDK status at startup."""
+    import platform
+
+    if platform.system() != "Windows":
+        print("  AI Upscaler: Real-ESRGAN / FFmpeg (RTX Video requires Windows)")
+        return
+
+    try:
+        from .rtx_video_sdk import is_rtx_video_available
+        available, message = is_rtx_video_available()
+
+        if available:
+            print(f"  🚀 RTX Video SDK: Ready ({message})")
+            print("     Select 'rtxvideo' for best AI upscaling quality")
+        else:
+            print("  ℹ️  RTX Video SDK: Not installed")
+            print("     Run 'terminalai-setup-rtx' to set up (optional)")
+            print("     Using Real-ESRGAN / FFmpeg as fallback")
+    except ImportError:
+        print("  AI Upscaler: Real-ESRGAN / FFmpeg")
+
+
 def main():
     """Launch the GUI."""
     import argparse
@@ -1930,10 +1993,14 @@ def main():
     AppState.output_dir.mkdir(parents=True, exist_ok=True)
 
     print("\n" + "=" * 60)
-    print("  🎬 VHS Upscaler Web GUI")
+    print("  🎬 VHS Upscaler Web GUI v1.5.1")
     print("=" * 60)
     print(f"  Output Directory: {AppState.output_dir.absolute()}")
     print("  Log Directory: logs/")
+
+    # Check RTX Video SDK availability
+    _print_rtx_video_status()
+
     print("=" * 60 + "\n")
 
     app = create_gui()

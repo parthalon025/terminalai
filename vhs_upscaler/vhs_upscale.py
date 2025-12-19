@@ -333,8 +333,8 @@ class YouTubeDownloader:
 @dataclass
 class ProcessingConfig:
     """Configuration for video processing pipeline."""
-    maxine_path: str = ""
-    model_dir: str = ""
+    maxine_path: str = ""  # DEPRECATED: Use rtxvideo engine instead
+    model_dir: str = ""  # DEPRECATED: Use rtxvideo engine instead
     ffmpeg_path: str = "ffmpeg"
     resolution: int = 1080
     quality_mode: int = 0  # 0 = best quality, 1 = performance
@@ -348,9 +348,9 @@ class ProcessingConfig:
     encoder: str = "hevc_nvenc"
     nvenc_preset: str = "p7"
     keep_temp: bool = False
-    skip_maxine: bool = False  # For testing without Maxine
+    skip_maxine: bool = False  # DEPRECATED: For testing without Maxine
     # Video upscale options
-    upscale_engine: str = "auto"  # auto, maxine, realesrgan, ffmpeg
+    upscale_engine: str = "auto"  # auto, rtxvideo, realesrgan, ffmpeg (maxine deprecated)
     realesrgan_path: str = ""  # Path to realesrgan-ncnn-vulkan
     realesrgan_model: str = "realesrgan-x4plus"  # Model name
     realesrgan_denoise: float = 0.5  # 0-1 denoise strength for Real-ESRGAN
@@ -358,6 +358,11 @@ class ProcessingConfig:
     hdr_mode: str = "sdr"  # sdr, hdr10, hlg
     hdr_brightness: int = 400  # Peak brightness in nits for HDR
     color_depth: int = 10  # 8 or 10 bit
+    # RTX Video SDK options (v1.5.1+)
+    rtxvideo_sdk_path: str = ""  # Path to RTX Video SDK (auto-detected if empty)
+    rtxvideo_artifact_reduction: bool = True  # Enable artifact reduction
+    rtxvideo_artifact_strength: float = 0.5  # 0.0-1.0 strength
+    rtxvideo_hdr_conversion: bool = False  # Enable SDR to HDR10 conversion
     # Audio processing options
     audio_enhance: str = "none"  # none, light, moderate, aggressive, voice, music
     audio_upmix: str = "none"  # none, simple, surround, prologic, demucs
@@ -424,8 +429,8 @@ class VHSUpscaler:
         }
     }
 
-    # Available upscale engines with priority
-    UPSCALE_ENGINES = ["maxine", "realesrgan", "ffmpeg"]
+    # Available upscale engines with priority (rtxvideo is preferred, maxine deprecated)
+    UPSCALE_ENGINES = ["rtxvideo", "realesrgan", "ffmpeg", "maxine"]
 
     def __init__(self, config: ProcessingConfig, progress: UnifiedProgress = None):
         self.config = config
@@ -436,7 +441,7 @@ class VHSUpscaler:
 
     def _validate_dependencies(self):
         """Verify all required tools are available."""
-        # Check FFmpeg
+        # Check FFmpeg (required)
         try:
             result = subprocess.run(
                 [self.config.ffmpeg_path, "-version"],
@@ -447,7 +452,26 @@ class VHSUpscaler:
         except (subprocess.CalledProcessError, FileNotFoundError):
             raise RuntimeError("FFmpeg not found. Install from https://ffmpeg.org")
 
-        # Check NVIDIA Maxine
+        # Check RTX Video SDK (preferred, Windows only)
+        try:
+            from .rtx_video_sdk import is_rtx_video_available
+            is_available, message = is_rtx_video_available()
+            if is_available:
+                self.available_engines.append("rtxvideo")
+                logger.info(f"RTX Video SDK: {message}")
+            else:
+                logger.debug(f"RTX Video SDK not available: {message}")
+        except ImportError:
+            logger.debug("RTX Video SDK module not available")
+
+        # Check Real-ESRGAN ncnn-vulkan
+        realesrgan_exe = self._find_realesrgan()
+        if realesrgan_exe:
+            self.config.realesrgan_path = str(realesrgan_exe)
+            self.available_engines.append("realesrgan")
+            logger.debug(f"Real-ESRGAN found: {realesrgan_exe}")
+
+        # Check NVIDIA Maxine (DEPRECATED - kept for backwards compatibility)
         maxine_exe = Path(self.config.maxine_path) / "VideoEffectsApp.exe"
         if not maxine_exe.exists():
             maxine_home = os.environ.get("MAXINE_HOME", "")
@@ -458,14 +482,7 @@ class VHSUpscaler:
                     self.config.model_dir = str(Path(maxine_home) / "bin" / "models")
         if maxine_exe.exists():
             self.available_engines.append("maxine")
-            logger.debug("NVIDIA Maxine found")
-
-        # Check Real-ESRGAN ncnn-vulkan
-        realesrgan_exe = self._find_realesrgan()
-        if realesrgan_exe:
-            self.config.realesrgan_path = str(realesrgan_exe)
-            self.available_engines.append("realesrgan")
-            logger.debug(f"Real-ESRGAN found: {realesrgan_exe}")
+            logger.debug("NVIDIA Maxine found (deprecated - use rtxvideo instead)")
 
     def _find_realesrgan(self) -> Optional[Path]:
         """Find Real-ESRGAN ncnn-vulkan executable."""
@@ -518,8 +535,8 @@ class VHSUpscaler:
                 self.config.upscale_engine = "ffmpeg"
             return
 
-        # Auto-select best available engine
-        priority = ["maxine", "realesrgan", "ffmpeg"]
+        # Auto-select best available engine (rtxvideo preferred, maxine deprecated)
+        priority = ["rtxvideo", "realesrgan", "ffmpeg", "maxine"]
         for engine in priority:
             if engine in self.available_engines:
                 self.config.upscale_engine = engine
@@ -749,9 +766,13 @@ class VHSUpscaler:
 
         logger.info(f"Using upscale engine: {engine}")
 
-        if engine == "realesrgan":
+        if engine == "rtxvideo":
+            output_path = self._upscale_rtxvideo(input_path, temp_dir)
+        elif engine == "realesrgan":
             output_path = self._upscale_realesrgan(input_path, temp_dir)
         elif engine == "maxine":
+            # DEPRECATED: Kept for backwards compatibility
+            logger.warning("Maxine engine is deprecated. Consider using 'rtxvideo' instead.")
             output_path = self._upscale_maxine(input_path, temp_dir)
         else:
             output_path = self._upscale_ffmpeg(input_path, temp_dir)
@@ -913,8 +934,100 @@ class VHSUpscaler:
 
         return output_path
 
+    def _upscale_rtxvideo(self, input_path: Path, temp_dir: Path) -> Path:
+        """
+        RTX Video SDK upscaling (requires RTX 20+ GPU).
+
+        Uses NVIDIA's RTX Video SDK for AI-powered upscaling with:
+        - Super Resolution (up to 4x upscaling)
+        - Artifact Reduction (removes compression artifacts)
+        - Optional HDR conversion (SDR to HDR10)
+
+        Args:
+            input_path: Input video file
+            temp_dir: Temporary directory for processing
+
+        Returns:
+            Path to upscaled video file
+        """
+        from .rtx_video_sdk import RTXVideoProcessor, RTXVideoConfig, HDRFormat
+
+        output_path = temp_dir / "upscaled.mp4"
+
+        # Determine scale factor based on target resolution
+        video_info = self._get_video_info(input_path)
+        input_height = video_info.get("height", 480) if video_info else 480
+
+        if self.config.resolution >= input_height * 3:
+            scale_factor = 4
+        else:
+            scale_factor = 2
+
+        # Configure RTX Video SDK
+        rtx_config = RTXVideoConfig(
+            enable_super_resolution=True,
+            enable_artifact_reduction=self.config.rtxvideo_artifact_reduction,
+            enable_hdr_conversion=self.config.rtxvideo_hdr_conversion,
+            scale_factor=scale_factor,
+            target_resolution=self.config.resolution,
+            artifact_strength=self.config.rtxvideo_artifact_strength,
+            hdr_format=HDRFormat.HDR10 if self.config.rtxvideo_hdr_conversion else HDRFormat.SDR,
+            peak_brightness=self.config.hdr_brightness,
+            sdk_path=self.config.rtxvideo_sdk_path or "",
+        )
+
+        # Create processor with progress callback
+        processor = RTXVideoProcessor(
+            config=rtx_config,
+            ffmpeg_path=self.config.ffmpeg_path,
+            progress_callback=lambda p: self.progress.update(p) if self.progress else None,
+        )
+
+        # Process video
+        logger.info(f"RTX Video SDK: Upscaling to {self.config.resolution}p (scale: {scale_factor}x)")
+        logger.info(f"  Artifact Reduction: {self.config.rtxvideo_artifact_reduction}")
+        logger.info(f"  HDR Conversion: {self.config.rtxvideo_hdr_conversion}")
+
+        success = processor.process_video(
+            input_path=input_path,
+            output_path=output_path,
+            preserve_audio=False,  # Audio handled separately in pipeline
+        )
+
+        if not success:
+            logger.warning("RTX Video SDK upscaling failed, falling back to FFmpeg")
+            return self._upscale_ffmpeg(input_path, temp_dir)
+
+        return output_path
+
+    def _get_video_info(self, input_path: Path) -> Optional[dict]:
+        """Get video metadata."""
+        cmd = [
+            "ffprobe", "-v", "quiet",
+            "-select_streams", "v:0",
+            "-show_entries", "stream=width,height,r_frame_rate",
+            "-of", "json",
+            str(input_path)
+        ]
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            data = json.loads(result.stdout)
+            stream = data.get("streams", [{}])[0]
+            return {
+                "width": int(stream.get("width", 0)),
+                "height": int(stream.get("height", 0)),
+                "fps": stream.get("r_frame_rate", "30/1"),
+            }
+        except Exception:
+            return None
+
     def _upscale_maxine(self, input_path: Path, temp_dir: Path) -> Path:
-        """NVIDIA Maxine upscaling (requires RTX GPU)."""
+        """
+        NVIDIA Maxine upscaling (DEPRECATED - use rtxvideo instead).
+
+        Kept for backwards compatibility. New projects should use the
+        'rtxvideo' engine which provides RTX Video SDK integration.
+        """
         output_path = temp_dir / "upscaled.mp4"
 
         maxine_exe = Path(self.config.maxine_path) / "VideoEffectsApp.exe"
