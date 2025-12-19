@@ -71,6 +71,27 @@ pip install -e ".[full]"
 pip install -r requirements.txt
 ```
 
+**Windows-Specific Installation (RTX GPUs):**
+```bash
+# Automated full installation with PyTorch CUDA support
+python install_windows.py --full
+
+# Manual installation with CUDA 12.1
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+pip install -e ".[dev]"
+pip install demucs deepfilternet
+pip install opencv-python basicsr facexlib gfpgan
+
+# Verify CUDA is working
+python -c "import torch; print(f'CUDA: {torch.cuda.is_available()}')"
+```
+
+**Installation Documentation:**
+- `docs/WINDOWS_INSTALLATION.md`: Comprehensive Windows installation guide with RTX GPU support
+- `docs/DEPENDENCY_ANALYSIS.md`: Technical deep dive into dependency tree and compatibility
+- `INSTALLATION_SUMMARY.md`: Quick reference for installation options
+- `QUICK_INSTALL.txt`: One-page copy-paste installation commands
+
 ### Running the Application
 ```bash
 # Launch web GUI (primary interface)
@@ -110,6 +131,60 @@ ruff check vhs_upscaler/ tests/
 
 # Auto-fix linting issues
 ruff check vhs_upscaler/ tests/ --fix
+```
+
+### Installation Verification
+```bash
+# Comprehensive installation verification
+python verify_installation.py
+
+# Quick check of all components
+python verify_installation.py --quick
+
+# Check specific component
+python verify_installation.py --check pytorch
+python verify_installation.py --check gfpgan
+
+# Generate diagnostic report
+python verify_installation.py --report diagnostic.json
+
+# Check feature availability
+python -c "from verify_installation import get_available_features; print(get_available_features())"
+```
+
+**Verification System Components:**
+- **`verify_installation.py`**: Main verification script (1,100+ lines)
+  - Checks 10 components: Python, FFmpeg, GPU, PyTorch, VapourSynth, GFPGAN, CodeFormer, DeepFilterNet, AudioSR, Demucs
+  - Verifies 9 features: video processing, GPU acceleration, hardware encoding, AI upscaling, deinterlacing, face restoration, audio AI
+  - Generates JSON diagnostic reports
+  - Provides installation suggestions for missing components
+  - Python API for integration: `check_component()`, `get_available_features()`, `verify_all_components()`
+
+- **Documentation**:
+  - `docs/VERIFICATION_GUIDE.md`: User guide with examples and API reference
+  - `docs/INSTALLATION_TROUBLESHOOTING.md`: 850-line troubleshooting guide for all components
+  - `VERIFICATION_QUICK_REFERENCE.md`: One-page quick reference
+
+- **Tests**: `tests/test_installation_verification.py` (23 tests, 100% passing)
+
+**Feature Detection API Example:**
+```python
+from verify_installation import get_available_features, check_component
+
+# Get all features
+features = get_available_features()
+if features['gpu_acceleration']:
+    print("GPU acceleration available")
+if features['ai_audio_processing']:
+    print("DeepFilterNet/AudioSR available")
+
+# Check PyTorch with CUDA
+pytorch = check_component('pytorch')
+if pytorch.is_available and pytorch.details.get('cuda_available'):
+    device = "cuda"
+    print(f"PyTorch CUDA: {pytorch.details['cuda_version']}")
+else:
+    device = "cpu"
 ```
 
 ## Architecture Overview
