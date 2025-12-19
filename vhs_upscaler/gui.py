@@ -42,7 +42,7 @@ from logger import get_logger
 logger = get_logger(verbose=True, log_to_file=True)
 
 # Version info
-__version__ = "1.4.2"
+__version__ = "1.5.1"
 
 
 # =============================================================================
@@ -192,20 +192,24 @@ def process_job(job: QueueJob, progress_callback) -> bool:
             try:
                 from vhs_upscale import HAS_FACE_RESTORATION
                 if not HAS_FACE_RESTORATION:
-                    AppState.add_log("⚠️ Face restoration requested but module not available - feature will be skipped")
-                    logger.warning("Face restoration requested but not available")
+                    AppState.add_log("⚠️ Face restoration requested but not available - feature will be skipped")
+                    AppState.add_log("💡 To enable: pip install -e \".[faces]\" or pip install gfpgan opencv-python")
+                    logger.warning("Face restoration requested but not available. Install with: pip install -e \".[faces]\"")
             except:
                 AppState.add_log("⚠️ Face restoration not available - feature will be skipped")
+                AppState.add_log("💡 To enable: pip install -e \".[faces]\" or pip install gfpgan opencv-python")
 
         if config.deinterlace_algorithm == "qtgmc":
             try:
                 from vhs_upscale import HAS_DEINTERLACE
                 if not HAS_DEINTERLACE:
                     AppState.add_log("⚠️ QTGMC deinterlacing requested but VapourSynth not available - falling back to yadif")
-                    logger.warning("QTGMC requested but deinterlace module not available")
+                    AppState.add_log("💡 To enable QTGMC: Install VapourSynth from https://github.com/vapoursynth/vapoursynth/releases")
+                    logger.warning("QTGMC requested but VapourSynth not available. Falling back to yadif. Install VapourSynth: https://github.com/vapoursynth/vapoursynth/releases")
                     config.deinterlace_algorithm = "yadif"
             except:
                 AppState.add_log("⚠️ QTGMC not available - falling back to yadif")
+                AppState.add_log("💡 To enable QTGMC: Install VapourSynth from https://github.com/vapoursynth/vapoursynth/releases")
                 config.deinterlace_algorithm = "yadif"
 
         # Apply preset
@@ -877,27 +881,30 @@ def create_gui() -> gr.Blocks:
     /* CSS Variables for theming */
     :root {
         --bg-primary: #ffffff;
-        --bg-secondary: #f5f5f5;
+        --bg-secondary: #f8fafc;
         --bg-card: #ffffff;
         --text-primary: #1a1a1a;
-        --text-secondary: #666666;
-        --border-color: #e0e0e0;
-        --shadow-color: rgba(0,0,0,0.08);
+        --text-secondary: #64748b;
+        --border-color: #e2e8f0;
+        --shadow-color: rgba(0,0,0,0.05);
         --accent-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         --success-color: #10b981;
         --error-color: #ef4444;
         --warning-color: #f59e0b;
         --info-color: #3b82f6;
+        --radius-sm: 6px;
+        --radius-md: 8px;
+        --radius-lg: 12px;
     }
 
     /* Dark mode variables */
     .dark {
-        --bg-primary: #1a1a2e;
-        --bg-secondary: #16213e;
-        --bg-card: #0f3460;
-        --text-primary: #e4e4e4;
-        --text-secondary: #a0a0a0;
-        --border-color: #2a2a4a;
+        --bg-primary: #0f172a;
+        --bg-secondary: #1e293b;
+        --bg-card: #1e293b;
+        --text-primary: #f1f5f9;
+        --text-secondary: #94a3b8;
+        --border-color: #334155;
         --shadow-color: rgba(0,0,0,0.3);
     }
 
@@ -1087,10 +1094,17 @@ def create_gui() -> gr.Blocks:
         # Header with version badge
         gr.Markdown(f"""
         # 🎬 VHS Video Upscaler
-        ### AI-Powered Video Enhancement with NVIDIA Maxine <span class="version-badge">v{__version__}</span>
+        ### AI-Powered Video Enhancement with RTX Video SDK <span class="version-badge">v{__version__}</span>
 
         Transform vintage VHS tapes, DVDs, and low-quality videos into stunning HD/4K using RTX GPU acceleration.
         Supports **YouTube URLs**, **local files**, and **drag-and-drop upload** with batch processing.
+        """)
+
+        # Feature availability banner
+        gr.Markdown("""
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 12px; border-radius: 8px; margin-bottom: 20px; text-align: center;">
+            <strong>💡 Tip:</strong> Use Quick Fix Presets below for optimal results with minimal configuration!
+        </div>
         """)
 
         with gr.Tabs():
@@ -1099,382 +1113,473 @@ def create_gui() -> gr.Blocks:
             # =====================================================================
             with gr.TabItem("📹 Single Video", id=1):
                 with gr.Row():
-                    with gr.Column(scale=2):
-                        gr.Markdown("### Input Source")
+                    with gr.Column(scale=3):
+                        # ==================== INPUT SECTION ====================
+                        gr.Markdown("### 📥 Input Source")
 
                         # Tab group for input methods
-                        with gr.Tabs():
+                        with gr.Tabs() as input_tabs:
                             with gr.TabItem("📁 Upload File"):
                                 file_upload = gr.File(
                                     label="Drag & Drop Video File",
                                     file_types=["video"],
                                     file_count="single",
-                                    type="filepath"
+                                    type="filepath",
+                                    elem_classes="upload-zone"
                                 )
                                 file_preview = gr.HTML(
-                                    value="<div class='info-card'>Upload a video file to see preview info</div>",
+                                    value="<div class='info-card' style='text-align: center; padding: 20px;'><p style='color: #666; font-size: 14px;'>📤 Upload a video file to see details</p></div>",
                                     label="Video Info"
                                 )
 
                             with gr.TabItem("🔗 URL / Path"):
                                 input_source = gr.Textbox(
                                     label="Video Source",
-                                    placeholder="Enter file path or YouTube URL...",
-                                    info="Supports: youtube.com, youtu.be, local .mp4/.avi/.mkv files"
+                                    placeholder="https://youtube.com/watch?v=... or /path/to/video.mp4",
+                                    info="Supports YouTube, local files (.mp4, .avi, .mkv, .mov, .vob)",
+                                    lines=2
                                 )
 
                         # Hidden textbox to hold the final input path
                         final_input = gr.Textbox(visible=False, value="")
 
+                        # ==================== QUICK FIX PRESETS ====================
+                        gr.Markdown("---")
+                        gr.Markdown("### 🎯 Quick Fix Presets")
+                        gr.Markdown("<p style='color: #666; font-size: 13px; margin-top: -10px;'>One-click optimal settings for common scenarios</p>")
+
+                        with gr.Row():
+                            btn_vhs_home = gr.Button("📼 VHS Home Movies", size="sm", variant="secondary", scale=1)
+                            btn_vhs_noisy = gr.Button("🔊 Noisy VHS", size="sm", variant="secondary", scale=1)
+                            btn_dvd_rip = gr.Button("💿 DVD Rip", size="sm", variant="secondary", scale=1)
+                            btn_youtube_old = gr.Button("📺 Old YouTube", size="sm", variant="secondary", scale=1)
+                        with gr.Row():
+                            btn_anime = gr.Button("🎨 Anime", size="sm", variant="secondary", scale=1)
+                            btn_webcam = gr.Button("🎥 Webcam", size="sm", variant="secondary", scale=1)
+                            btn_clean = gr.Button("✨ Clean Digital", size="sm", variant="secondary", scale=1)
+                            btn_best_quality = gr.Button("⭐ Best Quality (Slow)", size="sm", variant="primary", scale=1)
+
+                        # ==================== BASIC SETTINGS ====================
+                        gr.Markdown("---")
+                        gr.Markdown("### ⚙️ Basic Settings")
+
                         with gr.Row():
                             preset = gr.Dropdown(
                                 choices=["vhs", "dvd", "webcam", "youtube", "clean", "auto"],
                                 value="vhs",
-                                label="Preset",
-                                info="Processing preset based on source type"
+                                label="Preset Profile",
+                                info="Source type - determines deinterlace/denoise defaults",
+                                scale=1
                             )
                             resolution = gr.Dropdown(
                                 choices=[720, 1080, 1440, 2160],
                                 value=1080,
-                                label="Resolution",
-                                info="Target output resolution"
+                                label="Target Resolution",
+                                info="1080p recommended for VHS/DVD, 2160p for 4K TVs",
+                                scale=1
+                            )
+                            upscale_engine = gr.Dropdown(
+                                choices=["auto", "rtxvideo", "realesrgan", "ffmpeg"],
+                                value="auto",
+                                label="AI Upscaler",
+                                info="auto=best available, rtxvideo=RTX 20+ (best), realesrgan=AMD/Intel/NVIDIA, ffmpeg=CPU only",
+                                scale=1
                             )
 
-                        # Quick Fix Buttons
-                        gr.Markdown("### 🎯 Quick Fix Presets")
-                        with gr.Row():
-                            btn_vhs_home = gr.Button("📼 VHS Home Movies", size="sm", variant="secondary")
-                            btn_vhs_noisy = gr.Button("🔊 Noisy VHS", size="sm", variant="secondary")
-                            btn_dvd_rip = gr.Button("💿 DVD Rip", size="sm", variant="secondary")
-                            btn_youtube_old = gr.Button("📺 Old YouTube", size="sm", variant="secondary")
-                        with gr.Row():
-                            btn_anime = gr.Button("🎨 Anime/Animation", size="sm", variant="secondary")
-                            btn_webcam = gr.Button("🎥 Webcam Footage", size="sm", variant="secondary")
-                            btn_clean = gr.Button("✨ Clean Digital", size="sm", variant="secondary")
-                            btn_best_quality = gr.Button("⭐ Best Quality (Slow)", size="sm", variant="primary")
-
-                        with gr.Accordion("⚙️ Advanced Options", open=False):
-                            with gr.Row():
-                                quality = gr.Radio(
-                                    choices=[0, 1],
-                                    value=0,
-                                    label="Quality Priority",
-                                    info="0=Best quality (slower, recommended), 1=Faster processing (slightly lower quality)"
-                                )
-                                crf = gr.Slider(
-                                    minimum=15,
-                                    maximum=28,
-                                    value=20,
-                                    step=1,
-                                    label="Video Quality",
-                                    info="15=highest quality (huge file), 20=great quality (recommended), 28=smaller file (visible compression)"
-                                )
+                        # ==================== ADVANCED OPTIONS ====================
+                        gr.Markdown("---")
+                        with gr.Accordion("⚙️ Encoding & Quality Settings", open=False):
+                            gr.Markdown("**Video Encoder & Quality Control**")
                             with gr.Row():
                                 encoder = gr.Dropdown(
                                     choices=["hevc_nvenc", "h264_nvenc", "libx265", "libx264"],
                                     value="hevc_nvenc",
                                     label="Video Encoder",
-                                    info="hevc_nvenc=best (NVIDIA GPU, H.265), h264_nvenc=compatible (NVIDIA, H.264), libx265/libx264=CPU encoding (no GPU needed, slower)"
+                                    info="hevc_nvenc=NVIDIA GPU (H.265, best compression), h264_nvenc=NVIDIA GPU (H.264, wider support), libx265/libx264=CPU (slow, no GPU needed)",
+                                    scale=2
                                 )
-                                upscale_engine = gr.Dropdown(
-                                    choices=["auto", "rtxvideo", "realesrgan", "ffmpeg"],
-                                    value="auto",
-                                    label="AI Upscaler",
-                                    info="auto=picks best for your system, rtxvideo=NVIDIA RTX 20+ (best, new SDK), realesrgan=any GPU (AMD/Intel/NVIDIA), ffmpeg=CPU only (slowest)"
+                                quality = gr.Radio(
+                                    choices=[0, 1],
+                                    value=0,
+                                    label="Quality Priority",
+                                    info="0=Best (slower), 1=Faster (good)",
+                                    scale=1
                                 )
                             with gr.Row():
-                                hdr_mode = gr.Dropdown(
-                                    choices=["sdr", "hdr10", "hlg"],
-                                    value="sdr",
-                                    label="HDR Output",
-                                    info="sdr=standard (works everywhere), hdr10=HDR for TVs/monitors, hlg=HDR for broadcast/streaming (wider compatibility)"
+                                crf = gr.Slider(
+                                    minimum=15,
+                                    maximum=28,
+                                    value=20,
+                                    step=1,
+                                    label="CRF Quality Level",
+                                    info="Lower = better quality, larger file. 15=archival (huge), 20=excellent (recommended), 23=good, 28=compressed"
                                 )
+
+                        with gr.Accordion("🎨 AI Upscaler Settings", open=False):
+                            gr.Markdown("**Engine-specific settings appear below based on your AI Upscaler selection**")
 
                             # === Conditional: RTX Video SDK Options (v1.5.1+) ===
                             with gr.Group(visible=False) as rtxvideo_options:
-                                gr.Markdown("**🚀 RTX Video SDK Settings** - AI upscaling with Super Resolution, artifact reduction, and HDR conversion. Requires RTX 20+ GPU.")
+                                gr.Markdown("""
+                                <div style="background: #e7f3ff; border-left: 4px solid #2196F3; padding: 12px; border-radius: 4px; margin: 10px 0;">
+                                    <strong>🚀 RTX Video SDK Settings</strong><br/>
+                                    <span style="font-size: 13px; color: #555;">AI upscaling with artifact reduction and SDR-to-HDR conversion. Requires RTX 20 series GPU or newer.</span>
+                                </div>
+                                """)
                                 with gr.Row():
                                     rtxvideo_artifact_reduction = gr.Checkbox(
-                                        label="Enable Artifact Reduction",
+                                        label="Artifact Reduction",
                                         value=True,
-                                        info="USE for VHS/DVD (removes compression artifacts). SKIP for clean digital sources."
+                                        info="Removes compression artifacts - essential for VHS/DVD, skip for clean sources",
+                                        scale=1
                                     )
+                                with gr.Row():
                                     rtxvideo_artifact_strength = gr.Slider(
                                         minimum=0.0, maximum=1.0, value=0.5, step=0.1,
-                                        label="Artifact Strength",
-                                        info="USE 0.7-1.0 for VHS, 0.3-0.5 for DVD, 0.1-0.2 for light cleanup."
+                                        label="Reduction Strength",
+                                        info="VHS: 0.7-1.0 | DVD: 0.3-0.5 | Light cleanup: 0.1-0.2",
+                                        visible=True
                                     )
                                 with gr.Row():
                                     rtxvideo_hdr = gr.Checkbox(
-                                        label="Enable SDR to HDR Conversion",
+                                        label="SDR to HDR Conversion",
                                         value=False,
-                                        info="USE for HDR TV playback. SKIP for web uploads or SDR displays."
+                                        info="Convert to HDR for modern TVs - skip for web/SDR displays"
                                     )
 
                             # === Conditional: Real-ESRGAN Options ===
                             with gr.Group(visible=False) as realesrgan_options:
-                                gr.Markdown("**🎨 Real-ESRGAN Settings** - AI upscaling that works on AMD, Intel, and NVIDIA GPUs. Best for VHS/noisy footage.")
+                                gr.Markdown("""
+                                <div style="background: #fff3e0; border-left: 4px solid #ff9800; padding: 12px; border-radius: 4px; margin: 10px 0;">
+                                    <strong>🎨 Real-ESRGAN Settings</strong><br/>
+                                    <span style="font-size: 13px; color: #555;">Cross-platform AI upscaling for AMD, Intel, and NVIDIA GPUs. Excellent for noisy VHS footage.</span>
+                                </div>
+                                """)
                                 with gr.Row():
                                     realesrgan_model = gr.Dropdown(
                                         choices=["realesrgan-x4plus", "realesrgan-x4plus-anime",
                                                  "realesr-animevideov3", "realesrnet-x4plus"],
                                         value="realesrgan-x4plus",
                                         label="AI Model",
-                                        info="USE: x4plus for VHS/real video, anime for cartoons, animevideo for anime series. SKIP anime models for live action."
+                                        info="x4plus: VHS/live action | anime: cartoons/2D animation | animevideo: anime series",
+                                        scale=2
                                     )
                                     realesrgan_denoise = gr.Slider(
                                         minimum=0, maximum=1, value=0.5, step=0.1,
                                         label="Noise Reduction",
-                                        info="USE 0.7-1.0 for VHS (heavy noise), 0.3-0.5 for DVD, 0 for clean sources. High values may remove film grain you want to keep."
+                                        info="VHS: 0.7-1.0 | DVD: 0.3-0.5 | Clean: 0 (preserves film grain)",
+                                        scale=2
                                     )
 
                             # === Conditional: FFmpeg Upscale Options ===
                             with gr.Group(visible=False) as ffmpeg_options:
-                                gr.Markdown("**🔧 FFmpeg Upscale Settings** - CPU-based upscaling. USE when no GPU available or for already-clean sources.")
+                                gr.Markdown("""
+                                <div style="background: #f3f4f6; border-left: 4px solid #6b7280; padding: 12px; border-radius: 4px; margin: 10px 0;">
+                                    <strong>🔧 FFmpeg Upscale Settings</strong><br/>
+                                    <span style="font-size: 13px; color: #555;">CPU-based traditional upscaling. Use when no GPU is available or for clean sources.</span>
+                                </div>
+                                """)
                                 with gr.Row():
                                     ffmpeg_scale_algo = gr.Dropdown(
                                         choices=["lanczos", "bicubic", "bilinear", "spline", "neighbor"],
                                         value="lanczos",
-                                        label="Upscale Method",
-                                        info="USE lanczos for most content, bicubic for soft/vintage look, neighbor ONLY for pixel art/retro games. SKIP bilinear (blurry)."
+                                        label="Scaling Algorithm",
+                                        info="lanczos: sharp (best) | bicubic: soft/vintage | neighbor: pixel art only",
+                                        scale=2
                                     )
+
+                        with gr.Accordion("🌈 HDR & Color Settings", open=False):
+                            with gr.Row():
+                                hdr_mode = gr.Dropdown(
+                                    choices=["sdr", "hdr10", "hlg"],
+                                    value="sdr",
+                                    label="HDR Output Mode",
+                                    info="sdr=standard (works everywhere), hdr10=HDR TVs/monitors, hlg=broadcast HDR",
+                                    scale=1
+                                )
 
                             # === Conditional: HDR Options ===
                             with gr.Group(visible=False) as hdr_options:
-                                gr.Markdown("**🎨 HDR Settings** - USE for playback on HDR TVs/monitors. SKIP for phones, web uploads, or older displays.")
+                                gr.Markdown("""
+                                <div style="background: #fce7f3; border-left: 4px solid #ec4899; padding: 12px; border-radius: 4px; margin: 10px 0;">
+                                    <strong>🎨 HDR Conversion Settings</strong><br/>
+                                    <span style="font-size: 13px; color: #555;">Configure SDR to HDR conversion for modern TVs. Skip for web uploads or older displays.</span>
+                                </div>
+                                """)
                                 with gr.Row():
                                     hdr_brightness = gr.Slider(
                                         minimum=100, maximum=1000, value=400, step=50,
-                                        label="Peak Brightness",
-                                        info="Match your TV's capability. 400=budget TVs, 600=mid-range, 1000=OLED/premium. Too high wastes file size; too low looks dim."
+                                        label="Peak Brightness (nits)",
+                                        info="Match TV specs: 400=budget | 600=mid-range | 1000=OLED/premium",
+                                        scale=2
                                     )
                                     hdr_color_depth = gr.Radio(
                                         choices=[8, 10],
                                         value=10,
-                                        label="Color Depth",
-                                        info="USE 10-bit for HDR (required for smooth gradients). USE 8-bit only if storage is critical or device doesn't support 10-bit."
+                                        label="Bit Depth",
+                                        info="10-bit: HDR required | 8-bit: legacy only",
+                                        scale=1
                                     )
-
-                        with gr.Accordion("🎨 Video Enhancement Options", open=False):
-                            gr.Markdown("*Advanced video enhancement features: color grading, face restoration, deinterlacing*")
 
                             # LUT Color Grading
-                            with gr.Group():
-                                gr.Markdown("**🎨 LUT Color Grading** - Apply cinematic color grading with .cube LUT files")
-                                with gr.Row():
-                                    lut_file = gr.Textbox(
-                                        label="LUT File Path",
-                                        placeholder="Path to .cube LUT file (e.g., luts/vhs_restore.cube)",
-                                        info="USE to fix VHS color issues or add cinematic look. SKIP if colors look good already."
-                                    )
-                                    lut_strength = gr.Slider(
-                                        minimum=0.0, maximum=1.0, value=1.0, step=0.1,
-                                        label="LUT Strength",
-                                        info="USE 0.5-0.7 for subtle correction, 1.0 for full effect. Lower = more natural blend."
-                                    )
+                            gr.Markdown("---")
+                            gr.Markdown("**🎨 LUT Color Grading** - Apply cinematic color grading with .cube LUT files")
+                            with gr.Row():
+                                lut_file = gr.Textbox(
+                                    label="LUT File Path",
+                                    placeholder="Path to .cube LUT file (e.g., luts/vhs_restore.cube)",
+                                    info="Optional: Fix VHS color issues or add cinematic look"
+                                )
+                                lut_strength = gr.Slider(
+                                    minimum=0.0, maximum=1.0, value=1.0, step=0.1,
+                                    label="LUT Strength",
+                                    info="0.5-0.7 for subtle correction, 1.0 for full effect"
+                                )
 
-                            # Face Restoration
-                            with gr.Group():
-                                gr.Markdown("**👤 AI Face Restoration** - Enhance faces using GFPGAN or CodeFormer (requires additional install)")
-                                with gr.Row():
-                                    face_restore = gr.Checkbox(
-                                        label="Enable Face Restoration",
-                                        value=False,
-                                        info="USE for home videos with faces. SKIP for landscapes, animation, or if no faces present."
-                                    )
-                                    face_model = gr.Dropdown(
-                                        choices=["gfpgan", "codeformer"],
-                                        value="gfpgan",
-                                        label="Face Model",
-                                        info="USE gfpgan for balance, codeformer for better quality (slower). Both handle VHS/damaged faces."
-                                    )
+                        with gr.Accordion("👤 Face Restoration", open=False):
+                            gr.Markdown("**AI-powered face enhancement using GFPGAN or CodeFormer**")
+                            with gr.Row():
+                                face_restore = gr.Checkbox(
+                                    label="Enable Face Restoration",
+                                    value=False,
+                                    info="Enhance faces in home videos (requires additional install)"
+                                )
+                                face_model = gr.Dropdown(
+                                    choices=["gfpgan", "codeformer"],
+                                    value="gfpgan",
+                                    label="Face Model",
+                                    info="gfpgan: balanced | codeformer: higher quality (slower)"
+                                )
+
+                            # === Conditional: Face Restoration Options ===
+                            with gr.Group(visible=False) as face_restore_options:
                                 with gr.Row():
                                     face_restore_strength = gr.Slider(
                                         minimum=0.0, maximum=1.0, value=0.5, step=0.1,
                                         label="Restoration Strength",
-                                        info="USE 0.5 for balance, 0.8+ for heavily damaged faces. Too high may look artificial."
+                                        info="0.5 for balance, 0.8+ for heavily damaged faces"
                                     )
                                     face_restore_upscale = gr.Radio(
                                         choices=[1, 2, 4],
                                         value=2,
                                         label="Face Upscale Factor",
-                                        info="USE 2 for most cases, 4 only if faces are very small/distant."
+                                        info="2 for most cases, 4 for very small/distant faces"
                                     )
 
-                            # Deinterlacing
-                            with gr.Group():
-                                gr.Markdown("**📼 Deinterlacing Method** - Remove interlacing artifacts from VHS/DVD/broadcast sources")
+                        with gr.Accordion("📼 Deinterlacing", open=False):
+                            gr.Markdown("**Remove interlacing artifacts from VHS/DVD/broadcast sources**")
+                            with gr.Row():
+                                deinterlace_algorithm = gr.Dropdown(
+                                    choices=["yadif", "bwdif", "w3fdif", "qtgmc"],
+                                    value="yadif",
+                                    label="Algorithm",
+                                    info="yadif: fast (good) | bwdif/w3fdif: better | qtgmc: best (slow)"
+                                )
+
+                            # === Conditional: QTGMC Options ===
+                            with gr.Group(visible=False) as qtgmc_options:
                                 with gr.Row():
-                                    deinterlace_algorithm = gr.Dropdown(
-                                        choices=["yadif", "bwdif", "w3fdif", "qtgmc"],
-                                        value="yadif",
-                                        label="Algorithm",
-                                        info="USE yadif for speed (good), bwdif for motion (better), w3fdif for detail (better), qtgmc for quality (best, slow)."
-                                    )
                                     qtgmc_preset = gr.Dropdown(
-                                        choices=["none", "draft", "medium", "slow", "very_slow"],
+                                        choices=["draft", "medium", "slow", "very_slow"],
                                         value="medium",
                                         label="QTGMC Preset",
-                                        info="Only for qtgmc algorithm. USE medium for balance, very_slow for archival quality. Requires VapourSynth."
+                                        info="medium: balanced | very_slow: archival quality (Requires VapourSynth)"
                                     )
 
-                        with gr.Accordion("🔊 Audio Options", open=False):
-                            gr.Markdown("*Clean up audio, reduce noise, and optionally create surround sound from stereo*")
+                        with gr.Accordion("🔊 Audio Processing", open=False):
+                            gr.Markdown("""
+                            <div style="background: #f0fdf4; border-left: 4px solid #10b981; padding: 10px; border-radius: 4px; margin-bottom: 15px;">
+                                <strong>Audio Enhancement & Upmixing</strong><br/>
+                                <span style="font-size: 13px; color: #555;">Clean up audio, reduce noise, and create surround sound from stereo sources.</span>
+                            </div>
+                            """)
+
+                            gr.Markdown("**Basic Audio Settings**")
                             with gr.Row():
                                 audio_enhance = gr.Dropdown(
                                     choices=["none", "light", "moderate", "aggressive", "voice", "music", "deepfilternet"],
                                     value="none",
-                                    label="Audio Cleanup",
-                                    info="USE: aggressive/voice for VHS (hiss), deepfilternet for heavy noise (AI, best), music for concerts. SKIP (none) for clean sources."
-                                )
-                                audio_upmix = gr.Dropdown(
-                                    choices=["none", "simple", "surround", "prologic", "demucs"],
-                                    value="none",
-                                    label="Surround Sound Creation",
-                                    info="USE demucs for movies (best AI quality), prologic for music. SKIP if source is already surround, mono, or you only have stereo speakers."
-                                )
-                            with gr.Row():
-                                audio_sr_enabled = gr.Checkbox(
-                                    label="Enable AudioSR Upsampling",
-                                    value=False,
-                                    info="USE to enhance low sample rate audio (e.g., VHS 32kHz → 48kHz). Requires AudioSR install. SKIP for already HQ audio."
-                                )
-                                audio_sr_model = gr.Dropdown(
-                                    choices=["basic", "speech", "music"],
-                                    value="basic",
-                                    label="AudioSR Model",
-                                    info="USE speech for dialogue/VHS, music for concerts/soundtracks, basic for general content.",
-                                    visible=False
-                                )
-                            with gr.Row():
-                                audio_layout = gr.Dropdown(
-                                    choices=["original", "stereo", "5.1", "7.1", "mono"],
-                                    value="original",
-                                    label="Speaker Layout",
-                                    info="USE 5.1 for home theater, stereo for headphones/phones, 7.1 only if you have 8 speakers. SKIP 7.1 for most setups (overkill)."
+                                    label="Noise Reduction",
+                                    info="VHS: aggressive/voice | Heavy noise: deepfilternet (AI) | Concerts: music | Clean: none",
+                                    scale=2
                                 )
                                 audio_format = gr.Dropdown(
                                     choices=["aac", "ac3", "eac3", "dts", "flac"],
                                     value="aac",
                                     label="Audio Codec",
-                                    info="USE aac for streaming/phones, eac3 for 5.1 home theater, flac for archiving. SKIP dts unless your receiver requires it."
+                                    info="aac: streaming/mobile | eac3: 5.1 theater | flac: archival",
+                                    scale=1
+                                )
+
+                            with gr.Row():
+                                audio_upmix = gr.Dropdown(
+                                    choices=["none", "simple", "surround", "prologic", "demucs"],
+                                    value="none",
+                                    label="Surround Upmix",
+                                    info="Create 5.1/7.1 from stereo: demucs (AI, best) | prologic (Dolby) | none (keep stereo)",
+                                    scale=2
+                                )
+                                audio_layout = gr.Dropdown(
+                                    choices=["original", "stereo", "5.1", "7.1", "mono"],
+                                    value="original",
+                                    label="Output Layout",
+                                    info="5.1: home theater | stereo: headphones | original: preserve",
+                                    scale=1
+                                )
+
+                            gr.Markdown("---")
+                            gr.Markdown("**AI Audio Enhancement**")
+                            with gr.Row():
+                                audio_sr_enabled = gr.Checkbox(
+                                    label="AudioSR Upsampling",
+                                    value=False,
+                                    info="AI upsampling: VHS 32kHz → 48kHz (requires install)"
+                                )
+                                audio_sr_model = gr.Dropdown(
+                                    choices=["basic", "speech", "music"],
+                                    value="speech",
+                                    label="AudioSR Model",
+                                    info="speech: VHS/dialogue | music: concerts | basic: general",
+                                    visible=False,
+                                    scale=2
                                 )
 
                             # === Conditional: Audio Enhancement Options ===
                             with gr.Group(visible=False) as audio_enhance_options:
-                                gr.Markdown("**🎚️ Audio Cleanup Settings** - Fine-tune noise removal and volume normalization")
+                                gr.Markdown("**🎚️ Advanced Audio Cleanup** - Fine-tune noise removal and volume normalization")
                                 with gr.Row():
                                     audio_target_loudness = gr.Slider(
                                         minimum=-24, maximum=-9, value=-14, step=1,
-                                        label="Volume Level",
-                                        info="USE -14 for YouTube/Spotify, -16 for TV, -23 for movies with dynamic range. SKIP changing if you'll edit audio later."
+                                        label="Target Loudness (LUFS)",
+                                        info="-14: YouTube/Spotify | -16: TV | -23: cinema/dynamic range"
                                     )
                                     audio_noise_floor = gr.Slider(
                                         minimum=-30, maximum=-10, value=-20, step=1,
-                                        label="Noise Removal Threshold",
-                                        info="USE -25 to -30 for VHS (heavy hiss), -15 to -20 for light noise, -10 for clean sources. Too aggressive removes quiet dialogue!"
+                                        label="Noise Gate Threshold (dB)",
+                                        info="-25 to -30: VHS (heavy hiss) | -15 to -20: light noise | -10: clean"
                                     )
 
                             # === Conditional: Demucs Options ===
                             with gr.Group(visible=False) as demucs_options:
-                                gr.Markdown("**🤖 Demucs AI Settings** - Best for movies/music. SKIP for voice-only content (interviews, podcasts).")
+                                gr.Markdown("**🤖 Demucs AI Stem Separation** - Best for movies/music with complex audio")
                                 with gr.Row():
                                     demucs_model = gr.Dropdown(
                                         choices=["htdemucs", "htdemucs_ft", "mdx_extra", "mdx_extra_q"],
                                         value="htdemucs",
                                         label="AI Model",
-                                        info="USE htdemucs for speed, htdemucs_ft for quality (movies). SKIP mdx models unless htdemucs gives artifacts."
+                                        info="htdemucs: fast | htdemucs_ft: best quality | mdx: alternative"
                                     )
                                     demucs_device = gr.Dropdown(
                                         choices=["auto", "cuda", "cpu"],
                                         value="auto",
                                         label="Processing Device",
-                                        info="USE auto (picks GPU if available). USE cpu only if GPU causes crashes. GPU is 10-50x faster than CPU."
+                                        info="auto: GPU if available | cuda: force GPU | cpu: force CPU"
                                     )
                                 with gr.Row():
                                     demucs_shifts = gr.Slider(
                                         minimum=0, maximum=5, value=1, step=1,
                                         label="Quality Passes",
-                                        info="USE 1 for most content (good balance). USE 2-3 for music you care about. USE 0 for quick previews. SKIP 4-5 unless archiving."
+                                        info="1: balanced | 2-3: higher quality | 0: fast preview"
                                     )
 
                             # === Conditional: Surround Options ===
                             with gr.Group(visible=False) as surround_options:
-                                gr.Markdown("**🔊 Surround Sound Settings** - Adjust speaker balance. Defaults work for most setups; only change if something sounds off.")
+                                gr.Markdown("**🔊 Surround Sound Configuration** - Adjust speaker balance and placement")
                                 with gr.Row():
                                     lfe_crossover = gr.Slider(
                                         minimum=60, maximum=200, value=120, step=10,
-                                        label="Subwoofer Cutoff",
-                                        info="USE 80Hz for THX/large speakers, 120Hz for typical setups, 150-200Hz for small speakers/soundbars. Match your receiver setting."
+                                        label="Subwoofer Crossover (Hz)",
+                                        info="80: THX/large | 120: typical | 150-200: small speakers"
                                     )
                                     center_mix = gr.Slider(
                                         minimum=0.0, maximum=1.0, value=0.707, step=0.05,
-                                        label="Center Speaker Volume",
-                                        info="USE 0.707 (default) for most content. INCREASE to 0.8-1.0 if dialogue is hard to hear. DECREASE for music-heavy content."
+                                        label="Center Channel Level",
+                                        info="0.707: default | 0.8-1.0: boost dialogue | 0.5: music-heavy"
                                     )
                                 with gr.Row():
                                     surround_delay = gr.Slider(
                                         minimum=0, maximum=50, value=15, step=5,
-                                        label="Rear Speaker Delay",
-                                        info="USE 15-20ms for movies (natural depth). USE 0-5ms for music (tighter sound). USE 30-50ms for concert/live recordings (spacious)."
+                                        label="Surround Delay (ms)",
+                                        info="15-20: movies | 0-5: music | 30-50: live recordings"
                                     )
 
-                        add_btn = gr.Button("➕ Add to Queue", variant="primary", size="lg")
-                        status_msg = gr.Textbox(label="Status", interactive=False)
+                        # ==================== ACTION BUTTON ====================
+                        gr.Markdown("---")
+                        add_btn = gr.Button(
+                            "➕ Add to Queue",
+                            variant="primary",
+                            size="lg",
+                            elem_classes="primary"
+                        )
+                        status_msg = gr.Textbox(
+                            label="Status",
+                            interactive=False,
+                            show_label=False,
+                            container=False
+                        )
 
-                    with gr.Column(scale=1):
-                        gr.Markdown("### 📋 Presets Guide")
+                    with gr.Column(scale=2):
+                        # ==================== HELP SIDEBAR ====================
                         gr.Markdown("""
-                        | Preset | Best For |
-                        |--------|----------|
-                        | **vhs** | VHS tapes (480i, heavy noise) |
-                        | **dvd** | DVD rips (480p/576p) |
-                        | **webcam** | Old webcam footage |
-                        | **youtube** | YouTube downloads |
-                        | **clean** | Already clean sources |
-                        | **auto** | Auto-detect settings |
-                        """)
+                        <div style="position: sticky; top: 20px;">
 
-                        gr.Markdown("### 🎯 When to Use Each Option")
-                        gr.Markdown("""
-                        **AI Upscaler:**
-                        - **VHS/Old tapes** → Real-ESRGAN (best noise handling)
-                        - **DVDs/Clean sources** → Maxine (fastest) or FFmpeg
-                        - **Anime/Cartoons** → Real-ESRGAN anime model
-                        - **No GPU** → FFmpeg (CPU only)
+                        ### 📖 Quick Reference
 
-                        **HDR Output:**
-                        - ✅ Use for: Modern TVs, HDR monitors
-                        - ❌ Skip for: Old TVs, phones, web sharing
+                        <div style="background: #f9fafb; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                        <strong>🎯 Preset Profiles</strong>
+                        <ul style="margin: 10px 0; padding-left: 20px; font-size: 13px;">
+                            <li><strong>VHS</strong> - VHS tapes (480i, heavy noise, deinterlaced)</li>
+                            <li><strong>DVD</strong> - DVD rips (480p/576p, moderate cleanup)</li>
+                            <li><strong>Webcam</strong> - Low-quality webcam footage</li>
+                            <li><strong>YouTube</strong> - Downloaded YouTube videos</li>
+                            <li><strong>Clean</strong> - Already high-quality sources</li>
+                            <li><strong>Auto</strong> - Let system detect best settings</li>
+                        </ul>
+                        </div>
 
-                        **Audio Enhancement:**
-                        - **VHS tapes** → "voice" or "aggressive" (heavy hiss)
-                        - **DVDs** → "light" or "none" (usually clean)
-                        - **Home videos** → "moderate" (background noise)
-                        - **Music content** → "music" (preserves dynamics)
+                        <div style="background: #e7f3ff; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                        <strong>🚀 AI Upscaler Guide</strong>
+                        <ul style="margin: 10px 0; padding-left: 20px; font-size: 13px;">
+                            <li><strong>RTX Video</strong> - RTX 20+ GPUs (best quality, artifact removal)</li>
+                            <li><strong>Real-ESRGAN</strong> - AMD/Intel/NVIDIA (excellent for noisy VHS)</li>
+                            <li><strong>FFmpeg</strong> - CPU fallback (no GPU required)</li>
+                            <li><strong>Auto</strong> - Automatic selection (recommended)</li>
+                        </ul>
+                        </div>
 
-                        **Surround Upmix:**
-                        - **Movies/TV** → "demucs" (AI, best quality)
-                        - **Music** → "prologic" (Dolby-style)
-                        - **Quick processing** → "simple" or "surround"
-                        - ❌ Skip if: Already surround or mono source
-                        """)
+                        <div style="background: #f0fdf4; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                        <strong>🔊 Audio Tips</strong>
+                        <ul style="margin: 10px 0; padding-left: 20px; font-size: 13px;">
+                            <li><strong>VHS Tapes</strong> → aggressive/voice + AudioSR</li>
+                            <li><strong>Heavy Noise</strong> → deepfilternet (AI, best)</li>
+                            <li><strong>Movies</strong> → demucs upmix to 5.1</li>
+                            <li><strong>Music</strong> → prologic or none (preserve stereo)</li>
+                            <li><strong>Codec</strong> → aac (streaming), eac3 (5.1 theater)</li>
+                        </ul>
+                        </div>
 
-                        gr.Markdown("### 💡 Quick Tips")
-                        gr.Markdown("""
-                        - Use **hevc_nvenc** for best compression
-                        - Lower **CRF** = better quality, larger files
-                        - **1080p** is ideal for most VHS content
+                        <div style="background: #fef3c7; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                        <strong>💡 Pro Tips</strong>
+                        <ul style="margin: 10px 0; padding-left: 20px; font-size: 13px;">
+                            <li><strong>Resolution</strong> - 1080p ideal for VHS/DVD</li>
+                            <li><strong>CRF 20</strong> - Excellent quality (recommended)</li>
+                            <li><strong>HEVC</strong> - Best compression (50% smaller files)</li>
+                            <li><strong>HDR</strong> - Only for modern TVs (skip for web)</li>
+                            <li><strong>Face Restore</strong> - Enable for home videos with people</li>
+                        </ul>
+                        </div>
 
-                        **No NVIDIA GPU?**
-                        - Use **realesrgan** engine (AMD/Intel)
-                        - Use **ffmpeg** for CPU-only upscaling
+                        <div style="background: #fce7f3; padding: 15px; border-radius: 8px;">
+                        <strong>⚠️ No GPU?</strong>
+                        <p style="font-size: 13px; margin: 10px 0;">
+                        • Use <strong>Real-ESRGAN</strong> (works on AMD/Intel)<br/>
+                        • Or <strong>FFmpeg</strong> lanczos (CPU only)<br/>
+                        • Select <strong>libx265</strong> encoder<br/>
+                        • Processing will be slower but still works!
+                        </p>
+                        </div>
 
-                        **Audio Enhancement:**
-                        - **voice** - Best for VHS/dialogue
-                        - **music** - Preserves dynamics
-                        - **demucs** - AI upmix (best 5.1)
-                        - Use **eac3** for 5.1 surround
+                        </div>
                         """)
 
             # =====================================================================
@@ -1874,6 +1979,39 @@ def create_gui() -> gr.Blocks:
             fn=update_audiosr_options,
             inputs=[audio_sr_enabled],
             outputs=[audio_sr_model]
+        )
+
+        # RTX Video artifact strength visibility
+        def update_rtx_artifact_strength(enabled):
+            """Show artifact strength slider when artifact reduction is enabled."""
+            return gr.update(visible=enabled)
+
+        rtxvideo_artifact_reduction.change(
+            fn=update_rtx_artifact_strength,
+            inputs=[rtxvideo_artifact_reduction],
+            outputs=[rtxvideo_artifact_strength]
+        )
+
+        # Face restoration options visibility
+        def update_face_restore_options(enabled):
+            """Show face restoration settings when face restore is enabled."""
+            return gr.update(visible=enabled)
+
+        face_restore.change(
+            fn=update_face_restore_options,
+            inputs=[face_restore],
+            outputs=[face_restore_options]
+        )
+
+        # QTGMC preset visibility
+        def update_qtgmc_options(algorithm):
+            """Show QTGMC preset dropdown when QTGMC algorithm is selected."""
+            return gr.update(visible=(algorithm == "qtgmc"))
+
+        deinterlace_algorithm.change(
+            fn=update_qtgmc_options,
+            inputs=[deinterlace_algorithm],
+            outputs=[qtgmc_options]
         )
 
         # =====================================================================

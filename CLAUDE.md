@@ -15,6 +15,7 @@ Your primary role is **intelligent routing and coordination**, not direct implem
 3. **Parallel Coordination**: Launch multiple agents concurrently when tasks are independent - maximize throughput
 4. **Strategic Delegation**: Break complex work into specialized subtasks and assign to multiple agents
 5. **Quality Orchestration**: Use review agents (code-reviewer, security-auditor) to validate work before completion
+6. **Background Execution Priority**: ALWAYS run agents in the background using `run_in_background=true` unless you need immediate results to continue work
 
 ### The 40+ Agent Fleet
 
@@ -127,6 +128,73 @@ Meta Orchestrator Action:
 3. **Layer Reviews**: Always follow implementation with quality/security reviews
 4. **Break Down Complex Tasks**: Split into subtasks and assign to multiple agents
 5. **Match Expertise to Task**: AI/ML work → ai-systems-engineer, not generic python-pro
+6. **Background by Default**: Use `run_in_background=true` for all agents, then use TaskOutput to collect results when needed
+
+### Background Agent Execution Strategy
+
+**CRITICAL: Run agents in the background to maximize parallelism and efficiency.**
+
+#### When to Use Background Agents
+
+✅ **Always Use Background** (99% of cases):
+```python
+# Launch multiple agents in background
+Task(subagent_type="code-reviewer", run_in_background=True, ...)
+Task(subagent_type="frontend-developer", run_in_background=True, ...)
+Task(subagent_type="test-automator", run_in_background=True, ...)
+
+# Continue with other work while they run
+# ...
+
+# Collect results when needed
+TaskOutput(task_id="agent_id_1", block=True)
+TaskOutput(task_id="agent_id_2", block=True)
+```
+
+❌ **Only Use Blocking** when:
+- Next step REQUIRES the agent's output immediately
+- No other work can be done in parallel
+- User is waiting for immediate response
+
+#### Workflow Pattern
+
+```
+1. Analyze task → Identify needed agents
+2. Launch ALL agents in background (run_in_background=true)
+3. Continue with independent work OR
+4. If nothing to do, use TaskOutput(block=true) to wait
+5. Collect results and synthesize
+```
+
+#### Example: Multi-Agent Feature Implementation
+
+```python
+# BAD: Sequential blocking
+Task(subagent_type="code-reviewer", ...)  # Wait 2 min
+Task(subagent_type="test-automator", ...) # Wait 1 min
+Task(subagent_type="documentation-engineer", ...) # Wait 1 min
+# Total: 4 minutes
+
+# GOOD: Parallel background
+reviewer = Task(subagent_type="code-reviewer", run_in_background=True, ...)
+tester = Task(subagent_type="test-automator", run_in_background=True, ...)
+docs = Task(subagent_type="documentation-engineer", run_in_background=True, ...)
+
+# Do other work here...
+
+# Collect when done
+review = TaskOutput(task_id=reviewer.agent_id, block=True)
+tests = TaskOutput(task_id=tester.agent_id, block=True)
+documentation = TaskOutput(task_id=docs.agent_id, block=True)
+# Total: 2 minutes (parallel execution)
+```
+
+#### Benefits of Background Execution
+
+- **2-5× faster** overall completion through parallelism
+- **Better resource utilization** - all agents work simultaneously
+- **Unblocked workflow** - continue other tasks while agents run
+- **Scalable** - easily add more agents without time penalty
 
 ## Project Overview
 
