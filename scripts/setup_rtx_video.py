@@ -15,10 +15,14 @@ Usage:
 
 import os
 import platform
+import shutil
 import subprocess
 import sys
+import tempfile
 import webbrowser
+import zipfile
 from pathlib import Path
+from typing import List, Optional, Tuple
 
 # ANSI color codes for terminal output
 class Colors:
@@ -230,6 +234,349 @@ def open_download_page():
     print_info(f"Opening {url} in your browser...")
     webbrowser.open(url)
 
+def find_sdk_zip_files() -> List[Tuple[Path, float]]:
+    """
+    Search for RTX Video SDK ZIP files in common download locations.
+
+    Returns:
+        List of tuples (path, size_mb) sorted by modification time (newest first)
+    """
+    search_paths = []
+
+    # Add common download locations
+    if platform.system() == 'Windows':
+        # User's Downloads folder
+        downloads = Path.home() / 'Downloads'
+        if downloads.exists():
+            search_paths.append(downloads)
+
+        # Desktop
+        desktop = Path.home() / 'Desktop'
+        if desktop.exists():
+            search_paths.append(desktop)
+
+    # Current directory
+    search_paths.append(Path.cwd())
+
+    # Search patterns for SDK files
+    patterns = [
+        '*rtx*video*.zip',
+        '*RTX*Video*.zip',
+        '*RTXVideo*.zip',
+        '*rtxvideo*.zip',
+        '*video*effects*.zip',
+        '*VideoEffects*.zip',
+    ]
+
+    found_files = []
+
+    for search_path in search_paths:
+        for pattern in patterns:
+            try:
+                for file_path in search_path.glob(pattern):
+                    if file_path.is_file():
+                        size_mb = file_path.stat().st_size / (1024 * 1024)
+                        mtime = file_path.stat().st_mtime
+                        found_files.append((file_path, size_mb, mtime))
+            except Exception:
+                continue
+
+    # Remove duplicates and sort by modification time (newest first)
+    unique_files = {}
+    for file_path, size_mb, mtime in found_files:
+        key = (file_path.resolve(), size_mb)
+        if key not in unique_files or mtime > unique_files[key][2]:
+            unique_files[key] = (file_path, size_mb, mtime)
+
+    # Sort by modification time descending and return without mtime
+    sorted_files = sorted(unique_files.values(), key=lambda x: x[2], reverse=True)
+    return [(path, size) for path, size, _ in sorted_files]
+
+def validate_zip_file(zip_path: Path) -> bool:
+    """
+    Validate that the ZIP file is valid and contains SDK files.
+
+    Args:
+        zip_path: Path to the ZIP file
+
+    Returns:
+        True if valid, False otherwise
+    """
+    try:
+        with zipfile.ZipFile(zip_path, 'r') as zf:
+            # Check for corruption
+            bad_file = zf.testzip()
+            if bad_file:
+                print_error(f"Corrupt file in ZIP: {bad_file}")
+                return False
+
+            # Check for SDK files (look for DLL or key files)
+            filenames = zf.namelist()
+            has_dll = any('NVVideoEffects.dll' in f or 'nvVideoEffects.dll' in f.lower()
+                         for f in filenames)
+            has_lib = any('lib' in f.lower() or 'bin' in f.lower() for f in filenames)
+
+            if not (has_dll or has_lib):
+                print_warning("ZIP doesn't appear to contain RTX Video SDK files")
+                return ask_yes_no("Continue anyway?", default=False)
+
+            return True
+    except zipfile.BadZipFile:
+        print_error("File is not a valid ZIP archive")
+        return False
+    except Exception as e:
+        print_error(f"Error validating ZIP: {e}")
+        return False
+
+def extract_sdk(zip_path: Path, target_dir: Path) -> bool:
+    """
+    Extract SDK ZIP file to target directory with progress.
+
+    Args:
+        zip_path: Path to the ZIP file
+        target_dir: Target installation directory
+
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        print_info(f"Extracting to {target_dir}...")
+
+        with zipfile.ZipFile(zip_path, 'r') as zf:
+            members = zf.namelist()
+            total_files = len(members)
+
+            # Create target directory
+            target_dir.mkdir(parents=True, exist_ok=True)
+
+            # Extract with progress
+            for i, member in enumerate(members, 1):
+                zf.extract(member, target_dir)
+
+                # Show progress every 10% or for small archives every file
+                if total_files < 20 or i % max(1, total_files // 10) == 0:
+                    percent = (i / total_files) * 100
+                    print(f"\r  Progress: {percent:.0f}% ({i}/{total_files} files)", end='')
+
+            print()  # New line after progress
+            print_success(f"Extracted {total_files} files successfully!")
+            return True
+
+    except PermissionError:
+        print_error("Permission denied. Try running as Administrator:")
+        print("  1. Right-click Command Prompt or PowerShell")
+        print("  2. Select 'Run as administrator'")
+        print(f"  3. Run: python {Path(__file__).name}")
+        return False
+    except Exception as e:
+        print_error(f"Extraction failed: {e}")
+        return False
+
+def set_environment_variable(name: str, value: str) -> bool:
+    """
+    Set system environment variable on Windows.
+
+    Args:
+        name: Variable name
+        value: Variable value
+
+    Returns:
+        True if successful, False otherwise
+    """
+    if platform.system() != 'Windows':
+        print_warning("Environment variable setting only supported on Windows")
+        return False
+
+    try:
+        # Try to set permanently using setx
+        result = subprocess.run(
+            ['setx', name, value],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+
+        # Also set for current session
+        os.environ[name] = value
+
+        print_success(f"Environment variable {name} set successfully!")
+        print_info("Note: You may need to restart applications to see the change")
+        return True
+
+    except subprocess.CalledProcessError as e:
+        print_error(f"Failed to set environment variable: {e}")
+        print_info("You can set it manually:")
+        print(f"  setx {name} \"{value}\"")
+        return False
+    except Exception as e:
+        print_error(f"Unexpected error: {e}")
+        return False
+
+def interactive_sdk_installation() -> bool:
+    """
+    Interactive SDK installation wizard.
+
+    Returns:
+        True if SDK was installed successfully, False otherwise
+    """
+    print_step("4a", "Automatic SDK Installation")
+    print()
+    print_info("Let's try to find and install the RTX Video SDK automatically!")
+    print()
+
+    # Step 1: Search for SDK files
+    print("[1/5] Searching for RTX Video SDK ZIP files...")
+    found_files = find_sdk_zip_files()
+
+    selected_file: Optional[Path] = None
+
+    if found_files:
+        print_success(f"Found {len(found_files)} potential SDK file(s):")
+        print()
+
+        for i, (file_path, size_mb) in enumerate(found_files, 1):
+            print(f"  {i}. {file_path.name}")
+            print(f"     Location: {file_path.parent}")
+            print(f"     Size: {size_mb:.1f} MB")
+            print()
+
+        # Let user choose
+        while True:
+            choice = input(f"{Colors.YELLOW}Select file number (1-{len(found_files)}) or 'm' for manual path: {Colors.END}").strip().lower()
+
+            if choice == 'm':
+                break
+
+            try:
+                idx = int(choice) - 1
+                if 0 <= idx < len(found_files):
+                    selected_file = found_files[idx][0]
+                    break
+                else:
+                    print("Invalid number. Please try again.")
+            except ValueError:
+                print("Please enter a number or 'm'.")
+    else:
+        print_warning("No SDK files found in common locations")
+        print_info("Searched: Downloads, Desktop, current directory")
+        print()
+
+    # Step 2: Manual path input if needed
+    if selected_file is None:
+        print("[2/5] Manual path input...")
+        print()
+
+        while True:
+            path_input = input(f"{Colors.YELLOW}Enter path to SDK ZIP file (or 'q' to quit): {Colors.END}").strip()
+
+            if path_input.lower() == 'q':
+                return False
+
+            # Remove quotes if present
+            path_input = path_input.strip('"').strip("'")
+
+            file_path = Path(path_input)
+
+            # Handle relative paths
+            if not file_path.is_absolute():
+                file_path = Path.cwd() / file_path
+
+            if not file_path.exists():
+                print_error("File not found. Please check the path and try again.")
+                continue
+
+            if not file_path.is_file():
+                print_error("Path is not a file.")
+                continue
+
+            if file_path.suffix.lower() != '.zip':
+                print_warning("File doesn't have .zip extension")
+                if not ask_yes_no("Continue anyway?", default=False):
+                    continue
+
+            selected_file = file_path
+            break
+
+    if selected_file is None:
+        return False
+
+    print_success(f"Selected: {selected_file.name}")
+    print()
+
+    # Step 3: Validate ZIP file
+    print("[3/5] Validating ZIP file...")
+    if not validate_zip_file(selected_file):
+        print_error("ZIP file validation failed")
+        return False
+
+    print_success("ZIP file is valid!")
+    print()
+
+    # Step 4: Extract SDK
+    print("[4/5] Extracting SDK...")
+
+    # Default target directory
+    default_target = Path('C:/Program Files/NVIDIA Corporation/RTX Video SDK')
+
+    print_info(f"Default installation path: {default_target}")
+
+    if default_target.exists():
+        print_warning("Installation directory already exists!")
+        if not ask_yes_no("Overwrite existing installation?", default=False):
+            # Ask for custom path
+            custom_path = input(f"{Colors.YELLOW}Enter custom installation path: {Colors.END}").strip()
+            custom_path = custom_path.strip('"').strip("'")
+            default_target = Path(custom_path)
+
+    if not extract_sdk(selected_file, default_target):
+        return False
+
+    print()
+
+    # Step 5: Set environment variable
+    print("[5/5] Setting environment variable...")
+
+    sdk_path_str = str(default_target)
+    if not set_environment_variable('RTX_VIDEO_SDK_HOME', sdk_path_str):
+        print_warning("Could not set environment variable automatically")
+        print()
+        print(f"{Colors.BOLD}Please set it manually:{Colors.END}")
+        print(f"  setx RTX_VIDEO_SDK_HOME \"{sdk_path_str}\"")
+        print()
+
+        if not ask_yes_no("Continue to dependency installation?", default=True):
+            return False
+
+    print()
+    print_success("SDK installation complete!")
+    print()
+
+    # Install Python dependencies
+    if ask_yes_no("Install Python dependencies now?", default=True):
+        install_python_dependencies()
+
+        if ask_yes_no("Install CuPy for CUDA acceleration (optional)?", default=False):
+            install_cuda_dependencies()
+
+    # Final verification
+    print()
+    print_info("Verifying installation...")
+
+    # Check if DLL exists
+    dll_found = False
+    for dll_dir in ['lib', 'bin', '']:
+        dll_path = default_target / dll_dir / 'NVVideoEffects.dll' if dll_dir else default_target / 'NVVideoEffects.dll'
+        if dll_path.exists():
+            dll_found = True
+            print_success(f"Found NVVideoEffects.dll at: {dll_path}")
+            break
+
+    if not dll_found:
+        print_warning("Could not find NVVideoEffects.dll in standard locations")
+        print_info("The SDK may need manual configuration")
+
+    return True
+
 def main():
     """Main setup wizard."""
     print_header("RTX Video SDK Setup Wizard")
@@ -302,6 +649,53 @@ for the best possible VHS/DVD upscaling quality.
     # SDK Installation
     print_step(4, "RTX Video SDK Installation")
     print()
+
+    # Check if user wants automatic installation
+    print_info("The RTX Video SDK can be installed automatically or manually.")
+    print()
+    print(f"{Colors.BOLD}Option 1 - Automatic Installation:{Colors.END}")
+    print("  • Searches for downloaded SDK ZIP file")
+    print("  • Extracts and configures automatically")
+    print("  • Sets environment variables")
+    print()
+    print(f"{Colors.BOLD}Option 2 - Manual Installation:{Colors.END}")
+    print("  • Downloads SDK from NVIDIA (requires account)")
+    print("  • You install manually following instructions")
+    print()
+
+    if ask_yes_no("Try automatic installation?", default=True):
+        # Attempt automatic installation
+        if interactive_sdk_installation():
+            # Success! Skip to summary
+            print_header("Installation Complete!")
+            print(f"""
+{Colors.GREEN}RTX Video SDK is now installed and ready to use!{Colors.END}
+
+{Colors.CYAN}Next Steps:{Colors.END}
+
+  1. Restart TerminalAI (important for environment variables)
+  2. Launch the GUI: python -m vhs_upscaler.gui
+  3. Select 'rtxvideo' as the AI Upscaler
+  4. Enjoy AI-powered 4K upscaling! 🎬
+
+{Colors.YELLOW}Verification:{Colors.END}
+
+  Check that RTX_VIDEO_SDK_HOME is set:
+    echo %RTX_VIDEO_SDK_HOME%
+
+  Should output: C:\\Program Files\\NVIDIA Corporation\\RTX Video SDK
+""")
+            print_success("Setup wizard complete!")
+            return
+        else:
+            print()
+            print_warning("Automatic installation was not completed")
+            print_info("Falling back to manual installation instructions...")
+            print()
+
+    # Manual installation path
+    print_step("4b", "Manual SDK Installation")
+    print()
     print_info("The RTX Video SDK must be downloaded from NVIDIA's website.")
     print_info("This requires a free NVIDIA Developer account.")
     print()
@@ -311,10 +705,11 @@ for the best possible VHS/DVD upscaling quality.
     if ask_yes_no("Open the download page in your browser?"):
         open_download_page()
         print()
-        print_info("After installing the SDK:")
-        print("  1. Set the RTX_VIDEO_SDK_HOME environment variable")
-        print("  2. Restart TerminalAI")
-        print("  3. Select 'rtxvideo' as the AI Upscaler")
+        print_info("After downloading and installing the SDK:")
+        print("  1. Run this wizard again for automatic setup")
+        print("  2. Or set RTX_VIDEO_SDK_HOME environment variable manually")
+        print("  3. Restart TerminalAI")
+        print("  4. Select 'rtxvideo' as the AI Upscaler")
 
     # Summary
     print_header("Setup Summary")
