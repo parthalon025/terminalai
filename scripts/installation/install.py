@@ -356,11 +356,11 @@ class TerminalAIInstaller:
                 python_version = sys.version_info
                 use_nightly = False
 
-                # RTX 50 series requires PyTorch nightly for compute capability 12.0
+                # RTX 50 series requires PyTorch nightly with CUDA 12.8 for compute capability 12.0
                 if gpu_name and "RTX 50" in gpu_name:
                     use_nightly = True
-                    cuda_version = "cu124"
-                    self.log(f"RTX 50 series detected - installing PyTorch nightly for sm_120 support")
+                    cuda_version = "cu128"
+                    self.log(f"RTX 50 series detected - installing PyTorch nightly with CUDA 12.8 for sm_120 support")
                 elif python_version.minor >= 13:
                     # Python 3.13+ requires newer PyTorch with cu124
                     cuda_version = "cu124"
@@ -386,7 +386,7 @@ class TerminalAIInstaller:
             if has_cuda and cuda_version:
                 # Use nightly builds for RTX 50 series (compute capability 12.0)
                 if self.details.get("use_pytorch_nightly", False):
-                    index_url = "https://download.pytorch.org/whl/nightly/cu124"
+                    index_url = f"https://download.pytorch.org/whl/nightly/{cuda_version}"
                     packages = ["torch", "torchvision", "torchaudio"]
                     self.log(f"Installing PyTorch NIGHTLY with CUDA {cuda_version} for {gpu_name}...")
                     self.log("(Nightly required for RTX 50 series sm_120 support)")
