@@ -57,6 +57,11 @@ class QueueJob:
     hdr_brightness: int = 400  # Peak brightness in nits
     hdr_color_depth: int = 10  # 8 or 10 bit
 
+    # RTX Video SDK options (v1.5.1+)
+    rtxvideo_artifact_reduction: bool = True  # AI artifact reduction
+    rtxvideo_artifact_strength: float = 0.5  # 0.0-1.0 strength
+    rtxvideo_hdr: bool = False  # Enable SDR-to-HDR conversion
+
     # Audio options
     audio_enhance: str = "none"  # none, light, moderate, aggressive, voice, music
     audio_upmix: str = "none"  # none, simple, surround, prologic, demucs
@@ -191,6 +196,10 @@ class VideoQueue:
                 ffmpeg_scale_algo: str = "lanczos",
                 hdr_brightness: int = 400,
                 hdr_color_depth: int = 10,
+                # RTX Video SDK options (v1.5.1+)
+                rtxvideo_artifact_reduction: bool = True,
+                rtxvideo_artifact_strength: float = 0.5,
+                rtxvideo_hdr: bool = False,
                 audio_enhance: str = "none",
                 audio_upmix: str = "none",
                 audio_layout: str = "original",
@@ -227,6 +236,9 @@ class VideoQueue:
             ffmpeg_scale_algo=ffmpeg_scale_algo,
             hdr_brightness=hdr_brightness,
             hdr_color_depth=hdr_color_depth,
+            rtxvideo_artifact_reduction=rtxvideo_artifact_reduction,
+            rtxvideo_artifact_strength=rtxvideo_artifact_strength,
+            rtxvideo_hdr=rtxvideo_hdr,
             audio_enhance=audio_enhance,
             audio_upmix=audio_upmix,
             audio_layout=audio_layout,
