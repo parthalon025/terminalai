@@ -43,9 +43,13 @@ For a new feature, launch agents in parallel:
 
 TerminalAI is an AI-powered video processing suite for upscaling VHS/DVD footage with NVIDIA RTX acceleration, YouTube downloading, audio enhancement, and surround sound upmixing. Built with Python, FFmpeg, and Gradio for a modern web interface.
 
-**Current Version:** 1.5.0
+**Current Version:** 1.5.1
 
-**Production Status:** Major release with AI audio enhancement (DeepFilterNet, AudioSR), enhanced face restoration (CodeFormer), notification system, and comprehensive documentation. All features tested and production-ready.
+**Production Status:** Major release with RTX Video SDK integration (Super Resolution, Artifact Reduction, HDR conversion), AI audio enhancement (DeepFilterNet, AudioSR), enhanced face restoration (CodeFormer), notification system, and comprehensive documentation. All features tested and production-ready.
+
+### v1.5.1 New Features
+- **RTX Video SDK Integration**: NVIDIA's latest AI upscaling with artifact reduction and SDR-to-HDR conversion (RTX 20+ GPUs)
+- **Maxine Deprecated**: Legacy Maxine support archived in favor of RTX Video SDK
 
 ## Key Commands
 
@@ -116,7 +120,7 @@ The application follows a multi-stage pipeline architecture defined in `vhs_upsc
 
 1. **Download Stage** (optional): YouTube/URL video downloading via yt-dlp
 2. **Preprocessing**: Deinterlacing, denoising, color correction
-3. **AI Upscaling**: Using NVIDIA Maxine, Real-ESRGAN, or FFmpeg
+3. **AI Upscaling**: Using RTX Video SDK, Real-ESRGAN, or FFmpeg
 4. **Encoding**: Hardware-accelerated (NVENC) or CPU encoding
 5. **Audio Processing** (optional): Enhancement and surround upmixing
 
@@ -124,12 +128,13 @@ The application follows a multi-stage pipeline architecture defined in `vhs_upsc
 
 **`VideoUpscaler` (vhs_upscale.py)**
 - Main processing pipeline coordinator
-- Handles engine detection (Maxine, Real-ESRGAN, FFmpeg)
+- Handles engine detection (RTX Video SDK, Real-ESRGAN, FFmpeg)
 - Manages temporary files and FFmpeg filter chains
-- Implements three upscaling paths:
-  - NVIDIA Maxine: RTX GPU AI upscaling (best quality)
+- Implements upscaling paths:
+  - **RTX Video SDK**: NVIDIA RTX 20+ AI upscaling with artifact reduction and HDR (v1.5.1+, best quality)
   - Real-ESRGAN: Vulkan-based AI upscaling (AMD/Intel/NVIDIA)
   - FFmpeg: CPU-based traditional upscaling (universal fallback)
+  - NVIDIA Maxine: Legacy support (deprecated in v1.5.1)
 
 **`VideoQueue` (queue_manager.py)**
 - Thread-safe job queue for batch processing
@@ -287,19 +292,20 @@ HDR output (hdr10, hlg) is handled via FFmpeg filters:
 
 ### Error Handling
 - All subprocess calls wrapped in try-except with logging
-- Graceful degradation (e.g., Maxine unavailable → use Real-ESRGAN → use FFmpeg)
+- Graceful degradation (e.g., RTX Video SDK unavailable → use Real-ESRGAN → use FFmpeg)
 - Queue jobs marked FAILED with error messages stored
 - GUI displays user-friendly error messages
 
 ## Testing Architecture
 
-**Test Structure** (140+ tests):
+**Test Structure** (160+ tests):
 - `test_gui_helpers.py` - GUI utility functions (formatting, status emojis)
 - `test_gui_integration.py` - GUI component integration tests
 - `test_queue_manager.py` - Queue operations, threading, callbacks
 - `test_audio_processor_deepfilternet.py` - DeepFilterNet AI denoising (v1.5.0, 14 tests)
 - `test_audio_processor_audiosr.py` - AudioSR upsampling (v1.5.0, 20+ tests)
 - `test_watch_folder.py` - Watch folder automation (v1.4.5, 20+ tests)
+- `test_rtx_video_sdk.py` - RTX Video SDK integration (v1.5.1, 25+ tests)
 
 Tests use:
 - `pytest` fixtures for setup/teardown
