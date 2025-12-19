@@ -40,19 +40,19 @@ def print_header(text: str):
 
 def print_info(text: str):
     """Print info message."""
-    print(f"{Colors.BLUE}ℹ {text}{Colors.END}")
+    print(f"{Colors.BLUE}[i] {text}{Colors.END}")
 
 def print_success(text: str):
     """Print success message."""
-    print(f"{Colors.GREEN}✓ {text}{Colors.END}")
+    print(f"{Colors.GREEN}[+] {text}{Colors.END}")
 
 def print_warning(text: str):
     """Print warning message."""
-    print(f"{Colors.YELLOW}⚠ {text}{Colors.END}")
+    print(f"{Colors.YELLOW}[!] {text}{Colors.END}")
 
 def print_error(text: str):
     """Print error message."""
-    print(f"{Colors.RED}✗ {text}{Colors.END}")
+    print(f"{Colors.RED}[x] {text}{Colors.END}")
 
 def print_step(num: int, text: str):
     """Print a numbered step."""
@@ -257,7 +257,7 @@ for the best possible VHS/DVD upscaling quality.
         print_error("RTX Video SDK requires 64-bit Windows.")
         return
 
-    print_success(f"Platform: Windows 64-bit ✓")
+    print_success(f"Platform: Windows 64-bit")
 
     # GPU check
     if requirements['gpu_name']:
@@ -265,7 +265,7 @@ for the best possible VHS/DVD upscaling quality.
         print_success(f"Driver: {requirements['driver_version']}")
 
         if requirements['gpu_supported']:
-            print_success("GPU supports RTX Video SDK (RTX 20 series or newer) ✓")
+            print_success("GPU supports RTX Video SDK (RTX 20 series or newer)")
         else:
             print_warning("GPU does not support RTX Video SDK (requires RTX 20+)")
             print_info("TerminalAI will use Real-ESRGAN instead, which also")
