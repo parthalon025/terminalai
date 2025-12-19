@@ -41,9 +41,9 @@ curl -sSL https://raw.githubusercontent.com/parthalon025/terminalai/main/one_sho
 This installer will:
 - ✓ Install Python 3.10+ if needed
 - ✓ Install FFmpeg and system dependencies
-- ✓ Clone repository and install TerminalAI
-- ✓ Install all optional features (VapourSynth, GFPGAN, audio AI)
-- ✓ Download and configure Real-ESRGAN
+- ✓ Clone repository and install TerminalAI with ALL features
+- ✓ Install AI features (Real-ESRGAN, GFPGAN, Demucs, DeepFilterNet, AudioSR)
+- ✓ Configure GPU acceleration and hardware encoding
 - ✓ Create shortcuts and verify installation
 - ✓ Take you from zero to fully operational in minutes
 
@@ -54,19 +54,20 @@ This installer will:
 git clone https://github.com/parthalon025/terminalai.git
 cd terminalai
 
-# Run comprehensive installer
-python scripts/installation/install.py              # Basic installation
-# OR
-python scripts/installation/install.py --full       # Full installation with all features
-python scripts/installation/install.py --dev        # Development installation
-python scripts/installation/install.py --audio      # With audio AI features (Demucs)
+# Run comprehensive installer (includes ALL features)
+python scripts/installation/install.py --full       # Complete installation with all AI features
+
+# Optional: Development installation
+python scripts/installation/install.py --dev        # Includes testing/linting tools
+
+# Optional: Audio AI only
+python scripts/installation/install.py --audio      # Audio features (Demucs, AudioSR)
 ```
 
 The installer will:
 - ✓ Verify Python 3.10+ and pip
-- ✓ Install TerminalAI package with dependencies
-- ✓ Check for FFmpeg, NVIDIA GPU, RTX Video SDK, Real-ESRGAN
-- ✓ Install optional features (VapourSynth, GFPGAN, CodeFormer) if --full
+- ✓ Install TerminalAI with ALL AI features (Real-ESRGAN, GFPGAN, Demucs, etc.)
+- ✓ Check for FFmpeg, NVIDIA GPU, RTX Video SDK
 - ✓ Verify installation is working
 - ✓ Provide next steps and recommendations
 
@@ -77,12 +78,25 @@ The installer will:
 git clone https://github.com/parthalon025/terminalai.git
 cd terminalai
 
-# 2. Install package (choose one)
-pip install -e .                    # Basic install
-pip install -e ".[dev]"             # With dev tools
-pip install -e ".[audio]"           # With audio AI (Demucs)
-pip install -e ".[full]"            # Everything
+# 2. Install package (includes ALL features)
+pip install -e .                    # Complete installation with all AI features
+
+# Optional: Install with development tools
+pip install -e ".[dev]"             # Includes pytest, black, ruff
+
+# Optional: Install with CUDA acceleration (faster GPU processing)
+pip install -e ".[cuda]"            # Requires NVIDIA GPU with CUDA 12.1+
 ```
+
+**What's Included in Base Install:**
+- AI Video Upscaling (Real-ESRGAN)
+- Face Restoration (GFPGAN)
+- AI Audio Enhancement (DeepFilterNet, AudioSR)
+- Surround Sound Upmixing (Demucs AI)
+- Watch Folder Automation
+- Webhook/Email Notifications
+- GPU Acceleration Support
+- All processing features
 
 ### Launch the GUI
 
@@ -108,6 +122,8 @@ Opens automatically at **http://localhost:7860**
 | 🎵 **Surround Upmix** | Stereo to 5.1/7.1 with FFmpeg or Demucs AI |
 | ⬇️ **YouTube Integration** | Download and upscale YouTube videos in one step |
 | 📁 **Drag & Drop Upload** | Simply drag video files into the browser |
+| 🎉 **First-Run Wizard** | Interactive setup with hardware detection and model downloads |
+| 🔍 **Auto Hardware Detection** | Automatically configures optimal settings for your GPU |
 | 🌙 **Dark Mode** | Easy on the eyes with theme toggle |
 | 📊 **Stats Dashboard** | Real-time queue statistics and progress |
 | 📋 **Queue System** | Batch process multiple videos with pause/resume |
@@ -121,6 +137,23 @@ Opens automatically at **http://localhost:7860**
 | 💻 **Works Without NVIDIA** | Real-ESRGAN supports AMD/Intel GPUs, FFmpeg for CPU-only |
 
 ### What's New in v1.5.1
+
+- **First-Run Setup Wizard** 🎉:
+  - **Interactive Setup**: Guided first-time setup with clear progress indicators
+  - **Hardware Detection**: Automatically detects GPU (NVIDIA/AMD/Intel) and configures optimal settings
+  - **Model Downloads**: AI models (GFPGAN, CodeFormer) download with real-time progress (speed, ETA, %)
+  - **Zero Configuration**: Optimal defaults pre-selected based on your hardware
+  - **No More Frozen App**: Never wonder what's happening during model downloads
+  - Launch with: `python -m vhs_upscaler.gui` (wizard appears automatically first time)
+  - See: [First Run Wizard Guide](docs/FIRST_RUN_WIZARD.md)
+
+- **Automatic Hardware Detection** 🔍:
+  - **Smart Configuration**: Detects GPU vendor, model, VRAM, and capabilities
+  - **Optimal Defaults**: Best settings pre-selected for RTX 50/40/30/20, GTX, AMD RDNA3/2, Intel Arc
+  - **Color-Coded Banners**: Green=optimal, Blue=good, Yellow=limited, Red=CPU-only
+  - **Feature Warnings**: Clear messages if RTX Video SDK, NVENC, or CUDA unavailable
+  - **Universal Support**: Works on NVIDIA, AMD, Intel, and CPU-only systems
+  - See: [Hardware Detection Guide](docs/HARDWARE_DETECTION.md)
 
 - **RTX Video SDK Integration** (Best AI Upscaling):
   - **Super Resolution**: AI-powered 4x upscaling with edge/texture refinement
@@ -1302,7 +1335,9 @@ Clean HD          ──▶   4K                     ███░░░░░░
 
 ### Software
 
-- **Python** 3.10+
+- **Python** 3.10-3.12 (recommended)
+  - Python 3.13+ has limited AI package compatibility (some features may not install)
+  - For full AI features, use Python 3.10, 3.11, or 3.12
 - **FFmpeg** (required)
 
 ### Optional (for better quality/speed)

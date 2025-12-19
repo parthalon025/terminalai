@@ -1,53 +1,71 @@
 # TerminalAI Windows Installation Guide
 
-**Comprehensive installation guide for Windows with RTX 5080 GPU**
+**Simplified complete installation for Windows 10/11**
 
-## System Information
+## Quick Install (Recommended)
 
-- **OS**: Windows 10/11
-- **Python**: 3.13.5 (detected)
-- **GPU**: NVIDIA GeForce RTX 5080 (16GB VRAM, Compute 12.0)
-- **NVIDIA Driver**: 591.59
-- **CUDA Support**: Available
-
----
-
-## Installation Strategy Overview
-
-The installation is divided into **four tiers**:
-
-1. **Tier 1: Core** (Required) - Base functionality
-2. **Tier 2: GPU Acceleration** (Recommended) - RTX AI upscaling
-3. **Tier 3: Audio AI** (Optional) - PyTorch-based audio processing
-4. **Tier 4: Advanced Features** (Optional) - VapourSynth, face restoration
-
----
-
-## Tier 1: Core Installation (Required)
-
-### 1.1 Install Base Package
+The installation has been **completely simplified**. One command now installs everything:
 
 ```bash
-# Navigate to TerminalAI directory
 cd D:\SSD\AI_Tools\terminalai
-
-# Install core dependencies
 pip install -e .
-
-# Verify installation
-python scripts\verify_setup.py
 ```
 
-**Core Dependencies Installed**:
-- `yt-dlp` - YouTube downloading
-- `pyyaml` - Configuration management
-- `gradio` - Web GUI interface
+That's it! All AI features are now included automatically.
 
-### 1.2 Install FFmpeg
+## What You Get
 
-FFmpeg is **required** for all video processing.
+After running `pip install -e .`, you have:
+
+- ✅ AI Video Upscaling (Real-ESRGAN)
+- ✅ Face Restoration (GFPGAN)
+- ✅ AI Audio Enhancement (DeepFilterNet, AudioSR)
+- ✅ Surround Sound Upmixing (Demucs AI)
+- ✅ Watch Folder Automation
+- ✅ Webhook/Email Notifications
+- ✅ GPU Acceleration Support
+- ✅ All processing features
+
+**No more "Feature not available" errors!**
+
+## System Requirements
+
+### Minimum
+- **OS**: Windows 10/11 (64-bit)
+- **Python**: 3.10, 3.11, or 3.12 (recommended: 3.11)
+- **RAM**: 8GB (16GB recommended for 4K)
+- **Storage**: 15GB for dependencies + models
+- **FFmpeg**: Required (see below)
+
+### Recommended for GPU Acceleration
+- **GPU**: NVIDIA RTX 2060 or better
+- **VRAM**: 6GB+ (8GB+ for 4K)
+- **NVIDIA Driver**: 535+ (latest recommended)
+- **CUDA**: 12.1+ (included with PyTorch)
+
+## Installation Steps
+
+### Step 1: Install Python
 
 **Option A: Using winget (Recommended)**
+```bash
+winget install Python.Python.3.11
+```
+
+**Option B: Download Installer**
+- Download from: https://www.python.org/downloads/
+- Install Python 3.11.x (most compatible)
+- ✅ Check "Add Python to PATH" during installation
+
+**Verify:**
+```bash
+python --version
+# Should show: Python 3.11.x
+```
+
+### Step 2: Install FFmpeg (Required)
+
+**Option A: Using winget (Easiest)**
 ```bash
 winget install FFmpeg
 ```
@@ -55,364 +73,259 @@ winget install FFmpeg
 **Option B: Manual Installation**
 1. Download from: https://www.gyan.dev/ffmpeg/builds/
 2. Extract to `C:\ffmpeg`
-3. Add `C:\ffmpeg\bin` to PATH
-4. Restart terminal/IDE
+3. Add `C:\ffmpeg\bin` to PATH:
+   - Open "Environment Variables"
+   - Edit "Path" under System Variables
+   - Add `C:\ffmpeg\bin`
+   - Click OK and restart terminal
 
-**Verify FFmpeg**:
+**Verify:**
 ```bash
 ffmpeg -version
 ```
 
----
+### Step 3: Install TerminalAI (Includes ALL Features)
 
-## Tier 2: GPU Acceleration (Recommended for RTX 5080)
-
-### 2.1 NVIDIA Maxine SDK (Best AI Upscaling)
-
-**Download and Install**:
-1. Download Maxine Video Effects SDK: https://developer.nvidia.com/maxine
-2. Extract to: `C:\Program Files\NVIDIA\Maxine`
-3. Set environment variable:
-   ```bash
-   setx MAXINE_HOME "C:\Program Files\NVIDIA\Maxine"
-   ```
-4. Restart terminal
-
-**Verify**:
 ```bash
-python scripts\verify_setup.py
+# Navigate to TerminalAI directory
+cd D:\SSD\AI_Tools\terminalai
+
+# Install EVERYTHING (one command)
+pip install -e .
 ```
 
-### 2.2 Real-ESRGAN (Alternative AI Upscaling)
+This installs:
+- yt-dlp, pyyaml, gradio (core)
+- torch, torchaudio (PyTorch AI)
+- opencv-python, numpy (video processing)
+- demucs, deepfilternet, audiosr (AI audio)
+- gfpgan, basicsr, facexlib (face restoration)
+- realesrgan (AI upscaling)
+- watchdog (folder monitoring)
+- requests (notifications)
+- pynvml (GPU detection)
 
-**Download and Install**:
-1. Download `realesrgan-ncnn-vulkan-windows.zip`: https://github.com/xinntao/Real-ESRGAN/releases
-2. Extract to: `C:\Program Files\Real-ESRGAN`
-3. Add to PATH: `C:\Program Files\Real-ESRGAN`
+**Automatic Compatibility Patches:**
+- basicsr torchvision >= 0.17 compatibility fix (applied automatically)
 
-**Verify**:
+**Installation time:** 10-20 minutes (PyTorch is large)
+
+### Step 4: Ensure CUDA Support (For NVIDIA GPUs)
+
+If you have an NVIDIA GPU, ensure PyTorch has CUDA support:
+
 ```bash
-realesrgan-ncnn-vulkan.exe -h
+# Check current PyTorch
+python -c "import torch; print(f'CUDA Available: {torch.cuda.is_available()}')"
 ```
 
----
+If it says `False`, reinstall PyTorch with CUDA:
 
-## Tier 3: Audio AI Features (Optional)
-
-**Challenge**: PyTorch dependencies require specific Windows installation order.
-
-### 3.1 Install PyTorch with CUDA Support (Critical First Step)
-
-**IMPORTANT**: Install PyTorch **BEFORE** other audio packages to ensure CUDA compatibility.
-
-**For RTX 5080 (CUDA 12.x compatible)**:
 ```bash
-# Install PyTorch with CUDA 12.1 support (official Windows builds)
+# Uninstall current PyTorch
+pip uninstall torch torchvision torchaudio -y
+
+# Install with CUDA 12.1
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
-```
 
-**Verify CUDA Support**:
-```bash
-python -c "import torch; print(f'PyTorch: {torch.__version__}'); print(f'CUDA Available: {torch.cuda.is_available()}'); print(f'CUDA Version: {torch.version.cuda}')"
+# Verify CUDA is working
+python -c "import torch; print(f'CUDA: {torch.cuda.is_available()}, Device: {torch.cuda.get_device_name(0)}')"
 ```
 
 Expected output:
 ```
-PyTorch: 2.x.x+cu121
-CUDA Available: True
-CUDA Version: 12.1
+CUDA: True, Device: NVIDIA GeForce RTX 5080
 ```
 
-### 3.2 Install Demucs (Surround Sound AI)
+### Step 5: Verify Installation
 
 ```bash
-pip install demucs>=4.0.0
+python verify_installation.py
 ```
 
-**Verify**:
+This checks:
+- Python version
+- FFmpeg availability
+- GPU detection
+- PyTorch CUDA support
+- All AI dependencies
+- Feature availability
+
+### Step 6: Launch the GUI
+
 ```bash
-python -c "import demucs; print('Demucs installed successfully')"
+python -m vhs_upscaler.gui
 ```
 
-### 3.3 Install DeepFilterNet (AI Audio Denoising)
+Opens at **http://localhost:7860**
 
-**Windows Installation Steps**:
+## Optional: RTX Video SDK (Best Quality)
 
-1. **Install system dependencies** (if needed):
-   ```bash
-   # DeepFilterNet requires these packages
-   pip install numpy scipy librosa
-   ```
+For RTX 20+ GPUs, install RTX Video SDK for superior AI upscaling:
 
-2. **Install DeepFilterNet**:
-   ```bash
-   pip install deepfilternet>=0.5.0
-   ```
+### Step 1: Download RTX Video SDK
 
-   **Alternative if pip fails** (build from source):
-   ```bash
-   # Install Rust compiler first (required for building)
-   # Download from: https://www.rust-lang.org/tools/install
+1. Visit: https://developer.nvidia.com/rtx-video-sdk
+2. Download RTX Video SDK 1.1.0+
+3. Extract to: `C:\Program Files\NVIDIA\RTX_Video_SDK`
 
-   # Then install from git
-   pip install git+https://github.com/Rikorose/DeepFilterNet.git
-   ```
+### Step 2: Run Setup Wizard
 
-**Verify**:
 ```bash
-python -c "import deepfilternet; print('DeepFilterNet installed successfully')"
+terminalai-setup-rtx
 ```
 
-### 3.4 Install AudioSR (AI Audio Super-Resolution)
+This will:
+- Detect RTX Video SDK installation
+- Configure paths
+- Test video processing
+- Verify GPU compatibility
 
-**Windows Installation**:
+### Step 3: Verify
 
 ```bash
-# AudioSR requires fairseq which can be tricky on Windows
-pip install audiosr>=0.0.4
+python -c "from vhs_upscaler.rtx_video import check_rtx_video_sdk; print(check_rtx_video_sdk())"
 ```
 
-**If installation fails**, AudioSR has known Windows compatibility issues. You can skip it and use other audio features.
+See `docs/installation/INSTALL_RTX_VIDEO_SDK.md` for detailed RTX Video SDK setup.
 
-**Verify (if installed)**:
+## Optional: CUDA Acceleration
+
+For even faster processing with CuPy:
+
 ```bash
-python -c "import audiosr; print('AudioSR installed successfully')"
+pip install -e ".[cuda]"
 ```
 
-### 3.5 Complete Audio Install Command
+This installs CuPy for faster GPU array operations.
 
-**Recommended Order (Windows)**:
+## Optional: Development Tools
+
+For development and testing:
+
 ```bash
-# 1. PyTorch with CUDA first
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
-
-# 2. Demucs
-pip install demucs>=4.0.0
-
-# 3. DeepFilterNet (may require Rust compiler)
-pip install deepfilternet>=0.5.0
-
-# 4. AudioSR (optional, skip if fails)
-pip install audiosr>=0.0.4
+pip install -e ".[dev]"
 ```
 
----
+Includes pytest, pytest-cov, black, ruff.
 
-## Tier 4: Advanced Features (Optional)
+## Troubleshooting
 
-### 4.1 GFPGAN / CodeFormer (Face Restoration)
+### ImportError: No module named 'torch'
 
-**Installation Order** (critical for Windows):
+**Cause:** PyTorch installation failed or incomplete.
 
-1. **Install PyTorch first** (from Tier 3.1 if not done):
-   ```bash
-   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
-   ```
-
-2. **Install OpenCV**:
-   ```bash
-   pip install opencv-python>=4.5.0
-   ```
-
-3. **Install BasicSR**:
-   ```bash
-   pip install basicsr>=1.4.2
-   ```
-
-4. **Install FaceXLib**:
-   ```bash
-   pip install facexlib>=0.2.5
-   ```
-
-5. **Install GFPGAN**:
-   ```bash
-   pip install gfpgan>=1.3.0
-   ```
-
-**Verify**:
+**Solution:**
 ```bash
-python -c "import gfpgan; print('GFPGAN installed successfully')"
+pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121
 ```
 
-**Download GFPGAN Model**:
+### ImportError: No module named 'cv2'
+
+**Cause:** OpenCV not installed.
+
+**Solution:**
 ```bash
-python -m vhs_upscaler.face_restoration --download-model
-```
-
-### 4.2 VapourSynth (Advanced Deinterlacing)
-
-**Windows VapourSynth Installation**:
-
-1. **Download VapourSynth installer**: https://github.com/vapoursynth/vapoursynth/releases
-   - Get `VapourSynth64-Portable-Rxx.7z` or installer
-   - Recommended: R65 or later
-
-2. **Install VapourSynth**:
-   - Run installer or extract portable version
-   - Default install location: `C:\Program Files\VapourSynth`
-
-3. **Add to PATH** (if using portable):
-   ```bash
-   setx PATH "%PATH%;C:\Program Files\VapourSynth"
-   ```
-
-4. **Install Python bindings**:
-   ```bash
-   pip install vapoursynth
-   ```
-
-5. **Install HAVSFUNC (for QTGMC)**:
-   ```bash
-   pip install vapoursynth-havsfunc
-   ```
-
-**Verify**:
-```bash
-python -c "import vapoursynth; print(f'VapourSynth {vapoursynth.__version__}')"
-```
-
-**Note**: VapourSynth on Windows can be complex. If installation fails, you can still use FFmpeg's `yadif` deinterlacing (built-in).
-
----
-
-## Installation Verification
-
-### Comprehensive Check
-
-```bash
-python scripts\verify_setup.py
-```
-
-### Check Specific Features
-
-**Check PyTorch CUDA**:
-```bash
-python -c "import torch; print(f'CUDA: {torch.cuda.is_available()}, Device: {torch.cuda.get_device_name(0) if torch.cuda.is_available() else None}')"
-```
-
-**Check Audio AI**:
-```bash
-python -c "import demucs; print('Demucs: OK')"
-python -c "import deepfilternet; print('DeepFilterNet: OK')"
-python -c "import audiosr; print('AudioSR: OK')"
-```
-
-**Check Face Restoration**:
-```bash
-python -c "import gfpgan; print('GFPGAN: OK')"
-```
-
-**Check VapourSynth**:
-```bash
-python -c "import vapoursynth; print('VapourSynth: OK')"
-```
-
----
-
-## Automated Installation Script
-
-Use the enhanced installer:
-
-```bash
-# Basic installation
-python install.py
-
-# Full installation (attempts all features)
-python install.py --full
-
-# Audio AI only
-python install.py --audio
-
-# Face restoration only
-python install.py --faces
-
-# Development tools
-python install.py --dev
-```
-
----
-
-## Common Installation Issues
-
-### Issue 1: PyTorch Not Using CUDA
-
-**Symptom**: `torch.cuda.is_available()` returns `False`
-
-**Solution**:
-1. Uninstall existing PyTorch:
-   ```bash
-   pip uninstall torch torchvision torchaudio
-   ```
-
-2. Reinstall with CUDA support:
-   ```bash
-   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
-   ```
-
-3. Verify NVIDIA driver:
-   ```bash
-   nvidia-smi
-   ```
-
-### Issue 2: DeepFilterNet Build Errors
-
-**Symptom**: `error: can't find Rust compiler`
-
-**Solution**:
-1. Install Rust compiler: https://www.rust-lang.org/tools/install
-2. Restart terminal
-3. Retry DeepFilterNet installation
-
-### Issue 3: AudioSR Installation Fails
-
-**Symptom**: `fairseq` or `librosa` build errors
-
-**Solution**:
-- AudioSR has known Windows compatibility issues
-- **Skip AudioSR** and use DeepFilterNet for audio enhancement instead
-- AudioSR is optional and not required for core functionality
-
-### Issue 4: GFPGAN Import Error
-
-**Symptom**: `ModuleNotFoundError: No module named 'basicsr'`
-
-**Solution**:
-```bash
-# Install in correct order
 pip install opencv-python
-pip install basicsr
-pip install facexlib
-pip install gfpgan
 ```
 
-### Issue 5: VapourSynth Not Found
+### GFPGAN not working
 
-**Symptom**: `ImportError: No module named 'vapoursynth'`
+**Cause:** Face restoration dependencies missing or torchvision compatibility issue.
 
-**Solution**:
-1. Ensure VapourSynth runtime is installed (not just Python package)
-2. Download installer from: https://github.com/vapoursynth/vapoursynth/releases
-3. Install runtime, then Python bindings:
+**Solution:**
+```bash
+pip install gfpgan basicsr facexlib opencv-python
+
+# Apply torchvision compatibility patch (automatic in full installation)
+python scripts/installation/patch_basicsr.py
+```
+
+**Note:** The full installer (`python install.py --full`) automatically patches basicsr for torchvision >= 0.17 compatibility.
+
+### DeepFilterNet errors
+
+**Cause:** May require Rust compiler on some systems.
+
+**Solution:**
+
+1. Install Rust: https://www.rust-lang.org/tools/install
+2. Restart terminal
+3. Reinstall:
    ```bash
-   pip install vapoursynth
+   pip install deepfilternet
    ```
 
----
+### AudioSR not found
 
-## Python 3.13 Compatibility Notes
+**Cause:** AudioSR installation issues (known on some Windows systems).
 
-**Current Status**: Python 3.13.5 detected
+**Solution:**
 
-**Compatibility Matrix**:
-- **Core (Tier 1)**: ✅ Fully compatible
-- **PyTorch (Tier 3)**: ✅ Compatible (official Windows builds available)
-- **GFPGAN/BasicSR (Tier 4)**: ⚠️ May have issues, test carefully
-- **VapourSynth (Tier 4)**: ⚠️ Limited Python 3.13 builds, use 3.11/3.12 if needed
+AudioSR is optional and can be skipped. Other audio features will still work:
+```bash
+# Skip AudioSR if it fails - not critical
+pip uninstall audiosr
+```
 
-**Recommendation**: If Tier 4 features fail, consider creating a **Python 3.11 virtual environment**:
+### CUDA out of memory
+
+**Cause:** VRAM insufficient for current resolution.
+
+**Solution:**
+
+- Reduce resolution (480p → 1080p instead of 4K)
+- Close other GPU-intensive applications
+- Use CPU mode (slower but works)
+
+### FFmpeg not found
+
+**Cause:** FFmpeg not in PATH.
+
+**Solution:**
 
 ```bash
-# Create venv with Python 3.11
+# Reinstall FFmpeg
+winget install FFmpeg
+
+# Restart terminal/IDE
+# Verify
+ffmpeg -version
+```
+
+### Slow processing
+
+**Cause:** Using CPU instead of GPU.
+
+**Solutions:**
+
+1. **Ensure CUDA PyTorch:**
+   ```bash
+   pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121
+   ```
+
+2. **Enable hardware encoding:**
+   - Select "h264_nvenc" encoder in GUI (NVIDIA)
+   - Requires NVIDIA driver 535+
+
+3. **Use GPU upscaling:**
+   - Select Real-ESRGAN in GUI
+   - Or install RTX Video SDK (best quality)
+
+## Python Version Compatibility
+
+**Recommended:** Python 3.11 (most stable)
+
+**Compatibility Matrix:**
+- **Python 3.10**: ✅ Fully compatible
+- **Python 3.11**: ✅ Fully compatible (recommended)
+- **Python 3.12**: ✅ Compatible
+- **Python 3.13**: ⚠️ Some dependencies may have issues
+
+If using Python 3.13 and encountering issues:
+
+```bash
+# Create Python 3.11 virtual environment
 py -3.11 -m venv venv_py311
 
 # Activate
@@ -422,121 +335,150 @@ venv_py311\Scripts\activate
 pip install -e .
 ```
 
----
+## Verification Checklist
 
-## Installation Success Criteria
+After installation, verify these features work:
 
-After successful installation, you should have:
+```bash
+# Run comprehensive verification
+python verify_installation.py
 
-### Tier 1 (Core) ✅
-- [x] FFmpeg working
-- [x] TerminalAI package installed
-- [x] Gradio GUI launches
+# Check specific features
+python verify_installation.py --check pytorch
+python verify_installation.py --check gfpgan
+python verify_installation.py --check gpu
 
-### Tier 2 (GPU Acceleration) ✅
-- [x] NVIDIA driver detected (591.59)
-- [x] NVENC encoders available
-- [ ] Maxine SDK installed (optional)
-- [ ] Real-ESRGAN installed (optional)
+# Get available features JSON
+python -c "from verify_installation import get_available_features; import json; print(json.dumps(get_available_features(), indent=2))"
+```
 
-### Tier 3 (Audio AI) ⚠️
-- [x] PyTorch with CUDA support
-- [ ] Demucs installed
-- [ ] DeepFilterNet installed
-- [ ] AudioSR installed (optional, skip if fails)
+Expected output:
+```json
+{
+  "video_processing": true,
+  "gpu_acceleration": true,
+  "hardware_encoding": true,
+  "ai_upscaling": true,
+  "deinterlacing": true,
+  "face_restoration": true,
+  "ai_audio_processing": true,
+  "surround_upmix": true,
+  "watch_folder": true
+}
+```
 
-### Tier 4 (Advanced) ⚠️
-- [ ] GFPGAN installed
-- [ ] GFPGAN models downloaded
-- [ ] VapourSynth installed (optional)
+## Common Issues
 
----
+### Issue 1: PyTorch Not Using GPU
+
+**Symptom:**
+```
+torch.cuda.is_available() = False
+```
+
+**Solution:**
+```bash
+# Uninstall CPU-only PyTorch
+pip uninstall torch torchvision torchaudio -y
+
+# Install CUDA version
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+
+# Verify
+python -c "import torch; print(torch.cuda.is_available())"
+```
+
+### Issue 2: Dependencies Conflict
+
+**Symptom:**
+```
+ERROR: pip's dependency resolver does not currently take into account...
+```
+
+**Solution:**
+```bash
+# Upgrade pip first
+python -m pip install --upgrade pip
+
+# Reinstall
+pip install -e . --upgrade
+```
+
+### Issue 3: Missing DLL Errors
+
+**Symptom:**
+```
+ImportError: DLL load failed while importing _torch_cuda
+```
+
+**Solution:**
+
+Install Visual C++ Redistributable:
+- Download: https://aka.ms/vs/17/release/vc_redist.x64.exe
+- Install and restart
+
+### Issue 4: Permission Errors
+
+**Symptom:**
+```
+ERROR: Could not install packages due to an OSError: [WinError 5] Access is denied
+```
+
+**Solution:**
+
+Run as administrator or use `--user` flag:
+```bash
+pip install -e . --user
+```
 
 ## Next Steps
 
-1. **Launch GUI**:
+1. **Launch GUI:**
    ```bash
    python -m vhs_upscaler.gui
    ```
 
-2. **Test CLI**:
-   ```bash
-   python -m vhs_upscaler.vhs_upscale --help
-   ```
+2. **Test Processing:**
+   - Drag a video file into the browser
+   - Select "VHS" preset
+   - Click "Add to Queue"
+   - Watch real-time progress
 
-3. **Download AI Models** (if using Maxine/GFPGAN):
-   ```bash
-   # GFPGAN model
-   python -m vhs_upscaler.face_restoration --download-model
+3. **Explore Features:**
+   - Try AI upscaling (Real-ESRGAN)
+   - Enable face restoration (GFPGAN)
+   - Test AI audio enhancement (DeepFilterNet)
+   - Try surround upmix (Demucs AI)
 
-   # Demucs models (auto-downloaded on first use)
-   python -c "from demucs.pretrained import get_model; get_model('htdemucs')"
-   ```
+4. **Read Documentation:**
+   - `README.md` - Feature overview
+   - `INSTALLATION.md` - Detailed installation
+   - `docs/VERIFICATION_GUIDE.md` - Verification details
+   - `docs/installation/INSTALLATION_TROUBLESHOOTING.md` - Troubleshooting
 
-4. **Test Video Processing**:
-   ```bash
-   # Basic test (FFmpeg upscaling)
-   python -m vhs_upscaler.vhs_upscale -i test.mp4 -o output.mp4 --preset vhs
+## Getting Help
 
-   # GPU test (with Maxine/Real-ESRGAN if installed)
-   python -m vhs_upscaler.vhs_upscale -i test.mp4 -o output.mp4 --engine auto
-   ```
-
----
-
-## Support and Troubleshooting
-
-**Documentation**:
-- Main README: `README.md`
-- Deployment Guide: `docs/DEPLOYMENT.md`
-- This Guide: `docs/WINDOWS_INSTALLATION.md`
-
-**Verification Script**:
-```bash
-python scripts\verify_setup.py
-```
-
-**Enhanced Installer**:
-```bash
-python install_windows.py --help
-```
-
-**Check Logs**:
-```bash
-type logs\terminalai.log
-```
-
----
+- **Issues:** https://github.com/parthalon025/terminalai/issues
+- **Documentation:** https://github.com/parthalon025/terminalai#readme
+- **Diagnostics:** Run `python verify_installation.py --report diagnostic.json`
 
 ## Summary
 
-**Recommended Installation Path for RTX 5080 Windows**:
+**Before (Old System):**
+- Multiple tiers of installation
+- Optional dependency groups confusing
+- Features failed at runtime
+- Complex Windows-specific steps
 
+**After (New System):**
+- One command: `pip install -e .`
+- Everything included automatically
+- No runtime errors
+- Simple, straightforward
+
+**Install command:**
 ```bash
-# 1. Core (Required)
-pip install -e .
-
-# 2. PyTorch with CUDA (for all AI features)
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
-
-# 3. Audio AI (recommended)
-pip install demucs deepfilternet
-
-# 4. Face Restoration (optional)
-pip install opencv-python basicsr facexlib gfpgan
-
-# 5. Download AI models
-python -m vhs_upscaler.face_restoration --download-model
-
-# 6. Verify everything
-python scripts\verify_setup.py
+pip install -e .  # That's it!
 ```
 
-**Time Estimate**:
-- Core: 2-5 minutes
-- PyTorch: 5-10 minutes (large download)
-- Audio AI: 10-15 minutes
-- Face Restoration: 5-10 minutes
-- Model Downloads: 10-20 minutes (GFPGAN ~350MB, Demucs ~2GB)
-
-**Total**: ~30-60 minutes for full installation
+**Time estimate:** 15-25 minutes total

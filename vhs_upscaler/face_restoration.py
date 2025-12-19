@@ -253,7 +253,7 @@ class FaceRestorer:
             logger.error(f"Checksum verification failed: {e}")
             return False
 
-    def download_model(self, force: bool = False) -> bool:
+    def download_model(self, force: bool = False, progress_callback=None) -> bool:
         """
         Download model from official GitHub releases (GFPGAN or CodeFormer).
 
@@ -261,6 +261,8 @@ class FaceRestorer:
 
         Args:
             force: Force re-download even if model exists
+            progress_callback: Optional callback(downloaded_mb, total_mb, speed_mbps, eta_seconds, status_msg)
+                              for progress updates (used by first-run wizard)
 
         Returns:
             True if download successful or model already exists
@@ -291,16 +293,22 @@ class FaceRestorer:
         temp_path = self.model_path.with_suffix('.tmp')
 
         try:
+            import time
+
             # Download with progress bar
             response = requests.get(url, stream=True)
             response.raise_for_status()
 
             total_size = int(response.headers.get('content-length', 0))
+            total_mb = total_size / (1024 * 1024)
+
+            downloaded = 0
+            start_time = time.time()
 
             # Create temporary file
             with open(temp_path, 'wb') as f:
-                if HAS_TQDM and total_size > 0:
-                    # Progress bar
+                if HAS_TQDM and total_size > 0 and not progress_callback:
+                    # Progress bar for CLI
                     with tqdm(
                         total=total_size,
                         unit='B',
@@ -313,14 +321,36 @@ class FaceRestorer:
                                 f.write(chunk)
                                 pbar.update(len(chunk))
                 else:
-                    # Simple download without progress
+                    # Download with optional progress callback
                     for chunk in response.iter_content(chunk_size=8192):
                         if chunk:
                             f.write(chunk)
+                            downloaded += len(chunk)
+
+                            # Update progress callback
+                            if progress_callback:
+                                downloaded_mb = downloaded / (1024 * 1024)
+                                elapsed = time.time() - start_time
+
+                                if elapsed > 0:
+                                    speed_mbps = downloaded_mb / elapsed
+                                    remaining_mb = total_mb - downloaded_mb
+                                    eta_seconds = remaining_mb / speed_mbps if speed_mbps > 0 else 0
+
+                                    progress_callback(
+                                        downloaded_mb,
+                                        total_mb,
+                                        speed_mbps,
+                                        eta_seconds,
+                                        f"Downloading {backend_name}..."
+                                    )
 
             # SECURITY: Verify checksum before using the downloaded file
             if expected_sha256:
                 logger.info("Verifying file integrity...")
+                if progress_callback:
+                    progress_callback(total_mb, total_mb, 0, 0, "Verifying integrity...")
+
                 if not self._verify_checksum(temp_path, expected_sha256):
                     logger.error("Downloaded file failed checksum verification!")
                     logger.error("This may indicate a corrupted download or security issue.")
@@ -333,6 +363,9 @@ class FaceRestorer:
             temp_path.rename(self.model_path)
 
             logger.info(f"Model downloaded successfully: {self.model_path}")
+            if progress_callback:
+                progress_callback(total_mb, total_mb, 0, 0, f"{backend_name} downloaded successfully!")
+
             return True
 
         except Exception as e:

@@ -1,0 +1,109 @@
+{
+  "GUI": {
+    "module_name": "GUI",
+    "test_duration": 10.459644556045532,
+    "cpu_time": 0.125861,
+    "memory_peak_mb": 77.28829669952393,
+    "memory_current_mb": 76.81741523742676,
+    "thread_count": 1,
+    "function_stats": {
+      "top_10": [
+        {
+          "name": "<frozen importlib._bootstrap>:_get_module_lock",
+          "total_calls": 2074,
+          "total_time": 0.011044700000000001,
+          "cumulative_time": 0.016447,
+          "time_per_call": 5.325313404050145e-06,
+          "percent_time": 0.1575470758459996
+        },
+        {
+          "name": "<frozen importlib._bootstrap>:acquire",
+          "total_calls": 2074,
+          "total_time": 0.0178251,
+          "cumulative_time": 0.0522586,
+          "time_per_call": 8.594551591128254e-06,
+          "percent_time": 0.50058914195937
+        },
+        {
+          "name": "<frozen importlib._bootstrap>:release",
+          "total_calls": 2074,
+          "total_time": 0.0120382,
+          "cumulative_time": 0.0204225,
+          "time_per_call": 5.804339440694311e-06,
+          "percent_time": 0.19562869559584892
+        },
+        {
+          "name": "<frozen importlib._bootstrap>:spec_from_loader",
+          "total_calls": 10,
+          "total_time": 7.97e-05,
+          "cumulative_time": 0.0001249,
+          "time_per_call": 7.97e-06,
+          "percent_time": 0.0011964266901663132
+        },
+        {
+          "name": "<frozen importlib._bootstrap>:_init_module_attrs",
+          "total_calls": 1413,
+          "total_time": 0.0109487,
+          "cumulative_time": 0.12722260000000002,
+          "time_per_call": 7.748549186128805e-06,
+          "percent_time": 1.2186750539019442
+        },
+        {
+          "name": "<frozen importlib._bootstrap>:_load_unlocked",
+          "total_calls": 1412,
+          "total_time": 0.0107574,
+          "cumulative_time": 10.4568358,
+          "time_per_call": 7.618555240793201e-06,
+          "percent_time": 100.16683303287921
+        },
+        {
+          "name": "<frozen importlib._bootstrap>:_find_spec",
+          "total_calls": 1448,
+          "total_time": 0.023382700000000003,
+          "cumulative_time": 0.6004499000000001,
+          "time_per_call": 1.6148273480662987e-05,
+          "percent_time": 5.75175569629859
+        },
+        {
+          "name": "<frozen importlib._bootstrap>:_find_and_load",
+          "total_calls": 1508,
+          "total_time": 0.0171543,
+          "cumulative_time": 10.4589447,
+          "time_per_call": 1.137553050397878e-05,
+          "percent_time": 100.18703434790636
+        },
+        {
+          "name": "<frozen importlib._bootstrap>:_handle_fromlist",
+          "total_calls": 1566,
+          "total_time": 0.006231700000000001,
+          "cumulative_time": 6.3876575,
+          "time_per_call": 3.979374201787995e-06,
+          "percent_time": 61.18786165445178
+        },
+        {
+          "name": "<frozen importlib._bootstrap>:_find_and_load_unlocked",
+          "total_calls": 1467,
+          "total_time": 0.0163985,
+          "cumulative_time": 10.458838100000001,
+          "time_per_call": 1.1178254942058623e-05,
+          "percent_time": 100.18601321832132
+        }
+      ]
+    },
+    "bottlenecks": [
+      "GUI error: cannot import name 'format_size' from 'vhs_upscaler.gui' (D:\\SSD\\terminalai\\vhs_upscaler\\gui.py)",
+      "<frozen importlib._bootstrap>:_load_unlocked: 100.2% of total time (10.46s)",
+      "<frozen importlib._bootstrap>:_find_spec: 5.8% of total time (0.60s)",
+      "<frozen importlib._bootstrap>:_find_and_load: 100.2% of total time (10.46s)",
+      "<frozen importlib._bootstrap>:_handle_fromlist: 61.2% of total time (6.39s)",
+      "<frozen importlib._bootstrap>:_find_and_load_unlocked: 100.2% of total time (10.46s)"
+    ],
+    "recommendations": [
+      "Reduce queue polling interval from 1s to 2s for less overhead",
+      "Implement debouncing for progress updates",
+      "Cache thumbnail generation results longer",
+      "Batch log updates to reduce state mutations"
+    ],
+    "gpu_stats": null
+  }
+}

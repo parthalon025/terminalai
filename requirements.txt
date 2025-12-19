@@ -1,96 +1,89 @@
 # TerminalAI Requirements v1.5.1
 # ===============================
+# All dependencies are now REQUIRED for a complete, working installation.
 # Install: pip install -r requirements.txt
-# Or full install: pip install -e .
+# Or install package: pip install -e .
+#
+# IMPORTANT - Python 3.12 Compatibility:
+# - Recommended: Python 3.10, 3.11, or 3.12
+# - PyTorch 2.2.2+ required for Python 3.12 support
+# - NumPy must be <2.0 for compatibility (use numpy==1.26.4)
+# - basicsr requires manual patch for torchvision >= 0.17 (see INSTALLATION.md)
+#
+# Verified Compatible Versions (Python 3.12):
+# - torch==2.2.2+cu121, torchvision==0.17.2+cu121, torchaudio==2.2.2+cu121
+# - numpy==1.26.4 (not 2.x)
+# - All AI packages tested working
 
 # ===================
-# Core Dependencies (Required)
+# Core Dependencies
 # ===================
 yt-dlp>=2023.0.0              # YouTube/video downloading
 pyyaml>=6.0                   # Configuration files
-
-# ===================
-# GUI Dependencies (Required)
-# ===================
 gradio>=4.0.0                 # Modern web interface
 
 # ===================
-# Optional: Watch Folder Automation (v1.4.5)
-# Install with: pip install watchdog
+# AI Processing (PyTorch)
 # ===================
-# watchdog>=3.0.0             # File system monitoring for watch folder automation
+torch>=2.0.0                  # PyTorch for AI models
+torchaudio>=2.0.0             # Audio processing
+numpy>=1.24.0                 # Numerical operations
 
 # ===================
-# Optional: Notifications (v1.5.0)
-# Install with: pip install requests
+# Video Processing
 # ===================
-# requests>=2.28.0            # Webhook notifications (Discord, Slack, custom)
+opencv-python>=4.8.0          # Video/image frame handling
 
 # ===================
-# Optional: Advanced Deinterlacing (QTGMC)
-# Install with: pip install vapoursynth vapoursynth-havsfunc
-# Requires VapourSynth runtime: https://github.com/vapoursynth/vapoursynth/releases
+# AI Audio Features
 # ===================
-# vapoursynth>=61             # Advanced video processing framework
-# vapoursynth-havsfunc        # QTGMC and advanced filters
+demucs>=4.0.0                 # AI stem separation for surround upmix
+deepfilternet>=0.5.0          # AI audio denoising (superior speech clarity)
+audiosr>=0.0.4                # AI audio upsampling to 48kHz
 
 # ===================
-# Optional: Real-ESRGAN AI Upscaling
-# Install with: pip install -e ".[realesrgan]"
-# AI-based video upscaling for AMD/Intel/NVIDIA GPUs
+# Face Restoration
 # ===================
-# realesrgan>=0.3.0           # Real-ESRGAN AI upscaling
-# basicsr>=1.4.2              # Basic Super-Resolution toolkit
-# facexlib>=0.2.5             # Face detection library
-# gfpgan>=1.3.0               # Face restoration support
+gfpgan>=1.3.0                 # Face restoration (GFPGAN)
+basicsr>=1.4.2                # Basic Super-Resolution toolkit
+facexlib>=0.2.5               # Face detection and restoration library
 
 # ===================
-# Optional: Face Restoration (v1.5.0 - Enhanced)
-# Install with: pip install gfpgan codeformer basicsr facexlib
-# Enhances face quality in upscaled videos
+# AI Upscaling
 # ===================
-# gfpgan>=1.3.0               # Generative Facial Prior GAN (⭐⭐⭐⭐ quality)
-# codeformer                  # CodeFormer face restoration (⭐⭐⭐⭐⭐ best quality, v1.5.0)
-# basicsr>=1.4.2              # Basic Super-Resolution toolkit
-# facexlib>=0.2.5             # Face detection and restoration library
+realesrgan>=0.3.0             # Real-ESRGAN AI upscaling
 
 # ===================
-# Optional: Batch Processing Enhancements
-# Install with: pip install concurrent-log-handler
-# Improves logging for concurrent batch operations
+# Automation
 # ===================
-# concurrent-log-handler>=0.9.20  # Thread-safe log rotation
+watchdog>=3.0.0               # File system monitoring for watch folder
 
 # ===================
-# Optional: AI Audio Features (v1.5.0)
-# Install with: pip install deepfilternet audiosr
+# Notifications
 # ===================
-# deepfilternet>=0.5.0        # AI audio denoising (superior speech clarity)
-# audiosr>=0.0.4              # AI audio upsampling to 48kHz (speech/music models)
+requests>=2.28.0              # Webhook notifications (Discord, Slack, etc.)
 
 # ===================
-# Optional: AI Audio (Demucs surround upmix)
-# Install with: pip install -e ".[audio]"
+# GPU Detection
 # ===================
-# demucs>=4.0.0               # AI stem separation
-# torch>=2.0.0                # PyTorch (required by demucs, deepfilternet, audiosr)
-# torchaudio>=2.0.0           # Audio processing
+pynvml>=11.0.0                # NVIDIA GPU monitoring
 
 # ===================
-# Optional: RTX Video SDK (v1.5.1+)
-# Install with: pip install -e ".[rtxvideo]"
-# Requires: Windows 10/11 64-bit, RTX 20+ GPU
-# Setup wizard: terminalai-setup-rtx
+# OPTIONAL: CUDA Acceleration
+# For faster GPU processing (requires NVIDIA GPU with CUDA 12.1+)
+# Install with: pip install cupy-cuda12x
 # ===================
-# numpy>=1.24.0               # Numerical operations for frame processing
-# opencv-python>=4.8.0        # Image/video frame handling
+# cupy-cuda12x>=12.0.0        # CUDA arrays for faster GPU processing
 
 # ===================
-# Optional: RTX Video SDK with CUDA Acceleration
-# Install with: pip install -e ".[rtxvideo-cuda]"
-# Provides better performance via CuPy CUDA integration
+# OPTIONAL: Development Tools
+# For testing and development
+# Install with: pip install -e ".[dev]"
 # ===================
-# cupy-cuda12x>=12.0.0        # CUDA arrays for faster GPU transfers
+# pytest>=7.0                 # Testing framework
+# pytest-cov>=4.0             # Test coverage
+# black>=23.0                 # Code formatting
+# ruff>=0.1.0                 # Linting
 
 # ===================
 # External Dependencies (install separately)
