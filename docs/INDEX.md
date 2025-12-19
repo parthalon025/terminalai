@@ -17,6 +17,7 @@ Complete documentation for TerminalAI video processing suite.
 - [Deinterlace Quick Start](DEINTERLACE_QUICKSTART.md) - Fast deinterlacing setup
 
 ### Core Features
+- [RTX Video SDK Guide](RTX_VIDEO_SDK.md) - NVIDIA RTX Video SDK integration (v1.5.1+)
 - [Deinterlacing Guide](DEINTERLACING.md) - Complete deinterlacing documentation
 - [Deinterlace Integration](DEINTERLACE_INTEGRATION.md) - Integration details
 - [Face Restoration](FACE_RESTORATION.md) - Face enhancement with GFPGAN/CodeFormer
@@ -103,7 +104,8 @@ Complete documentation for TerminalAI video processing suite.
 - [GitHub Repository](https://github.com/parthalon025/terminalai)
 - [Issue Tracker](https://github.com/parthalon025/terminalai/issues)
 - [FFmpeg Documentation](https://ffmpeg.org/documentation.html)
-- [NVIDIA Maxine](https://developer.nvidia.com/maxine)
+- [NVIDIA RTX Video SDK](https://developer.nvidia.com/rtx-video-sdk) - Recommended AI upscaling
+- [NVIDIA Maxine](https://developer.nvidia.com/maxine) - Legacy (deprecated)
 - [Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN)
 
 ## Version History

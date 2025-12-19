@@ -1,4 +1,4 @@
-# Production Deployment Guide - VHS Upscaler v1.4.2
+# Production Deployment Guide - VHS Upscaler v1.5.1
 
 ## Table of Contents
 
@@ -511,7 +511,82 @@ echo 'export MAXINE_HOME=/opt/NVIDIA/Maxine' >> ~/.bashrc
 - [ ] MAXINE_HOME environment variable set
 - [ ] GPU meets Maxine requirements (RTX series)
 
-### 4.3 Real-ESRGAN Installation (Alternative)
+> **Note:** Maxine is deprecated in v1.5.1+. Use RTX Video SDK instead for better quality and more features.
+
+### 4.3 NVIDIA RTX Video SDK Installation (Recommended)
+
+**Requirements:**
+- Windows 10/11 64-bit
+- NVIDIA RTX GPU (20 series or newer: Turing, Ampere, Ada, Blackwell)
+- NVIDIA Driver 535+
+
+**Interactive Setup:**
+```bash
+# Run the setup wizard
+terminalai-setup-rtx
+
+# Or via Python module
+python -m vhs_upscaler.setup_rtx
+```
+
+**Manual Installation:**
+
+1. **Download SDK:**
+   - Visit: https://developer.nvidia.com/rtx-video-sdk
+   - Create/log in to NVIDIA Developer account
+   - Download RTX Video SDK
+
+2. **Install SDK:**
+   ```powershell
+   # Run the installer
+   # Default path: C:\Program Files\NVIDIA Corporation\RTX Video SDK
+   ```
+
+3. **Set Environment Variable:**
+   ```powershell
+   # Option A: System-wide (recommended)
+   setx RTX_VIDEO_SDK_HOME "C:\Program Files\NVIDIA Corporation\RTX Video SDK"
+
+   # Option B: User-level
+   $env:RTX_VIDEO_SDK_HOME = "C:\Program Files\NVIDIA Corporation\RTX Video SDK"
+   ```
+
+4. **Install Python Dependencies:**
+   ```bash
+   pip install terminalai[rtxvideo]
+
+   # Or manually:
+   pip install numpy>=1.24.0 opencv-python>=4.8.0
+
+   # Optional: CUDA acceleration
+   pip install cupy-cuda12x>=12.0.0
+   ```
+
+5. **Verify Installation:**
+   ```bash
+   # Run setup wizard to verify
+   terminalai-setup-rtx
+
+   # Or test via Python
+   python -c "from vhs_upscaler.rtx_video_sdk import is_rtx_video_available; print(is_rtx_video_available())"
+   ```
+
+**RTX Video SDK Checklist:**
+- [ ] Windows 10/11 64-bit
+- [ ] RTX 20+ GPU with Driver 535+
+- [ ] RTX Video SDK installed from NVIDIA
+- [ ] RTX_VIDEO_SDK_HOME environment variable set
+- [ ] Python dependencies installed (numpy, opencv-python)
+- [ ] Verification successful
+
+**Environment Variables:**
+```bash
+# /etc/systemd/system/vhs-upscaler.service.d/environment.conf (Linux with Maxine)
+# Or for Windows PowerShell profile:
+$env:RTX_VIDEO_SDK_HOME = "C:\Program Files\NVIDIA Corporation\RTX Video SDK"
+```
+
+### 4.4 Real-ESRGAN Installation (Alternative)
 
 **Linux/Mac:**
 ```bash
@@ -2002,7 +2077,8 @@ sudo journalctl -u vhs-upscaler -f
 | `VHS_TEMP_DIR` | Temporary files directory | System temp | No |
 | `VHS_LOG_DIR` | Log files directory | `./logs` | No |
 | `VHS_LOG_LEVEL` | Logging level | `INFO` | No |
-| `MAXINE_HOME` | NVIDIA Maxine SDK path | Auto-detect | No |
+| `RTX_VIDEO_SDK_HOME` | NVIDIA RTX Video SDK path (v1.5.1+) | Auto-detect | No |
+| `MAXINE_HOME` | NVIDIA Maxine SDK path (deprecated) | Auto-detect | No |
 | `MAXINE_MODEL_DIR` | Maxine models directory | `$MAXINE_HOME/bin/models` | No |
 | `CUDA_VISIBLE_DEVICES` | GPU selection | All GPUs | No |
 | `GRADIO_SERVER_PORT` | Web interface port | `7860` | No |
@@ -2056,7 +2132,7 @@ find /opt/vhs-upscaler/logs -name "*.log.*" -mtime +7 -delete
 
 ---
 
-**Document Version:** 1.0
-**Last Updated:** 2023-12-18
+**Document Version:** 1.1
+**Last Updated:** 2025-12-19
 **Author:** DevOps Engineering Team
 **Status:** Production Ready

@@ -6,10 +6,10 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/parthalon025/terminalai/releases"><img src="https://img.shields.io/badge/version-1.5.0-blue?style=flat-square" alt="Version 1.5.0"></a>
+  <a href="https://github.com/parthalon025/terminalai/releases"><img src="https://img.shields.io/badge/version-1.5.1-blue?style=flat-square" alt="Version 1.5.1"></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.10+-blue?style=flat-square&logo=python&logoColor=white" alt="Python 3.10+"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License"></a>
-  <a href="https://developer.nvidia.com/maxine"><img src="https://img.shields.io/badge/NVIDIA-Maxine-76B900?style=flat-square&logo=nvidia&logoColor=white" alt="NVIDIA Maxine"></a>
+  <a href="https://developer.nvidia.com/rtx-video-sdk"><img src="https://img.shields.io/badge/RTX_Video_SDK-AI_Upscaling-76B900?style=flat-square&logo=nvidia&logoColor=white" alt="RTX Video SDK"></a>
   <a href="https://gradio.app/"><img src="https://img.shields.io/badge/Gradio-Web_GUI-orange?style=flat-square" alt="Gradio"></a>
   <a href="https://github.com/sczhou/CodeFormer"><img src="https://img.shields.io/badge/CodeFormer-Face_Restoration-purple?style=flat-square" alt="CodeFormer"></a>
 </p>
@@ -98,7 +98,8 @@ Opens automatically at **http://localhost:7860**
 
 | Feature | Description |
 |---------|-------------|
-| 🎬 **AI Video Upscaling** | Multiple engines: NVIDIA Maxine, Real-ESRGAN, FFmpeg |
+| 🎬 **AI Video Upscaling** | Multiple engines: RTX Video SDK, Real-ESRGAN, FFmpeg |
+| 🚀 **RTX Video SDK** | Super Resolution + Artifact Reduction + HDR (RTX 20+) |
 | 📺 **VHS Restoration** | Optimized presets for vintage footage (deinterlace + denoise) |
 | 🔊 **Audio Enhancement** | Noise reduction, EQ, loudness normalization |
 | 🎵 **Surround Upmix** | Stereo to 5.1/7.1 with FFmpeg or Demucs AI |
@@ -115,6 +116,17 @@ Opens automatically at **http://localhost:7860**
 | 👤 **Dual Face Restoration** | GFPGAN and CodeFormer for enhanced face quality |
 | 📬 **Notifications** | Webhook and email alerts for job completion |
 | 💻 **Works Without NVIDIA** | Real-ESRGAN supports AMD/Intel GPUs, FFmpeg for CPU-only |
+
+### What's New in v1.5.1
+
+- **RTX Video SDK Integration** (Best AI Upscaling):
+  - **Super Resolution**: AI-powered 4x upscaling with edge/texture refinement
+  - **Artifact Reduction**: Removes VHS tracking errors, compression blockyness, color bleeding
+  - **HDR Conversion**: SDR to HDR10 tone mapping for modern TVs
+  - Requires RTX 20 series+ (Turing/Ampere/Ada/Blackwell)
+  - Setup wizard: `terminalai-setup-rtx`
+  - Download SDK: https://developer.nvidia.com/rtx-video-sdk
+- **Maxine Deprecated**: Legacy Maxine support archived in favor of RTX Video SDK
 
 ### What's New in v1.5.0
 
@@ -187,7 +199,7 @@ Opens automatically at **http://localhost:7860**
 ### What's New in v1.2.0
 
 - **Multiple Upscale Engines**:
-  - **NVIDIA Maxine** - Best quality for RTX GPUs
+  - **RTX Video SDK** - Best quality for RTX 20+ GPUs (v1.5.1+)
   - **Real-ESRGAN** - Works on AMD, Intel, and NVIDIA GPUs via Vulkan
   - **FFmpeg** - CPU-only fallback for any system
 - **HDR Output**: Convert SDR videos to HDR10 or HLG format

@@ -287,16 +287,52 @@ def add_advanced_arguments(parser: argparse.ArgumentParser) -> None:
     advanced_group.add_argument(
         "--engine",
         default="auto",
-        choices=["auto", "maxine", "realesrgan", "ffmpeg"],
+        choices=["auto", "rtxvideo", "realesrgan", "ffmpeg", "maxine"],
         help="Upscaling engine: auto (detect best available), "
-             "maxine (NVIDIA RTX only), realesrgan (AMD/Intel/NVIDIA), "
-             "ffmpeg (CPU fallback) (default: auto)"
+             "rtxvideo (NVIDIA RTX Video SDK, best quality), "
+             "realesrgan (AMD/Intel/NVIDIA), ffmpeg (CPU fallback), "
+             "maxine (deprecated) (default: auto)"
     )
 
     advanced_group.add_argument(
         "--skip-maxine",
         action="store_true",
         help="Force skip NVIDIA Maxine even if available (deprecated, use --engine)"
+    )
+
+    # RTX Video SDK options
+    advanced_group.add_argument(
+        "--rtxvideo-artifact-reduction",
+        action="store_true",
+        default=True,
+        help="Enable RTX Video SDK artifact reduction (removes VHS noise, compression artifacts)"
+    )
+
+    advanced_group.add_argument(
+        "--rtxvideo-no-artifact-reduction",
+        dest="rtxvideo_artifact_reduction",
+        action="store_false",
+        help="Disable RTX Video SDK artifact reduction"
+    )
+
+    advanced_group.add_argument(
+        "--rtxvideo-artifact-strength",
+        type=float,
+        default=0.5,
+        help="RTX Video SDK artifact reduction strength (default: 0.5, range: 0.0-1.0)"
+    )
+
+    advanced_group.add_argument(
+        "--rtxvideo-hdr",
+        action="store_true",
+        help="Enable SDR to HDR10 conversion via RTX Video SDK"
+    )
+
+    advanced_group.add_argument(
+        "--rtxvideo-sdk-path",
+        type=str,
+        default="",
+        help="Custom path to RTX Video SDK installation (auto-detected if not specified)"
     )
 
     # Real-ESRGAN options
