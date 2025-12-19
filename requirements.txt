@@ -1,4 +1,4 @@
-# TerminalAI Requirements v1.5.0
+# TerminalAI Requirements v1.5.1
 # ===============================
 # Install: pip install -r requirements.txt
 # Or full install: pip install -e .
@@ -67,6 +67,22 @@ gradio>=4.0.0                 # Modern web interface
 # torchaudio>=2.0.0           # Audio processing
 
 # ===================
+# Optional: RTX Video SDK (v1.5.1+)
+# Install with: pip install -e ".[rtxvideo]"
+# Requires: Windows 10/11 64-bit, RTX 20+ GPU
+# Setup wizard: terminalai-setup-rtx
+# ===================
+# numpy>=1.24.0               # Numerical operations for frame processing
+# opencv-python>=4.8.0        # Image/video frame handling
+
+# ===================
+# Optional: RTX Video SDK with CUDA Acceleration
+# Install with: pip install -e ".[rtxvideo-cuda]"
+# Provides better performance via CuPy CUDA integration
+# ===================
+# cupy-cuda12x>=12.0.0        # CUDA arrays for faster GPU transfers
+
+# ===================
 # External Dependencies (install separately)
 # ===================
 # FFmpeg - Required for all video processing
@@ -77,11 +93,16 @@ gradio>=4.0.0                 # Modern web interface
 # NVIDIA Driver 535+ - For GPU acceleration (optional)
 #   Download: https://www.nvidia.com/drivers
 #
-# NVIDIA Maxine SDK - Best AI upscaling on RTX (optional)
-#   Download: https://developer.nvidia.com/maxine
+# RTX Video SDK v1.1.0+ - Best AI upscaling on RTX 20+ (recommended)
+#   Download: https://developer.nvidia.com/rtx-video-sdk
+#   Setup: terminalai-setup-rtx
+#   Features: Super Resolution, Artifact Reduction, HDR Conversion
 #
 # Real-ESRGAN - AI upscaling for AMD/Intel/NVIDIA (optional)
 #   Download: https://github.com/xinntao/Real-ESRGAN/releases
+#
+# NVIDIA Maxine SDK - Legacy AI upscaling (deprecated in v1.5.1)
+#   Note: Use RTX Video SDK instead for new installations
 
 # ===================
 # Development Dependencies

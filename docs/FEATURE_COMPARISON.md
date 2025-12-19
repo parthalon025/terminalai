@@ -1,8 +1,8 @@
 # Feature Comparison: VHS Enhancement Project Requirements vs TerminalAI Implementation
 
-**Document Version:** 1.0
-**Date:** 2025-12-18
-**Project Version:** TerminalAI v1.4.4
+**Document Version:** 1.1
+**Date:** 2025-12-19
+**Project Version:** TerminalAI v1.5.1
 
 ---
 
@@ -24,7 +24,7 @@ This document provides a comprehensive mapping between the original VHS & Video 
 
 ### Key Achievements
 
-- **Multi-Engine Support**: NVIDIA Maxine, Real-ESRGAN (Vulkan), FFmpeg CPU fallback
+- **Multi-Engine Support**: NVIDIA RTX Video SDK (best), Real-ESRGAN (Vulkan), FFmpeg CPU fallback
 - **4 Deinterlacing Algorithms**: YADIF, BWDIF, W3FDIF, QTGMC (VapourSynth)
 - **6 Audio Enhancement Modes**: None, Light, Moderate, Aggressive, Voice, Music
 - **4 Surround Upmix Algorithms**: Simple, Surround, Pro Logic II, Demucs AI
@@ -117,10 +117,11 @@ processor.deinterlace(
 
 **Implementation:**
 - **Location:** `vhs_upscaler/vhs_upscale.py`
-- **Supported Engines:** 3 engines with auto-detection
-  - NVIDIA Maxine (RTX Tensor Core AI)
+- **Supported Engines:** 4 engines with auto-detection
+  - **RTX Video SDK** (v1.5.1+, best quality, Windows RTX 20+ GPUs)
   - Real-ESRGAN (Vulkan, works on AMD/Intel/NVIDIA)
   - FFmpeg (CPU-only, universal fallback)
+  - NVIDIA Maxine (deprecated, legacy support)
 
 **CLI Usage:**
 ```bash
@@ -128,9 +129,16 @@ processor.deinterlace(
 vhs-upscale upscale video.mp4 -o output.mp4 --engine auto
 
 # Force specific engine
-vhs-upscale upscale video.mp4 -o output.mp4 --engine maxine      # NVIDIA RTX only
+vhs-upscale upscale video.mp4 -o output.mp4 --engine rtxvideo    # NVIDIA RTX 20+ (best)
 vhs-upscale upscale video.mp4 -o output.mp4 --engine realesrgan  # Any GPU
 vhs-upscale upscale video.mp4 -o output.mp4 --engine ffmpeg      # CPU only
+
+# RTX Video SDK with artifact reduction and HDR
+vhs-upscale upscale video.mp4 -o output.mp4 --engine rtxvideo \
+  --rtxvideo-artifact-reduction --rtxvideo-artifact-strength 0.7
+
+vhs-upscale upscale video.mp4 -o output.mp4 --engine rtxvideo \
+  --rtxvideo-hdr  # Enable SDR to HDR10 conversion
 
 # Real-ESRGAN with model selection
 vhs-upscale upscale video.mp4 -o output.mp4 --engine realesrgan \
@@ -150,12 +158,12 @@ vhs-upscale upscale video.mp4 -o output.mp4 --engine realesrgan \
 - `realesrgan-animevideov3`: Anime video restoration
 
 **Quality Notes:**
-- **NVIDIA Maxine:** Best quality for RTX GPUs, temporal consistency
+- **RTX Video SDK:** Best quality, AI-powered super resolution + artifact removal + HDR (v1.5.1+)
 - **Real-ESRGAN:** Excellent quality, works on any GPU with Vulkan
 - **FFmpeg:** Good quality for traditional upscaling, works everywhere
 
 **Performance:**
-- NVIDIA Maxine: ~20-30 fps on RTX 3080 (4K)
+- RTX Video SDK: ~25-40 fps on RTX 3080 (4K)
 - Real-ESRGAN: ~15-25 fps on RTX 3080 (4K)
 - FFmpeg: ~5-10 fps on CPU (4K)
 
@@ -1465,13 +1473,60 @@ vhs-upscale upscale video.mp4 -o output.mp4 --deinterlace-algorithm qtgmc --qtgm
 
 ### Overview
 
-TerminalAI supports 3 upscaling engines with automatic detection and fallback.
+TerminalAI supports 4 upscaling engines with automatic detection and fallback.
 
-### NVIDIA Maxine
+### NVIDIA RTX Video SDK (Recommended)
 
-**Technology:** RTX Tensor Core AI upscaling
-**Speed:** ⚡⚡ Fast (~20-30 fps on 4K)
+**Technology:** RTX Tensor Core AI (Super Resolution + Artifact Reduction + HDR)
+**Speed:** ⚡⚡⚡ Fast (~25-40 fps on 4K)
 **Quality:** ⭐⭐⭐⭐⭐ Best
+
+**Requirements:**
+- NVIDIA RTX GPU (2000 series or newer: Turing, Ampere, Ada, Blackwell)
+- Windows 10/11 64-bit
+- RTX Video SDK installed (run `terminalai-setup-rtx`)
+- NVIDIA Driver 535+
+
+**Best For:**
+- VHS/DVD restoration (artifact reduction)
+- HDR output for modern TVs
+- Highest quality upscaling
+- Video content with noise/compression artifacts
+
+**Strengths:**
+- Best-in-class AI upscaling quality
+- AI artifact reduction (VHS noise, compression blocks)
+- SDR to HDR10 conversion
+- Fast Tensor Core acceleration
+- Combined processing pipeline
+
+**Limitations:**
+- Windows only
+- NVIDIA RTX GPUs only
+- Requires SDK download from NVIDIA
+
+**CLI Example:**
+```bash
+# Basic upscaling
+vhs-upscale upscale video.mp4 -o output.mp4 --engine rtxvideo -r 2160
+
+# With artifact reduction (great for VHS)
+vhs-upscale upscale vhs_tape.mp4 -o restored.mp4 --engine rtxvideo \
+  --rtxvideo-artifact-reduction --rtxvideo-artifact-strength 0.7
+
+# With HDR output
+vhs-upscale upscale video.mp4 -o hdr_output.mp4 --engine rtxvideo --rtxvideo-hdr
+```
+
+---
+
+### NVIDIA Maxine (Deprecated)
+
+**Technology:** RTX Tensor Core AI upscaling (legacy)
+**Speed:** ⚡⚡ Fast (~20-30 fps on 4K)
+**Quality:** ⭐⭐⭐⭐ Excellent
+
+> **Note:** Maxine is deprecated in v1.5.1+. Use RTX Video SDK instead for better quality and more features.
 
 **Requirements:**
 - NVIDIA RTX GPU (2000 series or newer)
@@ -1479,22 +1534,12 @@ TerminalAI supports 3 upscaling engines with automatic detection and fallback.
 - Windows or Linux
 
 **Best For:**
-- RTX GPU owners
-- Real-time upscaling
-- Temporal consistency important
-- Video content (not stills)
-
-**Strengths:**
-- Highest quality upscaling
-- Excellent temporal consistency (no flicker)
-- Hardware acceleration
-- Fast on RTX GPUs
-- Handles motion well
+- Legacy installations
+- Linux users (RTX Video SDK is Windows-only)
 
 **Limitations:**
-- NVIDIA RTX GPUs only
-- Requires SDK installation
-- Limited to 4x upscale factor
+- Deprecated - use RTX Video SDK instead
+- Limited features compared to RTX Video SDK
 
 **CLI Example:**
 ```bash
@@ -1596,15 +1641,18 @@ vhs-upscale upscale video.mp4 -o output.mp4 --engine ffmpeg \
 
 ### Comparison Matrix
 
-| Feature | NVIDIA Maxine | Real-ESRGAN | FFmpeg |
-|---------|---------------|-------------|--------|
-| **Speed (4K)** | 20-30 fps | 15-25 fps | 5-10 fps |
-| **Quality** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐ |
-| **GPU requirement** | NVIDIA RTX | Any Vulkan | None |
-| **Temporal consistency** | Excellent | Good | Average |
-| **Setup complexity** | Medium | Low | None |
-| **Anime quality** | Good | Excellent* | Average |
-| **Cost** | Free | Free | Free |
+| Feature | RTX Video SDK | Real-ESRGAN | FFmpeg | Maxine (Legacy) |
+|---------|---------------|-------------|--------|-----------------|
+| **Speed (4K)** | 25-40 fps | 15-25 fps | 5-10 fps | 20-30 fps |
+| **Quality** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐⭐ |
+| **GPU requirement** | NVIDIA RTX 20+ | Any Vulkan | None | NVIDIA RTX |
+| **Artifact reduction** | ✅ AI-powered | ❌ | ❌ | ❌ |
+| **HDR conversion** | ✅ SDR→HDR10 | ❌ | ❌ | ❌ |
+| **Temporal consistency** | Excellent | Good | Average | Excellent |
+| **Setup complexity** | Medium | Low | None | Medium |
+| **Platform** | Windows only | Cross-platform | Cross-platform | Windows/Linux |
+| **Anime quality** | Good | Excellent* | Average | Good |
+| **Cost** | Free | Free | Free | Free |
 
 *With anime model
 
@@ -1612,15 +1660,16 @@ vhs-upscale upscale video.mp4 -o output.mp4 --engine ffmpeg \
 
 ### Decision Guide
 
-**Use NVIDIA Maxine if:**
-- You have an RTX GPU (2060+)
-- Want best quality and speed
-- Processing video (temporal consistency matters)
+**Use RTX Video SDK if (Recommended):**
+- You have an RTX 20+ GPU (Windows)
+- Want best quality with artifact reduction
+- Processing VHS/DVD with noise and compression artifacts
+- Want HDR output for modern TVs
 - Willing to install SDK
 
 **Use Real-ESRGAN if:**
 - Have AMD or Intel GPU
-- Don't have RTX GPU
+- On Linux/macOS (RTX Video SDK is Windows-only)
 - Processing anime/animation (with anime model)
 - Want great quality without NVIDIA requirement
 
@@ -1629,6 +1678,11 @@ vhs-upscale upscale video.mp4 -o output.mp4 --engine ffmpeg \
 - Processing on server/headless system
 - Simple upscaling needs
 - AI engines unavailable
+
+**Use Maxine if:**
+- On Linux with RTX GPU (RTX Video SDK is Windows-only)
+- Have existing Maxine installation
+- Legacy workflow requirements
 
 ---
 
@@ -2235,6 +2289,6 @@ TerminalAI has **successfully implemented 100% of the core VHS & Video Enhanceme
 ---
 
 **Document Maintainers:** TerminalAI Development Team
-**Last Updated:** 2025-12-18
-**Version:** 1.0
-**Project:** TerminalAI v1.4.4
+**Last Updated:** 2025-12-19
+**Version:** 1.1
+**Project:** TerminalAI v1.5.1

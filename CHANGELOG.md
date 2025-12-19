@@ -9,17 +9,74 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Repository structure reorganization for GitHub best practices
-- Comprehensive `.gitignore` with video/audio file patterns
-- `MANIFEST.in` for proper Python packaging
-- `CONTRIBUTING.md` with detailed contribution guidelines
-- `examples/` directory with usage examples
-- `.github/FUNDING.yml` template for sponsor links
+
+## [1.5.1] - 2025-12-19
+
+### Added
+- **RTX Video SDK Integration** - NVIDIA's latest AI upscaling technology
+  - Super Resolution with up to 4x upscaling and edge/texture refinement
+  - Artifact Reduction for VHS tracking errors, compression blockyness, color bleeding
+  - SDR to HDR10 conversion for modern TVs
+  - Python ctypes wrapper for SDK DLLs (`vhs_upscaler/rtx_video_sdk/`)
+  - Automatic SDK detection and GPU validation
+  - Requires RTX 20+ (Turing/Ampere/Ada/Blackwell)
+- **RTX Video SDK Setup Wizard** - Interactive installation guide
+  - Run with `terminalai-setup-rtx` or `python -m vhs_upscaler.setup_rtx`
+  - System requirements check (GPU, driver, platform)
+  - Benefits explanation with comparison table
+  - Browser launch to NVIDIA download page
+  - Python dependencies installation
+- **GUI RTX Video Options** - New options panel for RTX Video SDK
+  - Artifact Reduction toggle and strength slider
+  - SDR to HDR conversion toggle
+  - Auto-visibility based on engine selection
+- **Startup Status Messages** - Shows RTX Video SDK availability at launch
+- 25+ new unit tests for RTX Video SDK integration
 
 ### Changed
-- Moved documentation files to `docs/` directory
-- Moved test files to `tests/` directory
-- Moved utility scripts to `scripts/` directory
-- Organized project structure following industry standards
+- RTX Video SDK is now the preferred upscaling engine (highest priority)
+- Updated engine priority: `rtxvideo > realesrgan > ffmpeg > maxine`
+- Updated GUI engine dropdown with RTX Video SDK option
+
+### Deprecated
+- NVIDIA Maxine integration - archived in favor of RTX Video SDK
+  - Maxine still works but shows deprecation warning
+  - New installations should use RTX Video SDK
+
+### Dependencies
+- Added optional `rtxvideo` dependency group: `numpy>=1.24.0`, `opencv-python>=4.8.0`
+- Added optional `rtxvideo-cuda` group: includes `cupy-cuda12x>=12.0.0`
+
+## [1.5.0] - 2025-12-18
+
+### Added
+- **AI Audio Enhancement** - DeepFilterNet and AudioSR Integration
+  - DeepFilterNet AI denoising for superior speech clarity
+  - AudioSR upsampling to 48kHz with speech/music models
+  - Automatic fallbacks to FFmpeg when AI unavailable
+  - GPU acceleration with CUDA support
+- **CodeFormer Face Restoration** - Alternative to GFPGAN
+  - Best-in-class face restoration quality
+  - Adjustable fidelity weight (0.5-0.9)
+  - Automatic model download and graceful fallback
+- **Notification System**
+  - Webhook notifications (Discord, Slack, custom)
+  - Email notifications via SMTP
+  - Job completion and error alerts
+- **Watch Folder Automation** (v1.4.5)
+  - Monitor directories for new videos
+  - Multi-folder support with individual presets
+  - Smart debouncing and lock file protection
+- Complete documentation overhaul
+  - 7 new quick-start guides
+  - 600+ lines AudioSR integration guide
+  - 300+ lines CodeFormer integration guide
+- 50+ new unit tests
+
+### Changed
+- Updated audio processing pipeline order
+- Improved GUI with conditional options
+- Enhanced error handling and fallbacks
 
 ## [1.4.2] - 2025-12-18
 

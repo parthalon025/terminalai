@@ -1,15 +1,18 @@
 <p align="center">
-  <h1 align="center">🎬 TerminalAI - Video Processing Suite</h1>
+  <h1 align="center">🎬 TerminalAI - AI Video Upscaling & VHS Restoration Suite</h1>
   <p align="center">
-    <strong>AI-powered VHS video upscaling and YouTube downloading with NVIDIA RTX acceleration</strong>
+    <strong>AI-powered video upscaler for VHS/DVD restoration with NVIDIA RTX Video SDK, Real-ESRGAN, YouTube downloading, 4K upscaling, HDR conversion, and surround sound upmixing</strong>
+  </p>
+  <p align="center">
+    <em>Keywords: video upscaler, VHS restoration, AI video enhancement, 4K upscaling, HDR conversion, video deinterlacing, noise reduction, artifact removal, face restoration, audio enhancement, surround sound, NVIDIA RTX, Real-ESRGAN, FFmpeg, batch processing, GPU acceleration</em>
   </p>
 </p>
 
 <p align="center">
-  <a href="https://github.com/parthalon025/terminalai/releases"><img src="https://img.shields.io/badge/version-1.5.0-blue?style=flat-square" alt="Version 1.5.0"></a>
+  <a href="https://github.com/parthalon025/terminalai/releases"><img src="https://img.shields.io/badge/version-1.5.1-blue?style=flat-square" alt="Version 1.5.1"></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.10+-blue?style=flat-square&logo=python&logoColor=white" alt="Python 3.10+"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License"></a>
-  <a href="https://developer.nvidia.com/maxine"><img src="https://img.shields.io/badge/NVIDIA-Maxine-76B900?style=flat-square&logo=nvidia&logoColor=white" alt="NVIDIA Maxine"></a>
+  <a href="https://developer.nvidia.com/rtx-video-sdk"><img src="https://img.shields.io/badge/RTX_Video_SDK-AI_Upscaling-76B900?style=flat-square&logo=nvidia&logoColor=white" alt="RTX Video SDK"></a>
   <a href="https://gradio.app/"><img src="https://img.shields.io/badge/Gradio-Web_GUI-orange?style=flat-square" alt="Gradio"></a>
   <a href="https://github.com/sczhou/CodeFormer"><img src="https://img.shields.io/badge/CodeFormer-Face_Restoration-purple?style=flat-square" alt="CodeFormer"></a>
 </p>
@@ -62,8 +65,8 @@ python install.py --audio      # With audio AI features (Demucs)
 The installer will:
 - ✓ Verify Python 3.10+ and pip
 - ✓ Install TerminalAI package with dependencies
-- ✓ Check for FFmpeg, NVIDIA GPU, Maxine SDK, Real-ESRGAN
-- ✓ Install optional features (VapourSynth, GFPGAN) if --full
+- ✓ Check for FFmpeg, NVIDIA GPU, RTX Video SDK, Real-ESRGAN
+- ✓ Install optional features (VapourSynth, GFPGAN, CodeFormer) if --full
 - ✓ Verify installation is working
 - ✓ Provide next steps and recommendations
 
@@ -98,7 +101,8 @@ Opens automatically at **http://localhost:7860**
 
 | Feature | Description |
 |---------|-------------|
-| 🎬 **AI Video Upscaling** | Multiple engines: NVIDIA Maxine, Real-ESRGAN, FFmpeg |
+| 🎬 **AI Video Upscaling** | Multiple engines: RTX Video SDK, Real-ESRGAN, FFmpeg |
+| 🚀 **RTX Video SDK** | Super Resolution + Artifact Reduction + HDR (RTX 20+) |
 | 📺 **VHS Restoration** | Optimized presets for vintage footage (deinterlace + denoise) |
 | 🔊 **Audio Enhancement** | Noise reduction, EQ, loudness normalization |
 | 🎵 **Surround Upmix** | Stereo to 5.1/7.1 with FFmpeg or Demucs AI |
@@ -115,6 +119,17 @@ Opens automatically at **http://localhost:7860**
 | 👤 **Dual Face Restoration** | GFPGAN and CodeFormer for enhanced face quality |
 | 📬 **Notifications** | Webhook and email alerts for job completion |
 | 💻 **Works Without NVIDIA** | Real-ESRGAN supports AMD/Intel GPUs, FFmpeg for CPU-only |
+
+### What's New in v1.5.1
+
+- **RTX Video SDK Integration** (Best AI Upscaling):
+  - **Super Resolution**: AI-powered 4x upscaling with edge/texture refinement
+  - **Artifact Reduction**: Removes VHS tracking errors, compression blockyness, color bleeding
+  - **HDR Conversion**: SDR to HDR10 tone mapping for modern TVs
+  - Requires RTX 20 series+ (Turing/Ampere/Ada/Blackwell)
+  - Setup wizard: `terminalai-setup-rtx`
+  - Download SDK: https://developer.nvidia.com/rtx-video-sdk
+- **Maxine Deprecated**: Legacy Maxine support archived in favor of RTX Video SDK
 
 ### What's New in v1.5.0
 
@@ -187,7 +202,7 @@ Opens automatically at **http://localhost:7860**
 ### What's New in v1.2.0
 
 - **Multiple Upscale Engines**:
-  - **NVIDIA Maxine** - Best quality for RTX GPUs
+  - **RTX Video SDK** - Best quality for RTX 20+ GPUs (v1.5.1+)
   - **Real-ESRGAN** - Works on AMD, Intel, and NVIDIA GPUs via Vulkan
   - **FFmpeg** - CPU-only fallback for any system
 - **HDR Output**: Convert SDR videos to HDR10 or HLG format
@@ -898,7 +913,10 @@ done
 
 | Option | Description | Default | Values |
 |--------|-------------|---------|--------|
-| `--engine` | Upscaling engine selection | auto | auto, maxine, realesrgan, ffmpeg |
+| `--engine` | Upscaling engine selection | auto | auto, rtxvideo, realesrgan, ffmpeg |
+| `--rtxvideo-artifact-reduction` | Enable artifact reduction | On | Flag |
+| `--rtxvideo-artifact-strength` | Artifact reduction strength | 0.5 | 0.0-1.0 |
+| `--rtxvideo-hdr` | Enable SDR to HDR10 | Off | Flag |
 | `--realesrgan-model` | Real-ESRGAN AI model | realesrgan-x4plus | x4plus, x4plus-anime, animevideov3 |
 | `--realesrgan-denoise` | Real-ESRGAN denoise strength | 0.5 | 0.0-1.0 |
 | `--ffmpeg-scale-algo` | FFmpeg scaling algorithm | lanczos | lanczos, bicubic, bilinear, spline |
@@ -996,9 +1014,10 @@ done
 
 | Engine | GPU Required | Quality | Speed | Best For |
 |--------|--------------|---------|-------|----------|
-| **maxine** | NVIDIA RTX | ⭐⭐⭐⭐⭐ | Fast | RTX users |
-| **realesrgan** | AMD/Intel/NVIDIA | ⭐⭐⭐⭐ | Medium | Non-NVIDIA GPUs |
-| **ffmpeg** | None (CPU) | ⭐⭐⭐ | Slow | Any system |
+| **rtxvideo** | NVIDIA RTX 20+ | ⭐⭐⭐⭐⭐ | Fastest | VHS/DVD restoration (Windows) |
+| **realesrgan** | AMD/Intel/NVIDIA | ⭐⭐⭐⭐ | Medium | Cross-platform GPU upscaling |
+| **ffmpeg** | None (CPU) | ⭐⭐⭐ | Slow | Any system (no GPU needed) |
+| **maxine** | NVIDIA RTX | ⭐⭐⭐⭐ | Fast | Legacy (deprecated) |
 
 ### Audio Enhancement
 
@@ -1288,8 +1307,10 @@ Clean HD          ──▶   4K                     ███░░░░░░
 
 ### Optional (for better quality/speed)
 
-- **NVIDIA Driver** 535+ (for NVENC encoder)
-- **NVIDIA Maxine SDK** (for best AI upscaling on RTX)
+- **NVIDIA Driver** 535+ (for NVENC encoder and RTX Video SDK)
+- **NVIDIA RTX Video SDK** (best AI upscaling + artifact reduction + HDR on RTX 20+)
+  - Download: [developer.nvidia.com/rtx-video-sdk](https://developer.nvidia.com/rtx-video-sdk)
+  - Setup: Run `terminalai-setup-rtx` after installation
 - **Real-ESRGAN ncnn-vulkan** (for AI upscaling on AMD/Intel/NVIDIA)
   - Download: [github.com/xinntao/Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN/releases)
 
@@ -1361,14 +1382,15 @@ pytest tests/ --cov=vhs_upscaler
 Edit `vhs_upscaler/config.yaml`:
 
 ```yaml
-# NVIDIA Maxine SDK path (auto-detected if MAXINE_HOME is set)
-maxine_path: "C:/path/to/maxine/bin"
+# RTX Video SDK path (auto-detected if RTX_VIDEO_SDK_HOME is set)
+# Run 'terminalai-setup-rtx' for guided setup
 
 defaults:
   resolution: 1080
   encoder: "hevc_nvenc"
   crf: 20
   quality_mode: 0  # 0=best, 1=fast
+  engine: "auto"   # auto, rtxvideo, realesrgan, ffmpeg
 ```
 
 ---
@@ -1744,10 +1766,14 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ## 🙏 Acknowledgments
 
-- [NVIDIA Maxine Video Effects SDK](https://developer.nvidia.com/maxine)
-- [yt-dlp](https://github.com/yt-dlp/yt-dlp)
-- [FFmpeg](https://ffmpeg.org/)
-- [Gradio](https://gradio.app/)
+- [NVIDIA RTX Video SDK](https://developer.nvidia.com/rtx-video-sdk) - AI-powered video enhancement
+- [Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN) - AI image/video upscaling
+- [CodeFormer](https://github.com/sczhou/CodeFormer) - AI face restoration
+- [DeepFilterNet](https://github.com/Rikorose/DeepFilterNet) - AI audio denoising
+- [Demucs](https://github.com/facebookresearch/demucs) - AI audio source separation
+- [yt-dlp](https://github.com/yt-dlp/yt-dlp) - YouTube downloading
+- [FFmpeg](https://ffmpeg.org/) - Video/audio processing
+- [Gradio](https://gradio.app/) - Web interface
 
 ---
 
