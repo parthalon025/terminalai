@@ -72,11 +72,10 @@ class TerminalAIInstaller:
         """Install TerminalAI package with appropriate extras."""
         self.log("Installing TerminalAI package...", "STEP")
 
+        # First install base package + dev if requested
         extras = []
         if self.install_type in ["full", "dev"]:
             extras.append("dev")
-        if self.install_type in ["full", "audio"]:
-            extras.append("audio")
 
         if extras:
             extras_str = f"[{','.join(extras)}]"
@@ -88,10 +87,28 @@ class TerminalAIInstaller:
             self.log(f"Running: {' '.join(cmd)}")
             subprocess.run(cmd, check=True)
             self.installed.append(f"TerminalAI package{extras_str}")
-            return True
         except subprocess.CalledProcessError as e:
-            self.errors.append(f"Failed to install package: {e}")
+            self.errors.append(f"Failed to install base package: {e}")
             return False
+
+        # Try to install audio extras separately (optional, may fail on some platforms)
+        if self.install_type in ["full", "audio"]:
+            self.log("Attempting to install audio AI features (PyTorch)...", "STEP")
+            self.log("Note: Audio features require PyTorch which may fail on some systems")
+            try:
+                # Install individual audio packages without full extras to avoid PyTorch issues
+                audio_packages = ["deepfilternet>=0.5.0", "audiosr>=0.0.4"]
+                for package in audio_packages:
+                    try:
+                        cmd = [sys.executable, "-m", "pip", "install", package]
+                        subprocess.run(cmd, check=True, capture_output=True)
+                        self.installed.append(package)
+                    except subprocess.CalledProcessError:
+                        self.warnings.append(f"Failed to install {package} (optional)")
+            except Exception as e:
+                self.warnings.append(f"Audio features installation failed (optional): {e}")
+
+        return True
 
     def check_ffmpeg(self):
         """Check if FFmpeg is installed."""

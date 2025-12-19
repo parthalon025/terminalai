@@ -153,3 +153,16 @@ ehthumbs_vista.db
 *.msi
 *.dmg
 *.pkg
+
+# Development and temporary files
+*_VERIFICATION.txt
+*_IMPLEMENTATION*.md
+*_STATUS.md
+add_*.py
+validate_*.py
+test_*.mp4
+test_*.avi
+
+# Build artifacts
+*.whl
+*.tar.gz
