@@ -145,8 +145,8 @@ site/
 ehthumbs.db
 ehthumbs_vista.db
 
-# Claude AI (local settings only)
-.claude/settings.local.json
+# Claude Code (session data and local settings)
+.claude/
 
 # Large installers (download separately)
 *.exe
