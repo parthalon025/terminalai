@@ -55,11 +55,11 @@ git clone https://github.com/parthalon025/terminalai.git
 cd terminalai
 
 # Run comprehensive installer
-python install.py              # Basic installation
+python scripts/installation/install.py              # Basic installation
 # OR
-python install.py --full       # Full installation with all features
-python install.py --dev        # Development installation
-python install.py --audio      # With audio AI features (Demucs)
+python scripts/installation/install.py --full       # Full installation with all features
+python scripts/installation/install.py --dev        # Development installation
+python scripts/installation/install.py --audio      # With audio AI features (Demucs)
 ```
 
 The installer will:

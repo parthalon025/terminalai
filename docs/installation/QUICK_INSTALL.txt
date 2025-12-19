@@ -1,0 +1,146 @@
+=================================================================================
+ TerminalAI Quick Install - Windows RTX 5080
+=================================================================================
+
+SYSTEM DETECTED:
+  - Python 3.13.5
+  - NVIDIA GeForce RTX 5080 (16GB VRAM)
+  - Driver 591.59 (CUDA 12.x ready)
+  - FFmpeg 8.0
+
+=================================================================================
+ OPTION 1: One-Command Install (Recommended)
+=================================================================================
+
+python install_windows.py --full
+
+  This will:
+  - Install core package
+  - Install PyTorch with CUDA 12.1
+  - Install Demucs (surround upmix)
+  - Install DeepFilterNet (AI denoising)
+  - Install GFPGAN (face restoration)
+  - Download AI models
+  - Verify everything
+
+  Time: 30-60 minutes
+  Size: ~8 GB
+
+=================================================================================
+ OPTION 2: Manual Install (Step-by-Step)
+=================================================================================
+
+# Step 1: Core (Required)
+pip install -e .
+
+# Step 2: PyTorch with CUDA (Critical for AI)
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+
+# Step 3: Audio AI (Optional)
+pip install demucs>=4.0.0
+pip install deepfilternet>=0.5.0
+
+# Step 4: Face Restoration (Optional)
+pip install opencv-python basicsr facexlib gfpgan
+python -m vhs_upscaler.face_restoration --download-model
+
+# Step 5: Verify
+python scripts\verify_setup.py
+
+=================================================================================
+ OPTION 3: Minimal Install (Use Now)
+=================================================================================
+
+pip install -e .
+
+  You can start using TerminalAI immediately with:
+  - YouTube downloading
+  - FFmpeg upscaling
+  - GPU encoding (NVENC)
+
+  AI features can be added later.
+
+=================================================================================
+ VERIFY INSTALLATION
+=================================================================================
+
+# Quick check
+python scripts\verify_setup.py
+
+# Check CUDA support
+python -c "import torch; print(f'CUDA: {torch.cuda.is_available()}')"
+
+# Check installed features
+python install_windows.py --check
+
+=================================================================================
+ START USING
+=================================================================================
+
+# Launch GUI
+python -m vhs_upscaler.gui
+
+# CLI example
+python -m vhs_upscaler.vhs_upscale -i input.mp4 -o output.mp4 --preset vhs
+
+=================================================================================
+ TROUBLESHOOTING
+=================================================================================
+
+Problem: PyTorch not using CUDA
+Solution:
+  pip uninstall torch torchvision torchaudio
+  pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+
+Problem: DeepFilterNet build error
+Solution:
+  Install Rust: https://www.rust-lang.org/tools/install
+  Restart terminal, then: pip install deepfilternet
+
+Problem: AudioSR fails
+Solution:
+  Skip it - optional feature with Windows compatibility issues
+
+=================================================================================
+ OPTIONAL: GPU AI UPSCALING ENGINES
+=================================================================================
+
+NVIDIA Maxine (Best quality for RTX):
+  1. Download: https://developer.nvidia.com/maxine
+  2. Extract to: C:\Program Files\NVIDIA\Maxine
+  3. Set: setx MAXINE_HOME "C:\Program Files\NVIDIA\Maxine"
+
+Real-ESRGAN (Good quality, easier):
+  1. Download: https://github.com/xinntao/Real-ESRGAN/releases
+  2. Get: realesrgan-ncnn-vulkan-windows.zip
+  3. Extract realesrgan-ncnn-vulkan.exe to PATH
+
+=================================================================================
+ DOCUMENTATION
+=================================================================================
+
+  Quick Reference:     INSTALLATION_SUMMARY.md
+  Windows Guide:       docs\WINDOWS_INSTALLATION.md
+  Dependency Details:  docs\DEPENDENCY_ANALYSIS.md
+  Main README:         README.md
+
+=================================================================================
+ RECOMMENDED PATH
+=================================================================================
+
+For best experience on your RTX 5080 system:
+
+1. Run: python install_windows.py --full
+   (Installs everything automatically)
+
+2. While it runs, download NVIDIA Maxine SDK
+   (For best AI upscaling quality)
+
+3. Launch GUI: python -m vhs_upscaler.gui
+
+4. Test with a sample VHS video
+
+Total setup time: ~60 minutes
+You'll have a professional-grade VHS restoration suite!
+
+=================================================================================

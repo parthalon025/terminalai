@@ -1,0 +1,74 @@
+================================================================================
+          RTX Video SDK - Quick Start Guide (2-Minute Setup!)
+================================================================================
+
+STEP 1: Download SDK
+--------------------
+Visit: https://developer.nvidia.com/rtx-video-sdk
+Download the ZIP file (requires free NVIDIA Developer account)
+Save to Downloads folder (or anywhere)
+
+STEP 2: Run Setup Wizard
+-------------------------
+python scripts/setup_rtx_video.py
+
+STEP 3: Follow Prompts
+----------------------
+1. Check system requirements [automatic]
+2. Install Python dependencies? [Y/n] → Press Enter
+3. Try automatic installation? [Y/n] → Press Enter
+4. Select file from list → Press 1, then Enter
+5. Wait for extraction... [automatic, ~30 seconds]
+6. Done! Environment variable set automatically
+
+STEP 4: Verify Installation
+----------------------------
+echo %RTX_VIDEO_SDK_HOME%
+
+Should show: C:\Program Files\NVIDIA Corporation\RTX Video SDK
+
+STEP 5: Use It!
+---------------
+python -m vhs_upscaler.gui
+Select AI Upscaler: rtxvideo
+Upload video and process!
+
+================================================================================
+                              That's it! 🎬
+================================================================================
+
+FEATURES ENABLED:
+-----------------
+[+] 4x AI Super Resolution (480p → 4K)
+[+] Artifact Reduction (VHS tracking errors, compression blockyness)
+[+] SDR to HDR Conversion (HDR10 output for modern TVs)
+[+] GPU-accelerated (RTX Tensor Cores)
+
+TROUBLESHOOTING:
+----------------
+Q: Permission denied?
+A: Run Command Prompt as Administrator, then run wizard again
+
+Q: Can't find ZIP file?
+A: Select 'm' for manual path, drag-and-drop ZIP file, press Enter
+
+Q: Already have SDK installed?
+A: Wizard detects it and skips installation
+
+Q: Want to reinstall?
+A: Wizard asks to overwrite when directory exists
+
+REQUIREMENTS:
+-------------
+✓ Windows 64-bit
+✓ NVIDIA RTX 20 series GPU or newer
+✓ NVIDIA Driver 535+
+✓ Python 3.10+
+✓ Downloaded RTX Video SDK ZIP
+
+SUPPORT:
+--------
+Issues: https://github.com/parthalon025/terminalai/issues
+Docs: https://developer.nvidia.com/rtx-video-sdk
+
+================================================================================

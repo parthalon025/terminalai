@@ -1,0 +1,70 @@
+{
+  "vhs_upscaler\\vhs_upscale.py": [
+    {
+      "severity": "low",
+      "category": "cpu",
+      "file": "vhs_upscale.py",
+      "line": 1381,
+      "function": "watch_folder",
+      "description": "Sleep call detected (potential polling)",
+      "recommendation": "Consider event-driven approach or increase interval",
+      "estimated_impact": "Low: 5-10% CPU reduction"
+    }
+  ],
+  "vhs_upscaler\\queue_manager.py": [
+    {
+      "severity": "low",
+      "category": "cpu",
+      "file": "queue_manager.py",
+      "line": 408,
+      "function": "_process_loop",
+      "description": "Sleep call detected (potential polling)",
+      "recommendation": "Consider event-driven approach or increase interval",
+      "estimated_impact": "Low: 5-10% CPU reduction"
+    },
+    {
+      "severity": "low",
+      "category": "cpu",
+      "file": "queue_manager.py",
+      "line": 414,
+      "function": "_process_loop",
+      "description": "Sleep call detected (potential polling)",
+      "recommendation": "Consider event-driven approach or increase interval",
+      "estimated_impact": "Low: 5-10% CPU reduction"
+    }
+  ],
+  "vhs_upscaler\\gui.py": [
+    {
+      "severity": "high",
+      "category": "threading",
+      "file": "gui.py",
+      "line": 1086,
+      "function": "create_gui",
+      "description": "Long critical section under lock (>10 statements)",
+      "recommendation": "Minimize lock scope, consider lock-free alternatives",
+      "estimated_impact": "High: 30-50% improvement in concurrent scenarios"
+    }
+  ],
+  "vhs_upscaler\\face_restoration.py": [
+    {
+      "severity": "medium",
+      "category": "io",
+      "file": "face_restoration.py",
+      "line": 258,
+      "function": "download_model",
+      "description": "File I/O operation inside loop",
+      "recommendation": "Move file operations outside loop or use buffering",
+      "estimated_impact": "Medium: 10-30% improvement"
+    },
+    {
+      "severity": "medium",
+      "category": "io",
+      "file": "face_restoration.py",
+      "line": 264,
+      "function": "download_model",
+      "description": "File I/O operation inside loop",
+      "recommendation": "Move file operations outside loop or use buffering",
+      "estimated_impact": "Medium: 10-30% improvement"
+    }
+  ]
+}

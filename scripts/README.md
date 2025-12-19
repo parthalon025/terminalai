@@ -1,6 +1,28 @@
 # Scripts Directory
 
-This directory contains utility scripts and automation tools for TerminalAI.
+This directory contains utility scripts, installation tools, and automation for TerminalAI.
+
+## Directory Structure
+
+### `installation/` - Installation and Verification
+- `install.py` - Main installation script with dependency management
+- `install_windows.py` - Windows-specific installation with CUDA support
+- `install.sh` / `install.ps1` / `one_shot_install.sh` - Shell-based installers
+- `verify_installation.py` - Comprehensive installation verification (1,100+ lines)
+- `verify_setup.py` - Setup verification utility
+
+### `setup/` - Setup Wizards
+- `setup_rtx_video.py` - Interactive RTX Video SDK setup wizard
+- Configuration generators
+
+### `utils/` - Utility Scripts
+- `analyze_performance.py` - Performance analysis tool
+- `performance_profiler.py` - Runtime profiler
+- `performance_patches.py` - Performance optimization patches
+- `optimization_plan.json/txt` - Performance optimization plans
+
+### `batch/` - Batch Processing
+- Watch folder automation (coming soon)
 
 ## Available Scripts
 

@@ -244,10 +244,10 @@ python -c "import torch; print(f'CUDA: {torch.cuda.is_available()}')"
 ```
 
 **Installation Documentation:**
-- `docs/WINDOWS_INSTALLATION.md`: Comprehensive Windows installation guide with RTX GPU support
-- `docs/DEPENDENCY_ANALYSIS.md`: Technical deep dive into dependency tree and compatibility
-- `INSTALLATION_SUMMARY.md`: Quick reference for installation options
-- `QUICK_INSTALL.txt`: One-page copy-paste installation commands
+- `docs/installation/WINDOWS_INSTALLATION.md`: Comprehensive Windows installation guide with RTX GPU support
+- `docs/installation/DEPENDENCY_ANALYSIS.md`: Technical deep dive into dependency tree and compatibility
+- `docs/installation/INSTALLATION_SUMMARY.md`: Quick reference for installation options
+- `docs/installation/QUICK_INSTALL.txt`: One-page copy-paste installation commands
 
 ### Running the Application
 ```bash
@@ -293,24 +293,24 @@ ruff check vhs_upscaler/ tests/ --fix
 ### Installation Verification
 ```bash
 # Comprehensive installation verification
-python verify_installation.py
+python scripts/installation/verify_installation.py
 
 # Quick check of all components
-python verify_installation.py --quick
+python scripts/installation/verify_installation.py --quick
 
 # Check specific component
-python verify_installation.py --check pytorch
-python verify_installation.py --check gfpgan
+python scripts/installation/verify_installation.py --check pytorch
+python scripts/installation/verify_installation.py --check gfpgan
 
 # Generate diagnostic report
-python verify_installation.py --report diagnostic.json
+python scripts/installation/verify_installation.py --report diagnostic.json
 
 # Check feature availability
-python -c "from verify_installation import get_available_features; print(get_available_features())"
+python -c "import sys; sys.path.insert(0, 'scripts/installation'); from verify_installation import get_available_features; print(get_available_features())"
 ```
 
 **Verification System Components:**
-- **`verify_installation.py`**: Main verification script (1,100+ lines)
+- **`scripts/installation/verify_installation.py`**: Main verification script (1,100+ lines)
   - Checks 10 components: Python, FFmpeg, GPU, PyTorch, VapourSynth, GFPGAN, CodeFormer, DeepFilterNet, AudioSR, Demucs
   - Verifies 9 features: video processing, GPU acceleration, hardware encoding, AI upscaling, deinterlacing, face restoration, audio AI
   - Generates JSON diagnostic reports
@@ -318,14 +318,16 @@ python -c "from verify_installation import get_available_features; print(get_ava
   - Python API for integration: `check_component()`, `get_available_features()`, `verify_all_components()`
 
 - **Documentation**:
-  - `docs/VERIFICATION_GUIDE.md`: User guide with examples and API reference
-  - `docs/INSTALLATION_TROUBLESHOOTING.md`: 850-line troubleshooting guide for all components
-  - `VERIFICATION_QUICK_REFERENCE.md`: One-page quick reference
+  - `docs/installation/VERIFICATION_GUIDE.md`: User guide with examples and API reference
+  - `docs/installation/INSTALLATION_TROUBLESHOOTING.md`: 850-line troubleshooting guide for all components
+  - `docs/installation/VERIFICATION_QUICK_REFERENCE.md`: One-page quick reference
 
 - **Tests**: `tests/test_installation_verification.py` (23 tests, 100% passing)
 
 **Feature Detection API Example:**
 ```python
+import sys
+sys.path.insert(0, 'scripts/installation')
 from verify_installation import get_available_features, check_component
 
 # Get all features
