@@ -91,24 +91,111 @@ class TerminalAIInstaller:
             self.errors.append(f"Failed to install base package: {e}")
             return False
 
+        # Install PyTorch with CUDA support FIRST (Windows-specific)
+        if self.install_type in ["full", "audio"] and self.system == "Windows":
+            self.log("Installing PyTorch with CUDA support (Windows)...", "STEP")
+            if self._install_pytorch_windows():
+                self.installed.append("PyTorch with CUDA support")
+            else:
+                self.warnings.append("PyTorch CUDA installation failed - audio AI will not work")
+
         # Try to install audio extras separately (optional, may fail on some platforms)
         if self.install_type in ["full", "audio"]:
-            self.log("Attempting to install audio AI features (PyTorch)...", "STEP")
-            self.log("Note: Audio features require PyTorch which may fail on some systems")
+            self.log("Attempting to install audio AI features...", "STEP")
+            self.log("Note: Audio features require PyTorch (installed above)")
             try:
-                # Install individual audio packages without full extras to avoid PyTorch issues
-                audio_packages = ["deepfilternet>=0.5.0", "audiosr>=0.0.4"]
-                for package in audio_packages:
-                    try:
-                        cmd = [sys.executable, "-m", "pip", "install", package]
-                        subprocess.run(cmd, check=True, capture_output=True)
-                        self.installed.append(package)
-                    except subprocess.CalledProcessError:
-                        self.warnings.append(f"Failed to install {package} (optional)")
+                # Install Demucs first (most stable)
+                try:
+                    cmd = [sys.executable, "-m", "pip", "install", "demucs>=4.0.0"]
+                    subprocess.run(cmd, check=True, capture_output=True)
+                    self.installed.append("demucs")
+                except subprocess.CalledProcessError:
+                    self.warnings.append("Failed to install demucs (optional)")
+
+                # Install DeepFilterNet (may require Rust)
+                try:
+                    cmd = [sys.executable, "-m", "pip", "install", "deepfilternet>=0.5.0"]
+                    subprocess.run(cmd, check=True, capture_output=True)
+                    self.installed.append("deepfilternet")
+                except subprocess.CalledProcessError:
+                    self.warnings.append("Failed to install deepfilternet (may require Rust compiler)")
+
+                # Install AudioSR (optional, often fails on Windows)
+                try:
+                    cmd = [sys.executable, "-m", "pip", "install", "audiosr>=0.0.4"]
+                    subprocess.run(cmd, check=True, capture_output=True, timeout=300)
+                    self.installed.append("audiosr")
+                except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+                    self.warnings.append("Failed to install audiosr (optional, known Windows issues)")
             except Exception as e:
                 self.warnings.append(f"Audio features installation failed (optional): {e}")
 
         return True
+
+    def _install_pytorch_windows(self):
+        """
+        Install PyTorch with CUDA support on Windows.
+
+        Returns:
+            True if successful, False otherwise
+        """
+        # Check for NVIDIA GPU
+        has_cuda = False
+        cuda_version = "cu121"  # Default to CUDA 12.1
+
+        try:
+            result = subprocess.run(
+                ["nvidia-smi", "--query-gpu=driver_version", "--format=csv,noheader"],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            driver_version = result.stdout.strip()
+            if driver_version:
+                self.log(f"NVIDIA driver detected: {driver_version}")
+                # Driver 525+ supports CUDA 12.x
+                try:
+                    driver_major = int(driver_version.split('.')[0])
+                    if driver_major >= 525:
+                        cuda_version = "cu121"
+                        has_cuda = True
+                    elif driver_major >= 450:
+                        cuda_version = "cu118"
+                        has_cuda = True
+                except (ValueError, IndexError):
+                    pass
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            self.log("No NVIDIA GPU detected - installing CPU-only PyTorch", "WARN")
+
+        # Install PyTorch with appropriate CUDA support
+        if has_cuda:
+            index_url = f"https://download.pytorch.org/whl/{cuda_version}"
+            self.log(f"Installing PyTorch with CUDA {cuda_version} support...")
+        else:
+            index_url = None
+            self.log("Installing CPU-only PyTorch...")
+
+        try:
+            packages = ["torch", "torchvision", "torchaudio"]
+            cmd = [sys.executable, "-m", "pip", "install"] + packages
+            if index_url:
+                cmd.extend(["--index-url", index_url])
+
+            subprocess.run(cmd, check=True)
+
+            # Verify CUDA availability
+            if has_cuda:
+                verify_cmd = [
+                    sys.executable, "-c",
+                    "import torch; print(f'CUDA available: {torch.cuda.is_available()}')"
+                ]
+                result = subprocess.run(verify_cmd, capture_output=True, text=True)
+                self.log(result.stdout.strip())
+
+            return True
+        except subprocess.CalledProcessError as e:
+            self.log(f"PyTorch installation failed: {e}", "ERROR")
+            return False
 
     def check_ffmpeg(self):
         """Check if FFmpeg is installed."""
@@ -161,6 +248,41 @@ class TerminalAIInstaller:
             self.log("  https://github.com/vapoursynth/vapoursynth/releases", "WARN")
         except subprocess.CalledProcessError:
             self.warnings.append("VapourSynth installation failed (optional)")
+
+    def install_optional_realesrgan(self):
+        """Install Real-ESRGAN for AI upscaling (optional)."""
+        if self.install_type not in ["full"]:
+            return
+
+        self.log("Installing Real-ESRGAN (optional)...", "STEP")
+        try:
+            # Install opencv and numpy first (required by Real-ESRGAN)
+            subprocess.run(
+                [sys.executable, "-m", "pip", "install", "opencv-python", "numpy"],
+                check=True,
+                capture_output=True
+            )
+
+            # Install facexlib (required by Real-ESRGAN)
+            subprocess.run(
+                [sys.executable, "-m", "pip", "install", "facexlib"],
+                check=True,
+                capture_output=True
+            )
+
+            # Install Real-ESRGAN (will pull basicsr as dependency)
+            subprocess.run(
+                [sys.executable, "-m", "pip", "install", "realesrgan"],
+                check=True,
+                capture_output=True,
+                timeout=300
+            )
+            self.installed.append("Real-ESRGAN AI upscaling")
+            self.log("Real-ESRGAN installed")
+        except subprocess.CalledProcessError as e:
+            self.warnings.append(f"Real-ESRGAN installation failed (optional): {e}")
+        except subprocess.TimeoutExpired:
+            self.warnings.append("Real-ESRGAN installation timed out (optional)")
 
     def install_optional_gfpgan(self):
         """Install GFPGAN for face restoration (optional)."""
@@ -358,6 +480,7 @@ class TerminalAIInstaller:
         if self.install_type == "full":
             steps.extend([
                 ("Installing VapourSynth", self.install_optional_vapoursynth),
+                ("Installing Real-ESRGAN", self.install_optional_realesrgan),
                 ("Installing GFPGAN", self.install_optional_gfpgan),
             ])
 
@@ -384,7 +507,7 @@ def main():
         epilog="""
 Installation Types:
   basic    Install core dependencies only (default)
-  full     Install all optional features (VapourSynth, GFPGAN, audio AI)
+  full     Install all optional features (VapourSynth, Real-ESRGAN, GFPGAN, audio AI)
   dev      Install with development tools (pytest, black, ruff)
   audio    Install with audio AI features (Demucs, PyTorch)
 

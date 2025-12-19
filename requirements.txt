@@ -35,6 +35,16 @@ gradio>=4.0.0                 # Modern web interface
 # vapoursynth-havsfunc        # QTGMC and advanced filters
 
 # ===================
+# Optional: Real-ESRGAN AI Upscaling
+# Install with: pip install -e ".[realesrgan]"
+# AI-based video upscaling for AMD/Intel/NVIDIA GPUs
+# ===================
+# realesrgan>=0.3.0           # Real-ESRGAN AI upscaling
+# basicsr>=1.4.2              # Basic Super-Resolution toolkit
+# facexlib>=0.2.5             # Face detection library
+# gfpgan>=1.3.0               # Face restoration support
+
+# ===================
 # Optional: Face Restoration (v1.5.0 - Enhanced)
 # Install with: pip install gfpgan codeformer basicsr facexlib
 # Enhances face quality in upscaled videos
@@ -99,7 +109,8 @@ gradio>=4.0.0                 # Modern web interface
 #   Features: Super Resolution, Artifact Reduction, HDR Conversion
 #
 # Real-ESRGAN - AI upscaling for AMD/Intel/NVIDIA (optional)
-#   Download: https://github.com/xinntao/Real-ESRGAN/releases
+#   Python package: pip install -e ".[realesrgan]"  (recommended)
+#   Standalone binary: https://github.com/xinntao/Real-ESRGAN/releases
 #
 # NVIDIA Maxine SDK - Legacy AI upscaling (deprecated in v1.5.1)
 #   Note: Use RTX Video SDK instead for new installations
