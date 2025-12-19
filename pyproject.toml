@@ -129,6 +129,7 @@ Issues = "https://github.com/parthalon025/terminalai/issues"
 [project.scripts]
 terminalai-gui = "vhs_upscaler.gui:main"
 vhs-upscale = "vhs_upscaler.vhs_upscale:main"
+terminalai-setup-rtx = "vhs_upscaler.setup_rtx:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

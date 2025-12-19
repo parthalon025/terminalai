@@ -1954,6 +1954,29 @@ def create_gui() -> gr.Blocks:
 # Main Entry Point
 # =============================================================================
 
+def _print_rtx_video_status():
+    """Print RTX Video SDK status at startup."""
+    import platform
+
+    if platform.system() != "Windows":
+        print("  AI Upscaler: Real-ESRGAN / FFmpeg (RTX Video requires Windows)")
+        return
+
+    try:
+        from .rtx_video_sdk import is_rtx_video_available
+        available, message = is_rtx_video_available()
+
+        if available:
+            print(f"  🚀 RTX Video SDK: Ready ({message})")
+            print("     Select 'rtxvideo' for best AI upscaling quality")
+        else:
+            print("  ℹ️  RTX Video SDK: Not installed")
+            print("     Run 'terminalai-setup-rtx' to set up (optional)")
+            print("     Using Real-ESRGAN / FFmpeg as fallback")
+    except ImportError:
+        print("  AI Upscaler: Real-ESRGAN / FFmpeg")
+
+
 def main():
     """Launch the GUI."""
     import argparse
@@ -1970,10 +1993,14 @@ def main():
     AppState.output_dir.mkdir(parents=True, exist_ok=True)
 
     print("\n" + "=" * 60)
-    print("  🎬 VHS Upscaler Web GUI")
+    print("  🎬 VHS Upscaler Web GUI v1.5.1")
     print("=" * 60)
     print(f"  Output Directory: {AppState.output_dir.absolute()}")
     print("  Log Directory: logs/")
+
+    # Check RTX Video SDK availability
+    _print_rtx_video_status()
+
     print("=" * 60 + "\n")
 
     app = create_gui()
