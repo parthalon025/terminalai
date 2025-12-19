@@ -25,13 +25,12 @@ Usage:
 
 import logging
 import os
-import platform
 import subprocess
 import sys
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Dict, Optional, Any
 
 logger = logging.getLogger(__name__)
 
@@ -189,7 +188,7 @@ def detect_nvidia_gpu() -> Optional[HardwareInfo]:
                 timeout=5
             )
             cuda_version = cuda_result.stdout.strip().split("\n")[0].strip()
-        except:
+        except Exception:
             pass
 
         return HardwareInfo(
@@ -242,7 +241,7 @@ def detect_amd_gpu() -> Optional[HardwareInfo]:
                     try:
                         vram_bytes = int([p for p in parts if p.isdigit()][0])
                         vram_gb = vram_bytes / (1024**3)
-                    except:
+                    except (IndexError, ValueError):
                         pass
 
                     tier = _classify_amd_tier(name)
@@ -363,32 +362,48 @@ def detect_hardware() -> HardwareInfo:
     Returns:
         HardwareInfo object with detection results
     """
-    # Try NVIDIA first (best support)
-    nvidia_gpu = detect_nvidia_gpu()
-    if nvidia_gpu:
-        logger.info(f"Detected: {nvidia_gpu.display_name}")
-        return nvidia_gpu
+    try:
+        # Try NVIDIA first (best support)
+        logger.debug("Attempting NVIDIA GPU detection...")
+        nvidia_gpu = detect_nvidia_gpu()
+        if nvidia_gpu:
+            logger.info(f"Detected: {nvidia_gpu.display_name}")
+            return nvidia_gpu
+        logger.debug("No NVIDIA GPU found")
 
-    # Try AMD second
-    amd_gpu = detect_amd_gpu()
-    if amd_gpu:
-        logger.info(f"Detected: {amd_gpu.display_name}")
-        return amd_gpu
+        # Try AMD second
+        logger.debug("Attempting AMD GPU detection...")
+        amd_gpu = detect_amd_gpu()
+        if amd_gpu:
+            logger.info(f"Detected: {amd_gpu.display_name}")
+            return amd_gpu
+        logger.debug("No AMD GPU found")
 
-    # Try Intel third
-    intel_gpu = detect_intel_gpu()
-    if intel_gpu:
-        logger.info(f"Detected: {intel_gpu.display_name}")
-        return intel_gpu
+        # Try Intel third
+        logger.debug("Attempting Intel GPU detection...")
+        intel_gpu = detect_intel_gpu()
+        if intel_gpu:
+            logger.info(f"Detected: {intel_gpu.display_name}")
+            return intel_gpu
+        logger.debug("No Intel GPU found")
 
-    # Fallback to CPU-only
-    logger.info("No GPU detected - using CPU-only mode")
-    return HardwareInfo(
-        vendor=GPUVendor.CPU_ONLY,
-        tier=GPUTier.CPU_ONLY,
-        name="CPU",
-        vram_gb=0.0
-    )
+        # Fallback to CPU-only
+        logger.info("No GPU detected - using CPU-only mode")
+        return HardwareInfo(
+            vendor=GPUVendor.CPU_ONLY,
+            tier=GPUTier.CPU_ONLY,
+            name="CPU",
+            vram_gb=0.0
+        )
+    except Exception as e:
+        logger.error(f"Hardware detection failed with error: {e}", exc_info=True)
+        # Return CPU-only fallback on any error
+        return HardwareInfo(
+            vendor=GPUVendor.CPU_ONLY,
+            tier=GPUTier.CPU_ONLY,
+            name="CPU",
+            vram_gb=0.0
+        )
 
 
 def get_optimal_config(hw: HardwareInfo) -> Dict[str, Any]:
@@ -672,11 +687,20 @@ def _classify_intel_tier(name: str) -> GPUTier:
 
 
 def _check_rtx_video_sdk_installed() -> bool:
-    """Check if RTX Video SDK is installed."""
+    """
+    Check if RTX Video SDK is installed.
+
+    Checks environment variables and common installation paths.
+    Avoids importing RTX SDK module to prevent hanging.
+
+    Returns:
+        True if RTX Video SDK installation detected, False otherwise
+    """
     try:
         # Check environment variable
         rtx_home = os.environ.get("RTX_VIDEO_SDK_HOME")
         if rtx_home and Path(rtx_home).exists():
+            logger.debug(f"RTX Video SDK found via RTX_VIDEO_SDK_HOME: {rtx_home}")
             return True
 
         # Check common installation paths
@@ -688,39 +712,49 @@ def _check_rtx_video_sdk_installed() -> bool:
             ]
             for path in common_paths:
                 if path.exists():
+                    logger.debug(f"RTX Video SDK found at: {path}")
                     return True
 
-        # Try importing Python wrapper if available
-        try:
-            from vhs_upscaler.rtx_video_sdk import RTXVideoProcessor
-            return True
-        except ImportError:
-            pass
+        # Don't try importing RTX SDK module during detection
+        # It can hang or be slow on initialization
+        # Just check for file-based installation markers
 
+        logger.debug("RTX Video SDK not found in common locations")
         return False
 
-    except Exception:
+    except Exception as e:
+        logger.debug(f"Error checking RTX Video SDK installation: {e}")
         return False
 
 
 def _check_pytorch_cuda() -> bool:
-    """Check if PyTorch with CUDA is available."""
+    """
+    Check if PyTorch with CUDA is available.
+
+    Returns:
+        True if PyTorch is installed and CUDA is available, False otherwise
+    """
     try:
         import torch
-        return torch.cuda.is_available()
+        cuda_available = torch.cuda.is_available()
+        if cuda_available:
+            logger.debug(f"PyTorch CUDA available: {torch.version.cuda}")
+        return cuda_available
     except ImportError:
+        logger.debug("PyTorch not installed")
         return False
-    except Exception:
+    except Exception as e:
+        logger.debug(f"Error checking PyTorch CUDA: {e}")
         return False
 
 
-def print_hardware_report(hw: HardwareInfo, config: Dict[str, Any]):
+def print_hardware_report(hw: HardwareInfo, config: Dict[str, Any]) -> None:
     """
     Print formatted hardware detection report.
 
     Args:
-        hw: HardwareInfo object
-        config: Configuration from get_optimal_config()
+        hw: HardwareInfo object with detected hardware details
+        config: Configuration dictionary from get_optimal_config()
     """
     print()
     print("=" * 70)

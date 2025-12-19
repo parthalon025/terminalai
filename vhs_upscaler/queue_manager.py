@@ -16,7 +16,7 @@ from typing import Optional, List, Callable, Dict
 import traceback
 
 try:
-    from .notifications import Notifier, format_size, format_duration
+    from .notifications import Notifier  # noqa: F401
     HAS_NOTIFICATIONS = True
 except ImportError:
     HAS_NOTIFICATIONS = False
@@ -90,6 +90,11 @@ class QueueJob:
     face_restore: bool = False  # Enable AI face restoration
     face_restore_strength: float = 0.5  # 0.0-1.0 restoration strength
     face_restore_upscale: int = 2  # Upscale factor (1, 2, or 4)
+    face_model: str = "gfpgan"  # gfpgan or codeformer
+
+    # Audio AI upsampling options (v1.5.0+)
+    audio_sr_enabled: bool = False  # Enable AudioSR AI upsampling
+    audio_sr_model: str = "basic"  # basic, speech, music
 
     # Deinterlacing options
     deinterlace_algorithm: str = "yadif"  # yadif, bwdif, w3fdif, qtgmc
@@ -217,6 +222,9 @@ class VideoQueue:
                 face_restore: bool = False,
                 face_restore_strength: float = 0.5,
                 face_restore_upscale: int = 2,
+                face_model: str = "gfpgan",
+                audio_sr_enabled: bool = False,
+                audio_sr_model: str = "basic",
                 deinterlace_algorithm: str = "yadif",
                 qtgmc_preset: Optional[str] = None) -> QueueJob:
         """Add a new job to the queue."""
@@ -256,6 +264,9 @@ class VideoQueue:
             face_restore=face_restore,
             face_restore_strength=face_restore_strength,
             face_restore_upscale=face_restore_upscale,
+            face_model=face_model,
+            audio_sr_enabled=audio_sr_enabled,
+            audio_sr_model=audio_sr_model,
             deinterlace_algorithm=deinterlace_algorithm,
             qtgmc_preset=qtgmc_preset
         )

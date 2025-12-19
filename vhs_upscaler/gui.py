@@ -79,20 +79,48 @@ class AppState:
 
         try:
             logger.info("Detecting hardware capabilities...")
-            cls.hardware = detect_hardware()
-            cls.optimal_config = get_optimal_config(cls.hardware)
+
+            # Run detection with timeout to prevent hanging
+            import threading
+            detection_result = {"hardware": None, "config": None, "error": None}
+
+            def run_detection():
+                try:
+                    detection_result["hardware"] = detect_hardware()
+                    detection_result["config"] = get_optimal_config(detection_result["hardware"])
+                except Exception as e:
+                    detection_result["error"] = e
+
+            detection_thread = threading.Thread(target=run_detection, daemon=True)
+            detection_thread.start()
+            detection_thread.join(timeout=10.0)  # 10 second timeout
+
+            if detection_thread.is_alive():
+                logger.error("Hardware detection timed out after 10 seconds")
+                cls.add_log("Hardware detection timed out - using CPU fallback")
+                cls.hardware_detected = True
+                return
+
+            if detection_result["error"]:
+                raise detection_result["error"]
+
+            cls.hardware = detection_result["hardware"]
+            cls.optimal_config = detection_result["config"]
             cls.hardware_detected = True
 
             # Log detection results
-            cls.add_log(f"Hardware detected: {cls.hardware.display_name}")
-            cls.add_log(f"Optimal config: {cls.optimal_config['explanation']}")
+            if cls.hardware:
+                cls.add_log(f"Hardware detected: {cls.hardware.display_name}")
+            if cls.optimal_config:
+                cls.add_log(f"Optimal config: {cls.optimal_config['explanation']}")
 
-            # Log warnings
-            for warning in cls.optimal_config.get('warnings', []):
-                logger.warning(warning)
+                # Log warnings
+                for warning in cls.optimal_config.get('warnings', []):
+                    logger.warning(warning)
 
         except Exception as e:
             logger.error(f"Hardware detection failed: {e}")
+            cls.add_log(f"Hardware detection error: {str(e)}")
             cls.hardware_detected = True  # Don't retry
 
     @classmethod
@@ -1006,94 +1034,207 @@ def create_gui() -> gr.Blocks:
     # Detect hardware on startup
     AppState.detect_hardware_once()
 
-    # Custom CSS for modern look with dark mode support
+    # Create custom theme for video processing application
+    # Dark theme optimized for video work with cinematic color palette
+    custom_theme = gr.themes.Soft(
+        primary_hue="violet",        # Vibrant violet for primary actions
+        secondary_hue="slate",        # Neutral slate for secondary elements
+        neutral_hue="slate",          # Slate for backgrounds
+        spacing_size="md",
+        radius_size="lg",
+        font=("Inter", "system-ui", "sans-serif"),
+        font_mono=("Fira Code", "Consolas", "monospace")
+    ).set(
+        # Core colors - Deep dark backgrounds for video work
+        body_background_fill="#0a0f1e",                    # Deep navy background
+        body_background_fill_dark="#0a0f1e",
+        background_fill_primary="#131b2e",                 # Primary container bg
+        background_fill_primary_dark="#131b2e",
+        background_fill_secondary="#1a2332",               # Secondary container bg
+        background_fill_secondary_dark="#1a2332",
+
+        # Text colors
+        body_text_color="#e2e8f0",                         # Light slate text
+        body_text_color_dark="#e2e8f0",
+        body_text_color_subdued="#94a3b8",                 # Muted text
+        body_text_color_subdued_dark="#94a3b8",
+
+        # Borders
+        border_color_primary="#2d3748",                    # Subtle borders
+        border_color_primary_dark="#2d3748",
+
+        # Buttons
+        button_primary_background_fill="#7c3aed",          # Violet primary
+        button_primary_background_fill_dark="#7c3aed",
+        button_primary_background_fill_hover="#6d28d9",
+        button_primary_background_fill_hover_dark="#6d28d9",
+        button_primary_text_color="#ffffff",
+        button_primary_text_color_dark="#ffffff",
+
+        button_secondary_background_fill="#1e293b",
+        button_secondary_background_fill_dark="#1e293b",
+        button_secondary_background_fill_hover="#334155",
+        button_secondary_background_fill_hover_dark="#334155",
+        button_secondary_text_color="#e2e8f0",
+        button_secondary_text_color_dark="#e2e8f0",
+
+        # Inputs
+        input_background_fill="#1a2332",
+        input_background_fill_dark="#1a2332",
+        input_background_fill_focus="#1e293b",
+        input_background_fill_focus_dark="#1e293b",
+        input_border_color="#2d3748",
+        input_border_color_dark="#2d3748",
+        input_border_color_focus="#7c3aed",
+        input_border_color_focus_dark="#7c3aed",
+
+        # Shadow
+        shadow_drop="0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2)",
+        shadow_drop_lg="0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.2)",
+    )
+
+    # Enhanced CSS for modern cinematic look
     custom_css = """
-    /* CSS Variables for theming */
-    :root {
-        --bg-primary: #ffffff;
-        --bg-secondary: #f8fafc;
-        --bg-card: #ffffff;
-        --text-primary: #1a1a1a;
-        --text-secondary: #64748b;
-        --border-color: #e2e8f0;
-        --shadow-color: rgba(0,0,0,0.05);
-        --accent-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        --success-color: #10b981;
-        --error-color: #ef4444;
-        --warning-color: #f59e0b;
-        --info-color: #3b82f6;
-        --radius-sm: 6px;
-        --radius-md: 8px;
-        --radius-lg: 12px;
+    /* === GLOBAL STYLING === */
+    * {
+        font-feature-settings: "ss01", "ss02", "cv01", "cv03";
     }
 
-    /* Dark mode variables */
-    .dark {
-        --bg-primary: #0f172a;
-        --bg-secondary: #1e293b;
-        --bg-card: #1e293b;
-        --text-primary: #f1f5f9;
-        --text-secondary: #94a3b8;
-        --border-color: #334155;
-        --shadow-color: rgba(0,0,0,0.3);
-    }
-
-    /* Container styling */
+    /* Main container */
     .gradio-container {
-        max-width: 1200px !important;
+        max-width: 1400px !important;
         margin: 0 auto !important;
-        background: var(--bg-primary) !important;
+        background: linear-gradient(to bottom, #0a0f1e 0%, #131b2e 100%) !important;
     }
 
-    /* Header gradient */
+    /* === HEADER & TYPOGRAPHY === */
     .prose h1 {
-        background: var(--accent-gradient);
+        background: linear-gradient(135deg, #a78bfa 0%, #7c3aed 50%, #c084fc 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
-        font-weight: 700 !important;
+        font-weight: 800 !important;
+        font-size: 2.5rem !important;
+        letter-spacing: -0.025em;
+        margin-bottom: 0.5rem !important;
     }
 
-    /* Tab styling */
+    .prose h3 {
+        color: #e2e8f0;
+        font-weight: 600;
+        font-size: 1.25rem;
+        margin-top: 1.5rem;
+        margin-bottom: 0.75rem;
+    }
+
+    /* === TABS === */
+    .tab-nav {
+        background: #131b2e !important;
+        border-bottom: 2px solid #2d3748 !important;
+        padding: 0.5rem 0 0 0 !important;
+    }
+
     .tab-nav button {
         font-size: 15px !important;
         font-weight: 500 !important;
-        transition: all 0.3s ease !important;
-    }
-    .tab-nav button:hover {
-        transform: translateY(-2px) !important;
+        color: #94a3b8 !important;
+        background: transparent !important;
+        border: none !important;
+        border-bottom: 3px solid transparent !important;
+        padding: 0.75rem 1.5rem !important;
+        margin: 0 0.25rem !important;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        position: relative;
     }
 
-    /* Card-like sections */
+    .tab-nav button:hover {
+        color: #e2e8f0 !important;
+        background: rgba(124, 58, 237, 0.1) !important;
+        border-bottom-color: rgba(124, 58, 237, 0.5) !important;
+    }
+
+    .tab-nav button.selected {
+        color: #a78bfa !important;
+        background: rgba(124, 58, 237, 0.15) !important;
+        border-bottom-color: #7c3aed !important;
+    }
+
+    /* === CARDS & CONTAINERS === */
     .block {
         border-radius: 12px !important;
-        box-shadow: 0 2px 8px var(--shadow-color) !important;
-        background: var(--bg-card) !important;
-    }
-
-    /* Button enhancements */
-    .primary {
-        background: var(--accent-gradient) !important;
-        border: none !important;
+        background: linear-gradient(135deg, #131b2e 0%, #1a2332 100%) !important;
+        border: 1px solid #2d3748 !important;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2) !important;
         transition: all 0.3s ease !important;
     }
-    .primary:hover {
-        transform: translateY(-2px) !important;
-        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4) !important;
+
+    .block:hover {
+        border-color: #3d4b5f !important;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.3) !important;
     }
 
-    /* Secondary button */
-    .secondary {
-        background: var(--bg-secondary) !important;
-        border: 1px solid var(--border-color) !important;
+    /* === BUTTONS === */
+    button.primary, .primary-button {
+        background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%) !important;
+        border: none !important;
+        color: white !important;
+        font-weight: 600 !important;
+        padding: 0.75rem 1.5rem !important;
+        border-radius: 8px !important;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        box-shadow: 0 4px 6px -1px rgba(124, 58, 237, 0.3) !important;
+    }
+
+    button.primary:hover, .primary-button:hover {
+        transform: translateY(-2px) !important;
+        box-shadow: 0 10px 20px -5px rgba(124, 58, 237, 0.5) !important;
+        background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%) !important;
+    }
+
+    button.secondary, .secondary-button {
+        background: #1e293b !important;
+        border: 1px solid #3d4b5f !important;
+        color: #e2e8f0 !important;
+        font-weight: 500 !important;
+        padding: 0.75rem 1.5rem !important;
+        border-radius: 8px !important;
         transition: all 0.2s ease !important;
     }
 
-    /* Status badges */
-    .status-completed { color: var(--success-color); font-weight: 600; }
-    .status-processing { color: var(--info-color); font-weight: 600; }
-    .status-failed { color: var(--error-color); font-weight: 600; }
-    .status-pending { color: var(--text-secondary); }
+    button.secondary:hover, .secondary-button:hover {
+        background: #334155 !important;
+        border-color: #4a5568 !important;
+    }
+
+    /* === STATUS INDICATORS === */
+    .status-completed {
+        color: #34d399;
+        font-weight: 600;
+        text-shadow: 0 0 10px rgba(52, 211, 153, 0.3);
+    }
+
+    .status-processing {
+        color: #60a5fa;
+        font-weight: 600;
+        text-shadow: 0 0 10px rgba(96, 165, 250, 0.3);
+        animation: pulse-glow 2s ease-in-out infinite;
+    }
+
+    .status-failed {
+        color: #f87171;
+        font-weight: 600;
+        text-shadow: 0 0 10px rgba(248, 113, 113, 0.3);
+    }
+
+    .status-pending {
+        color: #94a3b8;
+        font-weight: 500;
+    }
+
+    @keyframes pulse-glow {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.6; }
+    }
 
     /* Progress bar animation */
     @keyframes progress-pulse {
@@ -2003,7 +2144,7 @@ def create_gui() -> gr.Blocks:
                 # Detect system info
                 import platform
 
-                gpu_info = "Not detected (install pynvml for GPU info)"
+                gpu_info = "Not detected (install nvidia-ml-py for GPU info)"
                 try:
                     import subprocess
                     result = subprocess.run(

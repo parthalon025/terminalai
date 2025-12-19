@@ -54,7 +54,38 @@ class HardwareDetector:
             "compute_capability": None,
         }
 
-        # Try PyTorch CUDA detection (most reliable)
+        # Try nvidia-smi first (faster and more reliable than PyTorch import)
+        try:
+            import subprocess
+            result = subprocess.run(
+                ["nvidia-smi", "--query-gpu=name,memory.total", "--format=csv,noheader"],
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=5
+            )
+            if result.stdout.strip():
+                parts = [p.strip() for p in result.stdout.strip().split(",")]
+                gpu_info["vendor"] = "nvidia"
+                gpu_info["name"] = parts[0]
+                gpu_info["cuda_available"] = True
+
+                # Parse VRAM
+                if len(parts) > 1:
+                    vram_str = parts[1]
+                    if "MiB" in vram_str:
+                        gpu_info["vram_mb"] = int(float(vram_str.replace("MiB", "").strip()))
+                    elif "GiB" in vram_str:
+                        gpu_info["vram_mb"] = int(float(vram_str.replace("GiB", "").strip()) * 1024)
+
+                logger.info(f"Detected NVIDIA GPU via nvidia-smi: {gpu_info['name']}")
+                return gpu_info
+        except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
+            logger.debug("nvidia-smi not available")
+        except Exception as e:
+            logger.debug(f"nvidia-smi detection failed: {e}")
+
+        # Only try PyTorch if nvidia-smi failed (PyTorch import can be slow)
         try:
             import torch
             if torch.cuda.is_available():
@@ -67,14 +98,14 @@ class HardwareDetector:
                 gpu_info["vram_mb"] = props.total_memory // (1024 * 1024)
                 gpu_info["compute_capability"] = f"{props.major}.{props.minor}"
 
-                logger.info(f"Detected NVIDIA GPU: {gpu_info['name']} ({gpu_info['vram_mb']} MB)")
+                logger.info(f"Detected NVIDIA GPU via PyTorch: {gpu_info['name']} ({gpu_info['vram_mb']} MB)")
                 return gpu_info
         except ImportError:
             logger.debug("PyTorch not available for CUDA detection")
         except Exception as e:
             logger.debug(f"CUDA detection failed: {e}")
 
-        # Try AMD ROCm detection
+        # Try AMD ROCm detection (skip if slow)
         try:
             import torch
             if hasattr(torch, 'hip') and torch.hip.is_available():
@@ -384,8 +415,7 @@ def create_wizard_ui() -> gr.Blocks:
     downloader = ModelDownloader()
 
     with gr.Blocks(
-        title="TerminalAI - First Run Setup",
-        theme=gr.themes.Soft()
+        title="TerminalAI - First Run Setup"
     ) as wizard:
 
         # State
@@ -766,8 +796,7 @@ def create_welcome_back_ui() -> gr.Blocks:
     config = FirstRunManager.load_config()
 
     with gr.Blocks(
-        title="TerminalAI - Welcome Back",
-        theme=gr.themes.Soft()
+        title="TerminalAI - Welcome Back"
     ) as welcome:
 
         gr.Markdown(
@@ -812,7 +841,8 @@ def run_wizard(launch_callback: Optional[Callable] = None) -> bool:
         wizard.launch(
             server_name="127.0.0.1",
             inbrowser=True,
-            quiet=True
+            quiet=True,
+            theme=gr.themes.Soft()
         )
         return True
     else:

@@ -121,34 +121,69 @@ class AudioProcessor:
         self.audiosr_available = self._check_audiosr()
 
     def _check_demucs(self) -> bool:
-        """Check if Demucs is available."""
+        """
+        Check if Demucs is available for AI stem separation.
+
+        Returns:
+            True if Demucs is installed and importable, False otherwise
+        """
         try:
             result = subprocess.run(
                 ["python3", "-c", "import demucs; print('ok')"],
                 capture_output=True, text=True, timeout=10
             )
-            return "ok" in result.stdout
-        except:
+            is_available = "ok" in result.stdout
+            if is_available:
+                logger.debug("Demucs is available")
+            return is_available
+        except subprocess.TimeoutExpired:
+            logger.debug("Demucs check timed out")
+            return False
+        except Exception as e:
+            logger.debug(f"Demucs check failed: {e}")
             return False
 
     def _check_deepfilternet(self) -> bool:
-        """Check if DeepFilterNet is available."""
+        """
+        Check if DeepFilterNet is available for AI denoising.
+
+        Returns:
+            True if DeepFilterNet is installed and importable, False otherwise
+        """
         try:
-            import df  # DeepFilterNet package
+            import df  # DeepFilterNet package  # noqa: F401
+            logger.debug("DeepFilterNet is available")
             return True
         except ImportError:
+            logger.debug("DeepFilterNet not available")
             return False
 
     def _check_audiosr(self) -> bool:
-        """Check if AudioSR is available."""
+        """
+        Check if AudioSR is available for AI upsampling.
+
+        Returns:
+            True if AudioSR is installed and importable, False otherwise
+        """
         try:
-            import audiosr
+            import audiosr  # noqa: F401
+            logger.debug("AudioSR is available")
             return True
         except ImportError:
+            logger.debug("AudioSR not available")
             return False
 
     def get_audio_info(self, input_path: Path) -> Dict[str, Any]:
-        """Get audio stream information using ffprobe."""
+        """
+        Get audio stream information using ffprobe.
+
+        Args:
+            input_path: Path to audio/video file
+
+        Returns:
+            Dictionary containing audio stream metadata (codec, channels, sample rate, etc.)
+            Returns default values if probe fails
+        """
         cmd = [
             "ffprobe", "-v", "quiet",
             "-select_streams", "a:0",
@@ -157,7 +192,7 @@ class AudioProcessor:
             str(input_path)
         ]
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=10)
             data = json.loads(result.stdout)
             stream = data.get("streams", [{}])[0]
             return {
@@ -167,8 +202,17 @@ class AudioProcessor:
                 "sample_rate": int(stream.get("sample_rate", 48000)),
                 "bitrate": stream.get("bit_rate", "unknown"),
             }
+        except subprocess.TimeoutExpired:
+            logger.warning(f"Audio info probe timed out for: {input_path}")
+            return {"channels": 2, "codec": "unknown", "sample_rate": 48000}
+        except json.JSONDecodeError as e:
+            logger.warning(f"Failed to parse ffprobe JSON: {e}")
+            return {"channels": 2, "codec": "unknown", "sample_rate": 48000}
+        except subprocess.CalledProcessError as e:
+            logger.warning(f"ffprobe failed: {e}")
+            return {"channels": 2, "codec": "unknown", "sample_rate": 48000}
         except Exception as e:
-            logger.warning(f"Could not get audio info: {e}")
+            logger.warning(f"Unexpected error getting audio info: {e}", exc_info=True)
             return {"channels": 2, "codec": "unknown", "sample_rate": 48000}
 
     def process(self, input_path: Path, output_path: Path,
@@ -250,8 +294,17 @@ class AudioProcessor:
             # Cleanup
             shutil.rmtree(temp_dir, ignore_errors=True)
 
-    def _extract_audio(self, input_path: Path, output_path: Path):
-        """Extract audio from video file."""
+    def _extract_audio(self, input_path: Path, output_path: Path) -> None:
+        """
+        Extract audio from video file.
+
+        Args:
+            input_path: Input video file
+            output_path: Output audio file (WAV)
+
+        Raises:
+            subprocess.CalledProcessError: If ffmpeg extraction fails
+        """
         cmd = [
             self.ffmpeg_path, "-y",
             "-i", str(input_path),
@@ -260,11 +313,27 @@ class AudioProcessor:
             "-ar", str(self.config.sample_rate),
             str(output_path)
         ]
-        subprocess.run(cmd, capture_output=True, check=True)
-        logger.debug(f"Extracted audio to {output_path}")
+        try:
+            subprocess.run(cmd, capture_output=True, check=True, timeout=300)
+            logger.debug(f"Extracted audio to {output_path}")
+        except subprocess.TimeoutExpired:
+            logger.error(f"Audio extraction timed out after 5 minutes: {input_path}")
+            raise
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Audio extraction failed: {e.stderr}")
+            raise
 
-    def _enhance_audio(self, input_path: Path, output_path: Path):
-        """Apply audio enhancement filters."""
+    def _enhance_audio(self, input_path: Path, output_path: Path) -> None:
+        """
+        Apply audio enhancement filters.
+
+        Args:
+            input_path: Input audio file
+            output_path: Output enhanced audio file
+
+        Uses DeepFilterNet for AI denoising if available, otherwise falls back
+        to FFmpeg-based enhancement based on the selected mode.
+        """
         # Handle DeepFilterNet separately (not FFmpeg-based)
         if self.config.enhance_mode == AudioEnhanceMode.DEEPFILTERNET:
             if self.deepfilternet_available:
@@ -698,10 +767,13 @@ class AudioProcessor:
             return
 
         try:
-            subprocess.run(cmd, capture_output=True, check=True)
+            subprocess.run(cmd, capture_output=True, check=True, timeout=300)
             logger.info("Created 5.1 upmix from Demucs stems")
         except subprocess.CalledProcessError as e:
             logger.warning(f"Demucs mixing failed: {e}, falling back to FFmpeg")
+            self._upmix_with_ffmpeg(input_path, output_path)
+        except subprocess.TimeoutExpired:
+            logger.warning("Demucs mixing timed out, falling back to FFmpeg")
             self._upmix_with_ffmpeg(input_path, output_path)
 
     def _normalize_audio(self, input_path: Path, output_path: Path):
@@ -730,7 +802,7 @@ class AudioProcessor:
                 input_thresh = measured.get("input_thresh", "-34")
             else:
                 raise ValueError("No JSON found")
-        except:
+        except (json.JSONDecodeError, ValueError, KeyError):
             input_i, input_tp, input_lra, input_thresh = "-24", "-2", "7", "-34"
 
         # Pass 2: Normalize
@@ -872,17 +944,17 @@ def get_available_features() -> Dict[str, bool]:
             capture_output=True, text=True, timeout=10
         )
         features["demucs"] = "ok" in result.stdout
-    except:
+    except (subprocess.SubprocessError, OSError):
         pass
 
     try:
-        import df
+        import df  # noqa: F401
         features["deepfilternet"] = True
     except ImportError:
         pass
 
     try:
-        import audiosr
+        import audiosr  # noqa: F401
         features["audiosr"] = True
     except ImportError:
         pass
@@ -948,6 +1020,13 @@ Examples:
                         choices=["htdemucs", "htdemucs_ft", "mdx_extra"],
                         help="Demucs model for AI separation")
 
+    # AudioSR options
+    parser.add_argument("--audio-sr", action="store_true",
+                        help="Enable AudioSR AI upsampling to 48kHz")
+    parser.add_argument("--audiosr-model", default="basic",
+                        choices=["basic", "speech", "music"],
+                        help="AudioSR model (basic, speech, music)")
+
     parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
 
     args = parser.parse_args()
@@ -969,6 +1048,10 @@ Examples:
     if args.enhance == "deepfilternet" and not features["deepfilternet"]:
         print("Warning: DeepFilterNet not available, falling back to aggressive denoise")
         args.enhance = "aggressive"
+
+    if args.audio_sr and not features["audiosr"]:
+        print("Warning: AudioSR not available, disabling AI upsampling")
+        args.audio_sr = False
 
     # Build config
     config = AudioConfig(

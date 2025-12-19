@@ -63,37 +63,40 @@ dependencies = [
     # Core dependencies
     "yt-dlp>=2023.0.0",
     "pyyaml>=6.0",
-    "gradio>=4.0.0",
+    "gradio>=4.0.0,<7.0",  # Pin to stable 6.x, avoid breaking changes
 
     # AI Processing (PyTorch) - Required for audio and face restoration
     "torch>=2.0.0",
     "torchaudio>=2.0.0",
-    "numpy>=1.24.0",
+    "numpy>=1.24.0,<2.0",  # Critical: Must be <2.0 for AI package compatibility
 
     # Video Processing - Required for all features
     "opencv-python>=4.8.0",
 
-    # AI Audio Features - Made optional due to dependency conflicts
-    # "demucs>=4.0.0",  # Optional - install separately
-    # "deepfilternet>=0.5.0",  # Optional - install separately
-    # "audiosr>=0.0.4",  # Has numpy version conflict - install separately with older numpy
-
-    # Face Restoration - Made optional due to Python 3.13 compatibility
-    # "gfpgan>=1.3.0",  # Optional - install separately
-    # "basicsr>=1.4.2",  # Python 3.13 compatibility issues
-    # "facexlib>=0.2.5",  # Optional - install separately
-
-    # Real-ESRGAN AI Upscaling - Made optional
-    # "realesrgan>=0.3.0",  # Optional - install separately
-
-    # Automation - Now required
+    # Automation - Required
     "watchdog>=3.0.0",
 
-    # Notifications - Now required
+    # Notifications - Required
     "requests>=2.28.0",
 
     # GPU Detection (nvidia-ml-py replaces deprecated pynvml)
     "nvidia-ml-py>=12.0.0",
+
+    # AI Audio Features - Made optional due to dependency conflicts
+    # Install with: pip install -e ".[audio]"
+    # "demucs>=4.0.0",
+    # "deepfilternet>=0.5.0",
+    # "audiosr>=0.0.4",
+
+    # Face Restoration - Made optional for better compatibility
+    # Install with: pip install -e ".[face]"
+    # "gfpgan>=1.3.0",
+    # "basicsr>=1.4.2",
+    # "facexlib>=0.2.5",
+
+    # Real-ESRGAN AI Upscaling - Made optional
+    # Install with: pip install -e ".[upscaling]"
+    # "realesrgan>=0.3.0",
 ]
 
 # IMPORTANT - Python 3.12 Compatibility Notes:

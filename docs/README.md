@@ -5,46 +5,102 @@ Comprehensive documentation for the TerminalAI video upscaling suite.
 ## Documentation Structure
 
 ### `installation/` - Installation and Setup
-- Complete installation guides for all platforms
+- Complete installation guides for all platforms (Windows, Linux, macOS)
 - Verification and troubleshooting documentation
 - RTX Video SDK setup guides
 - Windows installation with CUDA support
 - Dependency analysis and compatibility guides
+- Python version notices and Rust installation references
+
+**Key Files:**
+- `WINDOWS_INSTALLATION.md` - Comprehensive Windows setup
+- `INSTALLATION_TROUBLESHOOTING.md` - Detailed troubleshooting (850+ lines)
+- `VERIFICATION_GUIDE.md` - Installation verification
+- `DEPENDENCY_ANALYSIS.md` - Technical dependency deep dive
+- `PYTHON_VERSION_NOTICE.md` - Python compatibility information
+- `RUST_*.md` - Rust toolchain installation guides
 
 ### `guides/` - User Guides
 - GUI usage guides and optimization documentation
 - Feature-specific tutorials
 - Best practices for video processing
+- Quick start guides for common scenarios
+
+**Key Files:**
+- `QUICK_START.md` - Getting started quickly
+- `BASIC_MODE_QUICK_START.md` - Simplified beginner mode
+- `VERIFY_BASIC_MODE.md` - Basic mode verification
+- `GUI_*.md` - GUI usage and optimization guides
 
 ### `features/` - Feature Documentation
-- Detailed documentation for specific features (coming soon)
+- Detailed documentation for specific features
 - API references and integration guides
+- Feature-specific implementation details
+
+**Key Files:**
+- `BASIC_ADVANCED_MODE.md` - Beginner vs advanced interface
+- `GUI_MODEL_DOWNLOAD_UX_IMPROVEMENTS.md` - Model download improvements
 
 ### `development/` - Development Documentation
 - Contributing guidelines
-- Performance optimization guides
-- Test automation reports
+- Performance optimization guides and reports
+- Test automation reports and coverage analysis
 - Code review and quality standards
+- Implementation details and bug fixes
+
+**Key Files:**
+- `CONTRIBUTING.md` - How to contribute
+- `PERFORMANCE_ANALYSIS_REPORT.md` - Performance profiling
+- `PERFORMANCE_OPTIMIZATIONS_APPLIED.md` - Applied optimizations
+- `TEST_COVERAGE_REPORT.md` - Test coverage metrics
+- `TEST_VALIDATION_SUMMARY.md` - Test validation results
+- `HARDWARE_DETECTION_*.md` - Hardware detection implementation
+- `QUICK_IMPROVEMENTS.md` - Quick wins and improvements
+- `BASICSR_PATCH_IMPLEMENTATION.md` - BasicSR patches
 
 ### `releases/` - Release Information
 - Changelogs and release notes
-- Implementation summaries
-- Version history
+- Implementation summaries for each release
+- Version history and migration guides
+- Feature completion reports
+
+**Key Files:**
+- `CHANGELOG.md` - Version history
+- `IMPLEMENTATION_SUMMARY.md` - Implementation details
+- `PERFORMANCE_SUMMARY.md` - Performance improvements
+- `DEPENDENCY_UPDATE_SUMMARY.md` - Dependency changes
+- `FIRST_RUN_WIZARD_SUMMARY.md` - Wizard feature summary
+- `HARDWARE_DETECTION_SUMMARY.md` - Hardware detection feature
+- `GUI_INTEGRATION_REPORT.md` - GUI integration status
+- `GUI_OPTIMIZATION_STATUS.md` - GUI optimization tracking
 
 ### `deployment/` - Deployment Guides
 - Production deployment checklists
 - Docker and containerization guides
 - Service configuration examples
+- CI/CD pipeline documentation
+
+**Key Files:**
+- `DEPLOYMENT_CHECKLIST.md` - Pre-deployment checklist
 
 ### `security/` - Security Documentation
 - Security policies and best practices
-- Vulnerability reporting
-- Security audit guidelines
+- Vulnerability reporting and patches
+- Security audit guidelines and reports
+
+**Key Files:**
+- `SECURITY.md` - Security policy
+- `SECURITY_FIXES.md` - Applied security fixes
+- `SECURITY_PATCH_SUMMARY.md` - Patch summaries
 
 ### `architecture/` - Architecture Documentation
-- System design and architecture (coming soon)
+- System design and architecture
 - Component interactions
 - Data flow diagrams
+- UX design specifications
+
+**Key Files:**
+- `GUI_COMPREHENSIVE_UX_PLAN.md` - GUI architecture and UX design
 
 ## Quick Start
 

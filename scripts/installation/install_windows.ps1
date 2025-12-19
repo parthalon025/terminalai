@@ -16,11 +16,11 @@ param(
 )
 
 # Color output functions
-function Write-Success { param($msg) Write-Host "✓ $msg" -ForegroundColor Green }
-function Write-Error { param($msg) Write-Host "✗ $msg" -ForegroundColor Red }
-function Write-Warning { param($msg) Write-Host "⚠ $msg" -ForegroundColor Yellow }
-function Write-Info { param($msg) Write-Host "ℹ $msg" -ForegroundColor Cyan }
-function Write-Section { param($msg) Write-Host "`n═══ $msg ═══" -ForegroundColor Magenta }
+function Write-Success { param($msg) Write-Host "[OK] $msg" -ForegroundColor Green }
+function Write-Error { param($msg) Write-Host "[FAIL] $msg" -ForegroundColor Red }
+function Write-Warning { param($msg) Write-Host "[WARN] $msg" -ForegroundColor Yellow }
+function Write-Info { param($msg) Write-Host "[INFO] $msg" -ForegroundColor Cyan }
+function Write-Section { param($msg) Write-Host "`n=== $msg ===" -ForegroundColor Magenta }
 
 # Global variables
 $script:InstallLog = @()
@@ -662,17 +662,17 @@ function Test-Installations {
 
     # Display results
     Write-Host "`n" -NoNewline
-    Write-Host "═══════════════════════════════════════════" -ForegroundColor Cyan
+    Write-Host "===========================================" -ForegroundColor Cyan
     Write-Host "         INSTALLATION VERIFICATION         " -ForegroundColor Cyan
-    Write-Host "═══════════════════════════════════════════" -ForegroundColor Cyan
+    Write-Host "===========================================" -ForegroundColor Cyan
     Write-Host ""
 
     function Show-Result { param($name, $status)
-        $symbol = if ($status) { "✓" } else { "✗" }
+        $symbol = if ($status) { "[OK]" } else { "[FAIL]" }
         $color = if ($status) { "Green" } else { "Red" }
         Write-Host "  $symbol " -ForegroundColor $color -NoNewline
         Write-Host $name
-        Add-Log "Verification - $name: $status"
+        Add-Log "Verification - ${name}: $status"
     }
 
     Write-Host "Core Components:" -ForegroundColor Yellow
@@ -713,17 +713,17 @@ function New-InstallationReport {
     $duration = (Get-Date) - $script:StartTime
 
     $report = @"
-═══════════════════════════════════════════════════════════════
+===============================================================
     TerminalAI Installation Report
-═══════════════════════════════════════════════════════════════
+===============================================================
 
 Installation Date: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
 Duration: $($duration.ToString("hh\:mm\:ss"))
 Installation Mode: $(if ($Full) { "Full" } elseif ($Audio) { "Audio" } elseif ($Faces) { "Faces" } else { "Basic" })
 
-═══════════════════════════════════════════════════════════════
+===============================================================
 SYSTEM INFORMATION
-═══════════════════════════════════════════════════════════════
+===============================================================
 
 OS Version: $([System.Environment]::OSVersion.VersionString)
 Python Version: $(& python --version 2>&1)
@@ -731,30 +731,30 @@ GPU: $(if ($NvidiaInfo.HasNvidia) { $NvidiaInfo.GPUName } else { "No NVIDIA GPU 
 Driver Version: $(if ($NvidiaInfo.DriverVersion) { $NvidiaInfo.DriverVersion } else { "N/A" })
 CUDA Version: $(if ($NvidiaInfo.HasNvidia) { $NvidiaInfo.CUDAVersion } else { "N/A" })
 
-═══════════════════════════════════════════════════════════════
+===============================================================
 INSTALLATION RESULTS
-═══════════════════════════════════════════════════════════════
+===============================================================
 
 Core Components:
-  [$(if ($VerificationResults.Core) { "✓" } else { "✗" })] TerminalAI Package
-  [$(if ($VerificationResults.Gradio) { "✓" } else { "✗" })] Gradio Web Interface
-  [$(if ($VerificationResults.YTDLP) { "✓" } else { "✗" })] yt-dlp YouTube Downloader
+  [$(if ($VerificationResults.Core) { "OK" } else { "FAIL" })] TerminalAI Package
+  [$(if ($VerificationResults.Gradio) { "OK" } else { "FAIL" })] Gradio Web Interface
+  [$(if ($VerificationResults.YTDLP) { "OK" } else { "FAIL" })] yt-dlp YouTube Downloader
 
 AI Frameworks:
-  [$(if ($VerificationResults.PyTorch) { "✓" } else { "✗" })] PyTorch
-  [$(if ($VerificationResults.PyTorchCUDA) { "✓" } else { "✗" })] PyTorch CUDA Support
+  [$(if ($VerificationResults.PyTorch) { "OK" } else { "FAIL" })] PyTorch
+  [$(if ($VerificationResults.PyTorchCUDA) { "OK" } else { "FAIL" })] PyTorch CUDA Support
 
 Optional Features:
-  [$(if ($VerificationResults.Demucs) { "✓" } else { "✗" })] Demucs (AI Audio Separation)
-  [$(if ($VerificationResults.DeepFilterNet) { "✓" } else { "✗" })] DeepFilterNet (AI Audio Denoise)
-  [$(if ($VerificationResults.AudioSR) { "✓" } else { "✗" })] AudioSR (AI Audio Upsample)
-  [$(if ($VerificationResults.GFPGAN) { "✓" } else { "✗" })] GFPGAN (Face Restoration)
-  [$(if ($VerificationResults.VapourSynth) { "✓" } else { "✗" })] VapourSynth (QTGMC Deinterlacing)
-  [$(if ($VerificationResults.Watchdog) { "✓" } else { "✗" })] Watchdog (Watch Folder Automation)
+  [$(if ($VerificationResults.Demucs) { "OK" } else { "FAIL" })] Demucs (AI Audio Separation)
+  [$(if ($VerificationResults.DeepFilterNet) { "OK" } else { "FAIL" })] DeepFilterNet (AI Audio Denoise)
+  [$(if ($VerificationResults.AudioSR) { "OK" } else { "FAIL" })] AudioSR (AI Audio Upsample)
+  [$(if ($VerificationResults.GFPGAN) { "OK" } else { "FAIL" })] GFPGAN (Face Restoration)
+  [$(if ($VerificationResults.VapourSynth) { "OK" } else { "FAIL" })] VapourSynth (QTGMC Deinterlacing)
+  [$(if ($VerificationResults.Watchdog) { "OK" } else { "FAIL" })] Watchdog (Watch Folder Automation)
 
-═══════════════════════════════════════════════════════════════
+===============================================================
 NEXT STEPS
-═══════════════════════════════════════════════════════════════
+===============================================================
 
 1. Launch Web GUI:
    python -m vhs_upscaler.gui
@@ -770,12 +770,12 @@ NEXT STEPS
 4. Check available features:
    python verify_setup.py
 
-═══════════════════════════════════════════════════════════════
+===============================================================
 TROUBLESHOOTING
-═══════════════════════════════════════════════════════════════
+===============================================================
 
 $(if (-not $VerificationResults.PyTorchCUDA) { @"
-⚠ PyTorch CUDA not available
+[WARN] PyTorch CUDA not available
   - GPU acceleration will not work for AI audio features
   - Face restoration may be slower
   - Video upscaling via Maxine/Real-ESRGAN should still work
@@ -787,7 +787,7 @@ $(if (-not $VerificationResults.PyTorchCUDA) { @"
 "@ } else { "" })
 
 $(if (-not $VerificationResults.VapourSynth) { @"
-ℹ VapourSynth not installed
+[INFO] VapourSynth not installed
   - QTGMC deinterlacing unavailable
   - YADIF, BWDIF, W3FDIF deinterlacing still available
 
@@ -800,7 +800,7 @@ $(if (-not $VerificationResults.VapourSynth) { @"
 
 Full installation log: $($script:LogFile)
 
-═══════════════════════════════════════════════════════════════
+===============================================================
 "@
 
     $report | Out-File -FilePath $reportFile -Encoding UTF8
@@ -814,9 +814,9 @@ Full installation log: $($script:LogFile)
 # Main installation flow
 function Start-Installation {
     Write-Host ""
-    Write-Host "═══════════════════════════════════════════════════════════════" -ForegroundColor Cyan
+    Write-Host "===============================================================" -ForegroundColor Cyan
     Write-Host "       TerminalAI Windows Installation Script v1.0            " -ForegroundColor Cyan
-    Write-Host "═══════════════════════════════════════════════════════════════" -ForegroundColor Cyan
+    Write-Host "===============================================================" -ForegroundColor Cyan
     Write-Host ""
 
     Add-Log "Installation started"

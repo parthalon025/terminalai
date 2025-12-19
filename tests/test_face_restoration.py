@@ -15,6 +15,25 @@ import numpy as np
 import pytest
 
 
+# Helper functions
+def _check_gfpgan_import():
+    """Check if GFPGAN can be imported."""
+    try:
+        import gfpgan
+        return True
+    except ImportError:
+        return False
+
+
+def _check_codeformer_import():
+    """Check if CodeFormer can be imported."""
+    try:
+        import codeformer
+        return True
+    except ImportError:
+        return False
+
+
 class TestFaceRestorerInitialization(unittest.TestCase):
     """Test FaceRestorer class initialization and backend selection."""
 
@@ -372,25 +391,6 @@ class TestFeatureDetection(unittest.TestCase):
         # Should contain valid backend names
         for backend in backends:
             self.assertIn(backend, ['gfpgan', 'codeformer'])
-
-
-# Helper functions
-def _check_gfpgan_import():
-    """Check if GFPGAN can be imported."""
-    try:
-        import gfpgan
-        return True
-    except ImportError:
-        return False
-
-
-def _check_codeformer_import():
-    """Check if CodeFormer can be imported."""
-    try:
-        import codeformer
-        return True
-    except ImportError:
-        return False
 
 
 if __name__ == '__main__':

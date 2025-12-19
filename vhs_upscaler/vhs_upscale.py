@@ -26,7 +26,7 @@ import threading
 from dataclasses import dataclass
 from datetime import timedelta
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, Dict, Any, Tuple
 
 try:
     import yaml
@@ -95,12 +95,22 @@ class UnifiedProgress:
         self.video_title = ""
         self.lock = threading.Lock()
 
-    def set_title(self, title: str):
-        """Set the video title for display."""
+    def set_title(self, title: str) -> None:
+        """
+        Set the video title for display.
+
+        Args:
+            title: Video title to display (will be truncated to 50 chars)
+        """
         self.video_title = title[:50] + "..." if len(title) > 50 else title
 
-    def start_stage(self, stage_key: str):
-        """Start a new processing stage."""
+    def start_stage(self, stage_key: str) -> None:
+        """
+        Start a new processing stage.
+
+        Args:
+            stage_key: Stage identifier (download, preprocess, upscale, postprocess)
+        """
         with self.lock:
             for idx, (key, _) in enumerate(self.active_stages):
                 if key == stage_key:
@@ -110,28 +120,43 @@ class UnifiedProgress:
             self.stage_start_time = time.time()
             self._render()
 
-    def update(self, progress: float):
-        """Update current stage progress (0-100)."""
+    def update(self, progress: float) -> None:
+        """
+        Update current stage progress.
+
+        Args:
+            progress: Progress percentage (0-100)
+        """
         with self.lock:
             self.stage_progress = min(max(progress, 0), 100)
             self._render()
 
-    def complete_stage(self):
-        """Mark current stage as complete."""
+    def complete_stage(self) -> None:
+        """Mark current stage as complete and move to next line."""
         with self.lock:
             self.stage_progress = 100.0
             self._render()
             print()  # New line after stage completion
 
     def _calculate_overall_progress(self) -> float:
-        """Calculate overall pipeline progress."""
+        """
+        Calculate overall pipeline progress.
+
+        Returns:
+            Overall progress percentage (0-100)
+        """
         total_stages = len(self.active_stages)
         completed = self.current_stage_idx
         current = self.stage_progress / 100.0
         return ((completed + current) / total_stages) * 100
 
-    def _render(self):
-        """Render the progress display."""
+    def _render(self) -> None:
+        """
+        Render the progress display with ASCII-safe characters.
+
+        Displays progress bar, stage indicators, and ETA estimation.
+        Handles UnicodeEncodeError for Windows console compatibility.
+        """
         overall = self._calculate_overall_progress()
         stage_name = self.active_stages[self.current_stage_idx][1]
 
@@ -173,11 +198,16 @@ class UnifiedProgress:
         try:
             print(line, end="", flush=True)
         except UnicodeEncodeError:
-            # Fallback if encoding still fails
-            pass
+            # Fallback if encoding still fails - silent failure acceptable for progress display
+            logger.debug("Unicode encoding error in progress display")
 
-    def finish(self, success: bool = True):
-        """Display final status."""
+    def finish(self, success: bool = True) -> None:
+        """
+        Display final processing status.
+
+        Args:
+            success: Whether processing completed successfully
+        """
         elapsed = time.time() - self.start_time
         status = "[OK] Complete" if success else "[FAILED] Failed"
         # Use ASCII-safe output for Windows console compatibility
@@ -187,6 +217,7 @@ class UnifiedProgress:
                 print(f"Video: {self.video_title}")
         except UnicodeEncodeError:
             # Fallback for encoding issues
+            logger.warning("Unicode encoding error in final status display")
             print(f"\n\n{status} in {int(elapsed)} seconds")
             if self.video_title:
                 print(f"Video: {self.video_title}")
@@ -211,18 +242,25 @@ class YouTubeDownloader:
         self.progress = progress
         self._validate_ytdlp()
 
-    def _validate_ytdlp(self):
-        """Check if yt-dlp is available."""
+    def _validate_ytdlp(self) -> None:
+        """
+        Check if yt-dlp is available and log version.
+
+        Raises:
+            RuntimeError: If yt-dlp is not installed or not in PATH
+        """
         try:
             result = subprocess.run(
                 ["yt-dlp", "--version"],
-                capture_output=True, text=True, check=True
+                capture_output=True, text=True, check=True, timeout=10
             )
             logger.debug(f"yt-dlp version: {result.stdout.strip()}")
-        except (subprocess.CalledProcessError, FileNotFoundError):
+        except subprocess.TimeoutExpired as e:
+            raise RuntimeError("yt-dlp check timed out") from e
+        except (subprocess.CalledProcessError, FileNotFoundError) as e:
             raise RuntimeError(
                 "yt-dlp not found. Install with: pip install yt-dlp"
-            )
+            ) from e
 
     @classmethod
     def is_youtube_url(cls, input_str: str) -> bool:
@@ -232,8 +270,17 @@ class YouTubeDownloader:
                 return True
         return False
 
-    def get_video_info(self, url: str) -> dict:
-        """Get video metadata without downloading."""
+    def get_video_info(self, url: str) -> Dict[str, Any]:
+        """
+        Get video metadata without downloading.
+
+        Args:
+            url: YouTube video URL
+
+        Returns:
+            Dictionary containing video metadata (title, duration, etc.)
+            Returns empty dict if metadata retrieval fails
+        """
         cmd = [
             "yt-dlp",
             "--dump-json",
@@ -241,10 +288,19 @@ class YouTubeDownloader:
             url
         ]
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=30)
             return json.loads(result.stdout)
+        except subprocess.TimeoutExpired:
+            logger.warning(f"Video info retrieval timed out for: {url}")
+            return {}
+        except json.JSONDecodeError as e:
+            logger.warning(f"Failed to parse video info JSON: {e}")
+            return {}
+        except subprocess.CalledProcessError as e:
+            logger.warning(f"yt-dlp failed to get video info: {e}")
+            return {}
         except Exception as e:
-            logger.warning(f"Could not get video info: {e}")
+            logger.warning(f"Unexpected error getting video info: {e}", exc_info=True)
             return {}
 
     def download(self, url: str, output_dir: Path) -> Path:

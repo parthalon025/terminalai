@@ -103,7 +103,7 @@ This installs:
 - realesrgan (AI upscaling)
 - watchdog (folder monitoring)
 - requests (notifications)
-- pynvml (GPU detection)
+- nvidia-ml-py (GPU detection)
 
 **Automatic Compatibility Patches:**
 - basicsr torchvision >= 0.17 compatibility fix (applied automatically)

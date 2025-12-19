@@ -114,7 +114,7 @@ This will install:
 - Real-ESRGAN (AI video upscaling)
 - watchdog (folder monitoring)
 - requests (notifications)
-- pynvml (GPU detection)
+- nvidia-ml-py (GPU detection)
 
 ### 4. Verify Installation
 

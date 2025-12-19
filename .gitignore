@@ -163,6 +163,36 @@ validate_*.py
 test_*.mp4
 test_*.avi
 
+# Performance and analysis reports (generated files)
+coverage.json
+performance_*.json
+performance_*.txt
+*_COMPLETION_REPORT.txt
+*_baseline.json
+*_baseline.txt
+*_profile_*.json
+*_profile_*.txt
+*_ANALYSIS_REPORT.md
+*_OPTIMIZATIONS_APPLIED.md
+
+# Temporary test scripts in root (proper tests go in tests/)
+/test_*.py
+/demo_*.py
+/setup_basicsr.py
+/apply_*.py
+
+# Documentation artifacts in root (organized docs go in docs/)
+/*_SUMMARY.md
+/*_REPORT.md
+/*_STATUS.md
+/*_IMPLEMENTATION.md
+/*_FIX.md
+/*_RESULTS.md
+/*_COMPLETE.md
+/*_REFERENCE.md
+/QUICK_IMPROVEMENTS.md
+/VERIFY_*.md
+
 # Build artifacts
 *.whl
 *.tar.gz

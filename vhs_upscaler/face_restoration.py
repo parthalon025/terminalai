@@ -50,6 +50,106 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
+def check_gfpgan_available() -> bool:
+    """
+    Check if GFPGAN is available for use.
+
+    Returns:
+        True if GFPGAN can be imported and used
+    """
+    try:
+        import gfpgan
+        from basicsr.archs.rrdbnet_arch import RRDBNet
+        return True
+    except ImportError:
+        return False
+
+
+def check_codeformer_available() -> bool:
+    """
+    Check if CodeFormer is available for use.
+
+    Returns:
+        True if CodeFormer dependencies can be imported
+    """
+    try:
+        import torch
+        import cv2
+        # CodeFormer may not be a package, just need torch + cv2
+        return True
+    except ImportError:
+        return False
+
+
+def get_available_backends() -> list:
+    """
+    Get list of available face restoration backends.
+
+    Returns:
+        List of backend names ('gfpgan', 'codeformer')
+    """
+    backends = []
+    if check_gfpgan_available():
+        backends.append('gfpgan')
+    if check_codeformer_available():
+        backends.append('codeformer')
+    return backends
+
+
+def restore_faces_in_video(
+    input_path: str,
+    output_path: str,
+    backend: str = "gfpgan",
+    upscale: int = 2,
+    weight: float = 0.5,
+    fidelity: float = 0.5
+) -> str:
+    """
+    Convenience function for restoring faces in a video.
+
+    Args:
+        input_path: Input video file path
+        output_path: Output video file path
+        backend: Backend to use ('gfpgan' or 'codeformer')
+        upscale: Upscale factor (1, 2, or 4)
+        weight: GFPGAN restoration strength (0.0-1.0)
+        fidelity: CodeFormer fidelity weight (0.5-0.9)
+
+    Returns:
+        Path to output video
+    """
+    from pathlib import Path
+
+    restorer = FaceRestorer(backend=backend)
+    if not restorer.has_backend:
+        logger.warning(f"{backend} not available, returning original video")
+        return input_path
+
+    result = restorer.restore_faces(
+        input_path=Path(input_path),
+        output_path=Path(output_path),
+        upscale=upscale,
+        weight=weight,
+        fidelity=fidelity
+    )
+    return str(result)
+
+
+def get_available_features() -> dict:
+    """
+    Get dict of available face restoration features.
+
+    Returns:
+        Dict with feature availability
+    """
+    return {
+        'face_restoration': check_gfpgan_available() or check_codeformer_available(),
+        'gfpgan': check_gfpgan_available(),
+        'codeformer': check_codeformer_available(),
+        'backends': get_available_backends()
+    }
+
+
 class FaceRestorer:
     """
     Multi-backend face restoration for video processing.
