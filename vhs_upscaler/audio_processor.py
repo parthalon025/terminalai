@@ -6,6 +6,7 @@ Provides audio enhancement and surround upmixing capabilities.
 
 Features:
 - FFmpeg-based audio enhancement (noise reduction, normalization, EQ)
+- DeepFilterNet AI-based denoising for superior speech clarity
 - Surround upmixing (stereo → 5.1, 7.1)
 - Demucs AI stem separation for intelligent upmixing
 - Multiple output formats (AAC, AC3/EAC3, DTS)
@@ -57,6 +58,7 @@ class AudioEnhanceMode(Enum):
     AGGRESSIVE = "aggressive"   # Heavy noise reduction
     VOICE = "voice"             # Optimized for speech/dialogue
     MUSIC = "music"             # Optimized for music
+    DEEPFILTERNET = "deepfilternet"  # AI-based denoising (DeepFilterNet)
 
 
 class UpmixMode(Enum):
@@ -89,6 +91,11 @@ class AudioConfig:
     demucs_model: str = "htdemucs"  # htdemucs, htdemucs_ft, mdx_extra
     demucs_device: str = "auto"     # auto, cuda, cpu
 
+    # AudioSR settings (AI-based audio upsampling)
+    use_audiosr: bool = False        # Enable AI-based upsampling to 48kHz
+    audiosr_model: str = "basic"     # basic, speech, music
+    audiosr_device: str = "auto"     # auto, cuda, cpu
+
     # Advanced
     lfe_crossover: int = 120        # LFE crossover frequency (Hz)
     center_mix_level: float = 0.707 # -3dB for center channel
@@ -102,13 +109,16 @@ class AudioProcessor:
     """
     Handles all audio processing operations.
 
-    Uses FFmpeg for basic operations and Demucs for AI-powered stem separation.
+    Uses FFmpeg for basic operations, DeepFilterNet for AI-powered denoising,
+    and Demucs for AI-powered stem separation.
     """
 
     def __init__(self, config: AudioConfig = None, ffmpeg_path: str = "ffmpeg"):
         self.config = config or AudioConfig()
         self.ffmpeg_path = ffmpeg_path
         self.demucs_available = self._check_demucs()
+        self.deepfilternet_available = self._check_deepfilternet()
+        self.audiosr_available = self._check_audiosr()
 
     def _check_demucs(self) -> bool:
         """Check if Demucs is available."""
@@ -119,6 +129,22 @@ class AudioProcessor:
             )
             return "ok" in result.stdout
         except:
+            return False
+
+    def _check_deepfilternet(self) -> bool:
+        """Check if DeepFilterNet is available."""
+        try:
+            import df  # DeepFilterNet package
+            return True
+        except ImportError:
+            return False
+
+    def _check_audiosr(self) -> bool:
+        """Check if AudioSR is available."""
+        try:
+            import audiosr
+            return True
+        except ImportError:
             return False
 
     def get_audio_info(self, input_path: Path) -> Dict[str, Any]:
@@ -179,6 +205,17 @@ class AudioProcessor:
                 self._enhance_audio(current_audio, enhanced)
                 current_audio = enhanced
 
+            # Step 2.5: Apply AudioSR upsampling if enabled (before upmixing)
+            if self.config.use_audiosr and self.audiosr_available:
+                # Check if current sample rate is below 48kHz
+                current_info = self.get_audio_info(current_audio)
+                if current_info['sample_rate'] < 48000:
+                    upsampled = temp_dir / "audiosr_upsampled.wav"
+                    self._upsample_audiosr(current_audio, upsampled)
+                    current_audio = upsampled
+                else:
+                    logger.info(f"Audio already at {current_info['sample_rate']}Hz, skipping AudioSR")
+
             # Step 3: Apply upmix
             if (self.config.upmix_mode != UpmixMode.NONE and
                 self.config.output_layout != AudioChannelLayout.ORIGINAL):
@@ -228,6 +265,18 @@ class AudioProcessor:
 
     def _enhance_audio(self, input_path: Path, output_path: Path):
         """Apply audio enhancement filters."""
+        # Handle DeepFilterNet separately (not FFmpeg-based)
+        if self.config.enhance_mode == AudioEnhanceMode.DEEPFILTERNET:
+            if self.deepfilternet_available:
+                self._denoise_deepfilternet(input_path, output_path)
+                return
+            else:
+                logger.warning(
+                    "DeepFilterNet not available, falling back to aggressive FFmpeg denoise"
+                )
+                # Fallback to aggressive mode
+                self.config.enhance_mode = AudioEnhanceMode.AGGRESSIVE
+
         filters = []
 
         if self.config.enhance_mode == AudioEnhanceMode.LIGHT:
@@ -294,6 +343,201 @@ class AudioProcessor:
         ]
         subprocess.run(cmd, capture_output=True, check=True)
         logger.info(f"Applied {self.config.enhance_mode.value} enhancement")
+
+    def _denoise_deepfilternet(self, input_path: Path, output_path: Path):
+        """
+        Deep learning-based audio denoising using DeepFilterNet.
+
+        DeepFilterNet provides superior noise reduction compared to traditional
+        FFmpeg filters, especially for speech clarity in noisy environments.
+
+        Args:
+            input_path: Input audio file (WAV format expected)
+            output_path: Output denoised audio file
+        """
+        try:
+            import torch
+            import torchaudio
+            from df.enhance import enhance, init_df
+            from df.io import resample
+
+            logger.info("Running DeepFilterNet AI denoising...")
+
+            # Initialize DeepFilterNet model
+            model, df_state, _ = init_df()
+
+            # Load audio
+            audio, sr = torchaudio.load(str(input_path))
+
+            # DeepFilterNet expects 48kHz sample rate
+            if sr != df_state.sr():
+                logger.debug(f"Resampling from {sr}Hz to {df_state.sr()}Hz")
+                audio = resample(audio, sr, df_state.sr())
+                sr = df_state.sr()
+
+            # Process audio - DeepFilterNet works on mono or stereo
+            # If stereo, process each channel
+            if audio.shape[0] == 1:
+                # Mono processing
+                enhanced = enhance(model, df_state, audio)
+            elif audio.shape[0] == 2:
+                # Stereo - process each channel separately then recombine
+                left_enhanced = enhance(model, df_state, audio[0:1, :])
+                right_enhanced = enhance(model, df_state, audio[1:2, :])
+                enhanced = torch.cat([left_enhanced, right_enhanced], dim=0)
+            else:
+                # Multi-channel - process first 2 channels
+                logger.warning(f"Multi-channel audio detected ({audio.shape[0]} channels), "
+                             "processing only first 2 channels")
+                left_enhanced = enhance(model, df_state, audio[0:1, :])
+                right_enhanced = enhance(model, df_state, audio[1:2, :])
+                enhanced = torch.cat([left_enhanced, right_enhanced], dim=0)
+
+            # Resample back to target sample rate if needed
+            if sr != self.config.sample_rate:
+                enhanced = resample(enhanced, sr, self.config.sample_rate)
+
+            # Save enhanced audio
+            torchaudio.save(
+                str(output_path),
+                enhanced,
+                self.config.sample_rate,
+                encoding="PCM_S",
+                bits_per_sample=16
+            )
+
+            logger.info("DeepFilterNet denoising completed successfully")
+
+        except ImportError as e:
+            logger.error(f"DeepFilterNet dependencies not available: {e}")
+            logger.info("Install with: pip install deepfilternet")
+            raise
+        except Exception as e:
+            logger.error(f"DeepFilterNet processing failed: {e}")
+            logger.warning("Falling back to FFmpeg aggressive denoise")
+            # Fallback to FFmpeg-based denoising
+            self.config.enhance_mode = AudioEnhanceMode.AGGRESSIVE
+            self._enhance_audio(input_path, output_path)
+
+    def _upsample_audiosr(self, input_path: Path, output_path: Path, target_sr: int = 48000):
+        """
+        AI-based audio upsampling using AudioSR.
+
+        AudioSR uses deep learning to intelligently upsample low-quality audio
+        to higher sample rates, recovering lost high-frequency content and
+        improving overall audio fidelity.
+
+        Args:
+            input_path: Input audio file (WAV format)
+            output_path: Output upsampled audio file
+            target_sr: Target sampling rate (default: 48000 Hz)
+
+        Returns:
+            Path to upsampled audio file
+        """
+        try:
+            import torch
+            import torchaudio
+            from audiosr import AudioSR, build_audiosuperresolution
+
+            logger.info(f"Running AudioSR AI upsampling to {target_sr}Hz...")
+
+            # Determine device
+            device = self.config.audiosr_device
+            if device == "auto":
+                device = "cuda" if torch.cuda.is_available() else "cpu"
+
+            logger.debug(f"Using AudioSR device: {device}")
+
+            # Initialize AudioSR model
+            # Models: basic (general), speech (optimized for voice), music (optimized for music)
+            model_name = self.config.audiosr_model
+            if model_name not in ["basic", "speech", "music"]:
+                logger.warning(f"Unknown AudioSR model '{model_name}', using 'basic'")
+                model_name = "basic"
+
+            # Build the model
+            audiosr_model = build_audiosuperresolution(
+                model_name=model_name,
+                device=device
+            )
+
+            # Load input audio
+            audio, sr = torchaudio.load(str(input_path))
+            logger.debug(f"Loaded audio: {audio.shape}, sample rate: {sr}Hz")
+
+            # AudioSR expects mono or stereo
+            # If more channels, convert to stereo
+            if audio.shape[0] > 2:
+                logger.warning(f"Audio has {audio.shape[0]} channels, converting to stereo")
+                audio = audio[:2, :]  # Take first 2 channels
+
+            # Move to device
+            audio = audio.to(device)
+
+            # Upsample with AudioSR
+            with torch.no_grad():
+                # AudioSR processes in chunks for memory efficiency
+                upsampled_audio = audiosr_model(audio, sr, target_sr)
+
+            # Move back to CPU for saving
+            upsampled_audio = upsampled_audio.cpu()
+
+            # Save upsampled audio
+            torchaudio.save(
+                str(output_path),
+                upsampled_audio,
+                target_sr,
+                encoding="PCM_S",
+                bits_per_sample=16
+            )
+
+            logger.info(f"AudioSR upsampling completed: {sr}Hz → {target_sr}Hz")
+            return str(output_path)
+
+        except ImportError as e:
+            logger.warning(f"AudioSR not available: {e}")
+            logger.info("Install with: pip install audiosr")
+            logger.info("Falling back to FFmpeg resampling")
+            return self._resample_ffmpeg(input_path, output_path, target_sr)
+
+        except Exception as e:
+            logger.error(f"AudioSR processing failed: {e}")
+            logger.warning("Falling back to FFmpeg resampling")
+            return self._resample_ffmpeg(input_path, output_path, target_sr)
+
+    def _resample_ffmpeg(self, input_path: Path, output_path: Path, target_sr: int = 48000) -> str:
+        """
+        Fallback resampling using FFmpeg.
+
+        Args:
+            input_path: Input audio file
+            output_path: Output resampled audio file
+            target_sr: Target sampling rate
+
+        Returns:
+            Path to resampled audio file
+        """
+        logger.info(f"Resampling to {target_sr}Hz using FFmpeg")
+
+        cmd = [
+            self.ffmpeg_path, "-y",
+            "-i", str(input_path),
+            "-ar", str(target_sr),
+            "-acodec", "pcm_s16le",
+            str(output_path)
+        ]
+
+        try:
+            subprocess.run(cmd, capture_output=True, check=True)
+            logger.debug(f"FFmpeg resampling completed")
+            return str(output_path)
+        except subprocess.CalledProcessError as e:
+            logger.error(f"FFmpeg resampling failed: {e}")
+            # If resampling fails, just copy the file
+            import shutil
+            shutil.copy(input_path, output_path)
+            return str(output_path)
 
     def _upmix_with_ffmpeg(self, input_path: Path, output_path: Path):
         """Upmix stereo to surround using FFmpeg filters."""
@@ -618,6 +862,8 @@ def get_available_features() -> Dict[str, bool]:
         "ffmpeg": shutil.which("ffmpeg") is not None,
         "ffprobe": shutil.which("ffprobe") is not None,
         "demucs": False,
+        "deepfilternet": False,
+        "audiosr": False,
     }
 
     try:
@@ -627,6 +873,18 @@ def get_available_features() -> Dict[str, bool]:
         )
         features["demucs"] = "ok" in result.stdout
     except:
+        pass
+
+    try:
+        import df
+        features["deepfilternet"] = True
+    except ImportError:
+        pass
+
+    try:
+        import audiosr
+        features["audiosr"] = True
+    except ImportError:
         pass
 
     return features
@@ -664,7 +922,7 @@ Examples:
 
     # Enhancement options
     parser.add_argument("--enhance", default="none",
-                        choices=["none", "light", "moderate", "aggressive", "voice", "music"],
+                        choices=["none", "light", "moderate", "aggressive", "voice", "music", "deepfilternet"],
                         help="Audio enhancement mode")
 
     # Upmix options
@@ -701,11 +959,16 @@ Examples:
 
     # Check features
     features = get_available_features()
-    print(f"Available features: FFmpeg={features['ffmpeg']}, Demucs={features['demucs']}")
+    print(f"Available features: FFmpeg={features['ffmpeg']}, Demucs={features['demucs']}, "
+          f"DeepFilterNet={features['deepfilternet']}, AudioSR={features['audiosr']}")
 
     if args.upmix == "demucs" and not features["demucs"]:
         print("Warning: Demucs not available, falling back to FFmpeg surround")
         args.upmix = "surround"
+
+    if args.enhance == "deepfilternet" and not features["deepfilternet"]:
+        print("Warning: DeepFilterNet not available, falling back to aggressive denoise")
+        args.enhance = "aggressive"
 
     # Build config
     config = AudioConfig(
@@ -716,6 +979,8 @@ Examples:
         output_bitrate=args.bitrate,
         normalize=args.normalize,
         demucs_model=args.demucs_model,
+        use_audiosr=args.audio_sr,
+        audiosr_model=args.audiosr_model,
     )
 
     # Process

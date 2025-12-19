@@ -1,215 +1,233 @@
-# TerminalAI Utility Scripts
+# Scripts Directory
 
-This directory contains utility scripts for setup, verification, and analysis.
+This directory contains utility scripts and automation tools for TerminalAI.
 
-## Scripts Overview
+## Available Scripts
 
-### Setup Scripts
+### watch_folder.py - Watch Folder Automation
 
-#### `setup_maxine.py`
-Setup and configure NVIDIA Maxine SDK for AI upscaling.
-
-**Usage:**
-```bash
-python scripts/setup_maxine.py
-```
+Monitors directories for new video files and automatically processes them with configurable presets.
 
 **Features:**
-- Downloads NVIDIA Maxine SDK
-- Configures environment variables
-- Verifies GPU compatibility
-- Tests Maxine functionality
+- Real-time file monitoring using watchdog
+- Multiple watch folder support with different settings per folder
+- Automatic retry on processing errors
+- Move completed/failed files to organized directories
+- YAML configuration support
+- Graceful shutdown (Ctrl+C)
 
-**Requirements:**
-- NVIDIA RTX GPU (20/30/40 series)
-- NVIDIA Driver 535+
-- Windows or Linux
+**Installation:**
+```bash
+pip install watchdog
+```
 
-**Note:** The NVIDIA Maxine installer (~747 MB) is not included in the repository due to GitHub's 100 MB file size limit. Download it manually from:
-- [NVIDIA Developer Portal](https://www.nvidia.com/en-us/geforce/broadcasting/broadcast-sdk/resources/)
-- Place in `scripts/` directory before running setup
+**Basic Usage:**
+```bash
+# Watch a single folder
+python scripts/watch_folder.py \
+  --input ~/Videos/to_process \
+  --output ~/Videos/processed \
+  --preset vhs
+
+# Watch multiple folders with config file
+python scripts/watch_folder.py --config watch_config.yaml
+
+# Process existing files before starting watch
+python scripts/watch_folder.py --config watch_config.yaml --process-existing
+
+# Generate example config file
+python scripts/watch_folder.py --create-config watch_config.yaml
+```
+
+**Configuration File Example:**
+```yaml
+watch_folders:
+  - input_dir: ~/Videos/vhs_to_process
+    output_dir: ~/Videos/vhs_processed
+    preset: vhs
+    resolution: 1080
+    move_on_complete: true
+    delete_on_complete: false
+    retry_on_error: true
+    max_retries: 3
+    # Optional advanced settings
+    face_restore: true
+    audio_enhance: voice
+    audio_upmix: demucs
+    encoder: hevc_nvenc
+    crf: 18
+    
+  - input_dir: ~/Videos/youtube_to_process
+    output_dir: ~/Videos/youtube_processed
+    preset: youtube
+    resolution: 1080
+```
+
+**Directory Structure:**
+When processing completes, the watch folder automatically organizes files:
+
+```
+input_dir/
+├── video1.mp4          # Currently processing or pending
+├── video2.mp4
+├── _completed/         # Successfully processed originals moved here
+│   ├── video0.mp4
+│   └── old_tape.avi
+└── _failed/            # Failed processing originals moved here
+    └── corrupted.mp4
+
+output_dir/
+├── video0_processed.mp4
+└── old_tape_processed.avi
+```
+
+**Workflow:**
+1. Drop video file into `input_dir`
+2. Watch folder detects new file
+3. Waits for file to finish copying (3 stable size checks)
+4. Adds to processing queue with configured preset
+5. Monitors job completion
+6. On success: Moves original to `_completed/`, outputs processed video to `output_dir`
+7. On failure: Retries up to `max_retries`, then moves to `_failed/`
+
+**Advanced Options:**
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `preset` | Processing preset (vhs, dvd, youtube, etc.) | vhs |
+| `resolution` | Output resolution (720, 1080, 2160) | 1080 |
+| `move_on_complete` | Move original to `_completed/` after success | true |
+| `delete_on_complete` | Delete original after success (USE WITH CAUTION) | false |
+| `retry_on_error` | Retry failed jobs automatically | true |
+| `max_retries` | Maximum retry attempts | 3 |
+| `encoder` | Video encoder (h264_nvenc, hevc_nvenc, libx265) | (preset default) |
+| `crf` | Quality (lower = better, 15-28) | (preset default) |
+| `face_restore` | Enable face restoration with GFPGAN | false |
+| `audio_enhance` | Audio enhancement mode (light, voice, music) | (none) |
+| `audio_upmix` | Surround upmix (simple, demucs) | (none) |
+| `deinterlace` | Deinterlacing algorithm (yadif, qtgmc) | (preset default) |
+| `denoise` | Denoise level (light, medium, heavy) | (preset default) |
+
+**Command-Line Arguments:**
+```
+--config, -c       YAML configuration file path
+--input, -i        Input directory to watch (single folder mode)
+--output, -o       Output directory (single folder mode)
+--preset, -p       Processing preset (default: vhs)
+--resolution, -r   Output resolution (default: 1080)
+--process-existing Process existing files before watching
+--create-config    Generate example config file
+--log-level        Logging level (DEBUG, INFO, WARNING, ERROR)
+```
+
+**Logging:**
+The watch folder system logs all activity:
+- File detection
+- Processing queue additions
+- Job completion/failure
+- File moves
+- Errors with stack traces
+
+Set log level with `--log-level DEBUG` for detailed output.
+
+**Stopping the Watcher:**
+Press `Ctrl+C` to gracefully shut down. The system will:
+1. Stop monitoring folders
+2. Complete any in-progress file checks
+3. Shut down observers cleanly
+
+**Production Deployment:**
+
+Run as a system service (Linux/macOS):
+```bash
+# Create systemd service: /etc/systemd/system/terminalai-watch.service
+[Unit]
+Description=TerminalAI Watch Folder Automation
+After=network.target
+
+[Service]
+Type=simple
+User=your_username
+WorkingDirectory=/path/to/terminalai
+ExecStart=/usr/bin/python3 scripts/watch_folder.py --config /path/to/watch_config.yaml
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable and start:
+```bash
+sudo systemctl enable terminalai-watch
+sudo systemctl start terminalai-watch
+sudo systemctl status terminalai-watch
+```
+
+**Windows Service:**
+Use NSSM (Non-Sucking Service Manager):
+```cmd
+nssm install TerminalAIWatch "C:\Python39\python.exe" "scripts\watch_folder.py --config watch_config.yaml"
+nssm start TerminalAIWatch
+```
+
+**Docker Deployment:**
+```dockerfile
+FROM python:3.10
+WORKDIR /app
+COPY . .
+RUN pip install -e ".[full]" watchdog
+CMD ["python", "scripts/watch_folder.py", "--config", "/config/watch_config.yaml"]
+```
+
+Mount volumes for input/output directories:
+```bash
+docker run -d \
+  -v /path/to/input:/input \
+  -v /path/to/output:/output \
+  -v /path/to/config:/config \
+  terminalai-watch
+```
+
+**Best Practices:**
+
+1. **Use separate directories** for each content type (VHS, DVD, YouTube) with appropriate presets
+2. **Test with small files first** to verify settings before batch processing
+3. **Monitor disk space** - processing can temporarily use 2-3x source file size
+4. **Enable retry_on_error** for production to handle transient failures
+5. **Use `--process-existing`** carefully - it processes ALL files in directory
+6. **Backup important files** before using `delete_on_complete`
+7. **Set appropriate max_retries** (3 is recommended, 1 for fast fail)
+
+**Troubleshooting:**
+
+**Files not being detected:**
+- Check input directory path is correct
+- Verify file extensions are supported (.mp4, .avi, .mkv, .mov)
+- Ensure files are fully copied (watch folder waits for stable file size)
+- Check log output with `--log-level DEBUG`
+
+**Processing failures:**
+- Check output directory has write permissions
+- Verify FFmpeg is installed and in PATH
+- Check GPU/upscale engine availability
+- Review failed files in `_failed/` directory
+
+**High CPU/Memory usage:**
+- Reduce concurrent processing (use queue's worker limit)
+- Use faster presets (youtube vs vhs_heavy)
+- Lower resolution output
+- Disable face restoration if not needed
+
+**Files stuck in "processing":**
+- Check process is still running
+- Review logs for errors
+- Kill and restart watch folder service
+- Files will be re-detected on restart
 
 ---
 
-#### `verify_setup.py`
-Comprehensive environment verification tool.
-
-**Usage:**
-```bash
-python scripts/verify_setup.py
-```
-
-**Checks:**
-- Python version and dependencies
-- FFmpeg installation and codecs
-- GPU availability (NVIDIA, AMD, Intel)
-- Maxine SDK (if installed)
-- Real-ESRGAN (if installed)
-- Audio processing dependencies (Demucs, PyTorch)
-- Write permissions
-
-**Output:**
-- Detailed report of available features
-- Missing dependency warnings
-- Recommended actions
-
----
-
-### Download Scripts
-
-#### `download_youtube.py`
-Standalone YouTube video downloader using yt-dlp.
-
-**Usage:**
-```bash
-# Download single video
-python scripts/download_youtube.py "https://youtube.com/watch?v=VIDEO_ID"
-
-# Download with custom quality
-python scripts/download_youtube.py "https://youtube.com/watch?v=VIDEO_ID" --quality 1080p
-
-# Download playlist
-python scripts/download_youtube.py "https://youtube.com/playlist?list=PLAYLIST_ID"
-```
-
-**Options:**
-- `--quality` - Video quality (480p, 720p, 1080p, 2160p, best)
-- `--output` - Output directory
-- `--format` - Video format (mp4, mkv, webm)
-
-**Features:**
-- Playlist support
-- Quality selection
-- Metadata extraction
-- Progress tracking
-- Resume downloads
-
----
-
-### Analysis Scripts
-
-#### `video_analyzer.sh`
-Bash-based video analyzer for systems without Python/OpenCV.
-
-**Usage:**
-```bash
-# Analyze video
-bash scripts/video_analyzer.sh input.mp4
-
-# Save analysis to JSON
-bash scripts/video_analyzer.sh input.mp4 > analysis.json
-```
-
-**Detects:**
-- Scan type (progressive/interlaced)
-- Video resolution and framerate
-- Codec information
-- Noise level estimation
-- Source format hints
-- Duration and file size
-
-**Requirements:**
-- FFmpeg with ffprobe
-- jq (JSON processor)
-- Bash 4.0+
-
-**Output Format:**
-JSON compatible with Python analyzer wrapper
-
----
-
-### Utility Scripts
-
-#### `generate_luts.py`
-Generate color grading LUT files for video processing.
-
-**Usage:**
-```bash
-# Generate all default LUTs
-python scripts/generate_luts.py
-
-# Generate specific LUT
-python scripts/generate_luts.py --type vhs_restore
-
-# Custom LUT parameters
-python scripts/generate_luts.py --type custom --warmth 1.2 --saturation 1.1
-```
-
-**LUT Types:**
-- `vhs_restore` - Restore VHS color characteristics
-- `warm_vintage` - Warm, vintage film look
-- `cool_modern` - Cool, modern color grading
-- `custom` - Custom color grading with parameters
-
-**Output:**
-Generates `.cube` files in `luts/` directory
-
----
-
-## Installation
-
-All scripts are standalone but require the base TerminalAI environment:
-
-```bash
-# Install TerminalAI with dev dependencies
-pip install -e ".[dev]"
-
-# For Maxine setup (Windows/NVIDIA only)
-python scripts/setup_maxine.py
-
-# Verify installation
-python scripts/verify_setup.py
-```
-
-## Integration
-
-These scripts can be called from:
-- Command line (manual execution)
-- TerminalAI main application
-- External automation tools
-- CI/CD pipelines
-
-## Adding New Scripts
-
-When adding utility scripts:
-
-1. **Follow naming convention**: `action_target.py` (e.g., `download_youtube.py`)
-2. **Include shebang**: `#!/usr/bin/env python3` or `#!/usr/bin/env bash`
-3. **Add documentation**: Docstrings and comments
-4. **Update this README**: Add usage instructions
-5. **Make executable**: `chmod +x scripts/new_script.py`
-6. **Add tests**: Create `tests/test_script.py` if applicable
-
-## Troubleshooting
-
-### Script Not Found
-```bash
-# Make sure you're in the project root
-cd terminalai
-
-# Or use absolute path
-python "D:\SSD\AI_Tools\terminalai\scripts\verify_setup.py"
-```
-
-### Permission Denied (Linux/Mac)
-```bash
-chmod +x scripts/*.py scripts/*.sh
-```
-
-### Import Errors
-```bash
-# Install in editable mode
-pip install -e .
-
-# Or run from project root
-cd terminalai
-python scripts/verify_setup.py
-```
-
-## Contributing
-
-See [CONTRIBUTING.md](../CONTRIBUTING.md) for guidelines on adding new scripts.
-
----
-
-For issues or questions, see the main [README](../README.md) or open an [issue](https://github.com/parthalon025/terminalai/issues).
+For more information, see:
+- [Main README](../README.md)
+- [Queue Manager Documentation](../vhs_upscaler/queue_manager.py)
+- [Processing Presets](../vhs_upscaler/config.yaml)

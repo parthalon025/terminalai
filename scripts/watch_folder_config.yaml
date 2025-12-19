@@ -1,0 +1,242 @@
+# Watch Folder Configuration for TerminalAI
+# ==========================================
+# This file defines folders to monitor for automatic video processing.
+#
+# Each watch folder can have its own preset, resolution, and processing settings.
+# When a new video file is detected, it will be automatically processed and
+# moved to the output directory.
+
+watch_folders:
+  # Example 1: VHS tape restoration
+  - input: "./input/vhs"
+    output: "./output/vhs"
+    preset: "vhs"
+    resolution: 1080
+    engine: "auto"
+    encoder: "hevc_nvenc"
+    crf: 20
+
+    # Audio settings
+    audio_enhance: "moderate"
+    audio_upmix: "surround"
+    audio_layout: "stereo"
+
+    # File handling
+    move_on_complete: true        # Move original to _completed subfolder
+    delete_on_complete: false     # Don't delete original files
+    preserve_folder_structure: false  # Don't preserve subfolder structure
+
+    # Error handling
+    max_retries: 2                # Retry failed files 2 times
+    retry_delay: 300              # Wait 5 minutes before retry
+    move_failed_to_error: true    # Move failed files to _errors subfolder
+
+    # File filtering
+    file_patterns: ["*"]          # Process all video files
+    exclude_patterns: []          # No exclusions
+    min_file_size_mb: 1.0         # Skip files smaller than 1MB
+
+  # Example 2: DVD upscaling to 4K
+  - input: "./input/dvd"
+    output: "./output/dvd_4k"
+    preset: "dvd"
+    resolution: 2160
+    engine: "maxine"
+    encoder: "hevc_nvenc"
+    crf: 18
+
+    # Audio settings
+    audio_enhance: "light"
+    audio_upmix: "prologic"
+    audio_layout: "5.1"
+
+    # File handling
+    move_on_complete: true
+    delete_on_complete: false
+    preserve_folder_structure: true  # Keep subfolder organization
+
+    # Error handling
+    max_retries: 3
+    retry_delay: 600
+    move_failed_to_error: true
+
+    # File filtering
+    file_patterns: ["*.vob", "*.mpg", "*.mpeg"]
+    exclude_patterns: ["*_temp*", "*_preview*"]
+    min_file_size_mb: 10.0
+
+  # Example 3: YouTube downloads auto-processing
+  - input: "./input/youtube"
+    output: "./output/youtube"
+    preset: "youtube"
+    resolution: 1080
+    engine: "realesrgan"
+    encoder: "h264_nvenc"
+    crf: 23
+
+    # Audio settings
+    audio_enhance: "none"
+    audio_upmix: "none"
+    audio_layout: "original"
+
+    # File handling
+    move_on_complete: true
+    delete_on_complete: false
+    preserve_folder_structure: false
+
+    # Error handling
+    max_retries: 1
+    retry_delay: 120
+    move_failed_to_error: true
+
+    # File filtering
+    file_patterns: ["*.mp4", "*.webm", "*.mkv"]
+    exclude_patterns: []
+    min_file_size_mb: 5.0
+
+  # Example 4: Clean webcam/digital upscaling
+  - input: "./input/webcam"
+    output: "./output/webcam_enhanced"
+    preset: "clean"
+    resolution: 1080
+    engine: "ffmpeg"
+    encoder: "hevc_nvenc"
+    crf: 20
+
+    # Audio settings
+    audio_enhance: "voice"
+    audio_upmix: "none"
+    audio_layout: "stereo"
+
+    # File handling
+    move_on_complete: true
+    delete_on_complete: false
+    preserve_folder_structure: false
+
+    # Error handling
+    max_retries: 2
+    retry_delay: 180
+    move_failed_to_error: true
+
+    # File filtering
+    file_patterns: ["*.mp4", "*.mov", "*.avi"]
+    exclude_patterns: ["*_raw*"]
+    min_file_size_mb: 2.0
+
+  # Example 5: HDR output for high-quality sources
+  - input: "./input/bluray"
+    output: "./output/bluray_hdr"
+    preset: "clean"
+    resolution: 2160
+    engine: "maxine"
+    encoder: "hevc_nvenc"
+    crf: 16
+    hdr_mode: "hdr10"
+
+    # Audio settings
+    audio_enhance: "none"
+    audio_upmix: "none"
+    audio_layout: "7.1"
+
+    # File handling
+    move_on_complete: true
+    delete_on_complete: false
+    preserve_folder_structure: true
+
+    # Error handling
+    max_retries: 3
+    retry_delay: 900
+    move_failed_to_error: true
+
+    # File filtering
+    file_patterns: ["*.mkv", "*.m2ts"]
+    exclude_patterns: []
+    min_file_size_mb: 100.0
+
+
+# ============================================================================
+# Configuration Options Reference
+# ============================================================================
+#
+# REQUIRED FIELDS:
+# ----------------
+# input: (string) Path to folder to watch for new videos
+# output: (string) Path to folder for processed videos
+#
+# PROCESSING OPTIONS:
+# -------------------
+# preset: (string) Processing preset
+#   Options: vhs, dvd, webcam, youtube, clean
+#   Default: vhs
+#
+# resolution: (int) Target resolution height in pixels
+#   Options: 480, 720, 1080, 1440, 2160, 4320
+#   Default: 1080
+#
+# engine: (string) Upscaling engine to use
+#   Options: auto, maxine, realesrgan, ffmpeg
+#   Default: auto
+#
+# encoder: (string) Video encoder
+#   Options: hevc_nvenc, h264_nvenc, hevc, h264, av1
+#   Default: hevc_nvenc
+#
+# crf: (int) Constant Rate Factor (quality)
+#   Range: 0-51 (lower = better quality, larger file)
+#   Recommended: 18-23
+#   Default: 20
+#
+# hdr_mode: (string) HDR output mode
+#   Options: sdr, hdr10, hlg
+#   Default: sdr
+#
+# AUDIO OPTIONS:
+# --------------
+# audio_enhance: (string) Audio enhancement mode
+#   Options: none, light, moderate, aggressive, voice, music
+#   Default: none
+#
+# audio_upmix: (string) Surround sound upmixing algorithm
+#   Options: none, simple, surround, prologic, demucs
+#   Default: none
+#
+# audio_layout: (string) Target audio channel layout
+#   Options: original, mono, stereo, 5.1, 7.1
+#   Default: original
+#
+# FILE HANDLING:
+# --------------
+# move_on_complete: (bool) Move original to _completed subfolder
+#   Default: true
+#
+# delete_on_complete: (bool) Delete original after processing
+#   Default: false
+#   WARNING: This permanently deletes the original file!
+#
+# preserve_folder_structure: (bool) Maintain subfolder structure in output
+#   Default: false
+#
+# ERROR HANDLING:
+# ---------------
+# max_retries: (int) Number of times to retry failed processing
+#   Default: 2
+#
+# retry_delay: (int) Seconds to wait before retrying
+#   Default: 300 (5 minutes)
+#
+# move_failed_to_error: (bool) Move failed files to _errors subfolder
+#   Default: true
+#
+# FILE FILTERING:
+# ---------------
+# file_patterns: (list) Glob patterns to match files
+#   Default: ["*"] (all video files)
+#   Examples: ["*.mp4"], ["*.avi", "*.mkv"], ["family_*.mp4"]
+#
+# exclude_patterns: (list) Glob patterns to exclude files
+#   Default: []
+#   Examples: ["*_temp*", "*_preview*", "*.partial"]
+#
+# min_file_size_mb: (float) Minimum file size in megabytes
+#   Default: 1.0
+#   Use to skip incomplete downloads or corrupt files

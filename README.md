@@ -6,11 +6,12 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/parthalon025/terminalai/releases"><img src="https://img.shields.io/badge/version-1.4.4-blue?style=flat-square" alt="Version 1.4.4"></a>
+  <a href="https://github.com/parthalon025/terminalai/releases"><img src="https://img.shields.io/badge/version-1.5.0-blue?style=flat-square" alt="Version 1.5.0"></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.10+-blue?style=flat-square&logo=python&logoColor=white" alt="Python 3.10+"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License"></a>
   <a href="https://developer.nvidia.com/maxine"><img src="https://img.shields.io/badge/NVIDIA-Maxine-76B900?style=flat-square&logo=nvidia&logoColor=white" alt="NVIDIA Maxine"></a>
   <a href="https://gradio.app/"><img src="https://img.shields.io/badge/Gradio-Web_GUI-orange?style=flat-square" alt="Gradio"></a>
+  <a href="https://github.com/sczhou/CodeFormer"><img src="https://img.shields.io/badge/CodeFormer-Face_Restoration-purple?style=flat-square" alt="CodeFormer"></a>
 </p>
 
 <p align="center">
@@ -109,10 +110,45 @@ Opens automatically at **http://localhost:7860**
 | 🚀 **GPU Accelerated** | RTX Tensor Core + NVENC hardware encoding |
 | 🎨 **HDR Output** | Convert to HDR10 or HLG format |
 | 🔍 **Intelligent Analysis** | Auto-detect video characteristics and recommend optimal settings |
+| 👁️ **Watch Folder Automation** | Monitor directories and auto-process new videos |
+| 🔊 **AI Audio Enhancement** | DeepFilterNet AI denoising and AudioSR upsampling |
+| 👤 **Dual Face Restoration** | GFPGAN and CodeFormer for enhanced face quality |
+| 📬 **Notifications** | Webhook and email alerts for job completion |
 | 💻 **Works Without NVIDIA** | Real-ESRGAN supports AMD/Intel GPUs, FFmpeg for CPU-only |
+
+### What's New in v1.5.0
+
+- **AI Audio Enhancement** - DeepFilterNet and AudioSR Integration:
+  - **DeepFilterNet AI Denoising**: Superior speech clarity compared to traditional FFmpeg filters
+  - **AudioSR Upsampling**: AI-based audio super-resolution to 48kHz with speech/music models
+  - **Automatic Fallbacks**: Gracefully falls back to FFmpeg when AI backends unavailable
+  - **GPU Acceleration**: CUDA support for 5-10× faster processing
+  - **Smart Pipeline**: AudioSR before upmixing, DeepFilterNet for enhancement
+- **CodeFormer Face Restoration**:
+  - Alternative to GFPGAN with ⭐⭐⭐⭐⭐ best-in-class quality
+  - Adjustable fidelity weight (0.5-0.9) for quality/realism balance
+  - Automatic model download and graceful fallback
+  - CLI: `--face-model codeformer --face-fidelity 0.7`
+- **Notification System**:
+  - Webhook notifications (Discord, Slack, custom endpoints)
+  - Email notifications via SMTP
+  - Job completion and error alerts
+  - Configurable via YAML with retry logic
+- **Complete Documentation**:
+  - 7 new quick-start guides (VHS, YouTube, Audio)
+  - AudioSR integration guide (600+ lines)
+  - CodeFormer integration guide (300+ lines)
+  - 50+ new unit tests for reliability
 
 ### What's New in v1.4.x
 
+- **Watch Folder Automation** (v1.4.5):
+  - Monitor directories for new video files and auto-process them
+  - Multi-folder support with individual presets per folder
+  - Smart debouncing and lock file protection
+  - Automatic retry logic for failed processing
+  - YAML configuration with comprehensive options
+  - See [Watch Folder Documentation](docs/WATCH_FOLDER.md)
 - **Intelligent Video Analysis** (v1.4.3):
   - Auto-detect video characteristics (scan type, noise level, source format, content type)
   - Recommend optimal presets and settings based on analysis
@@ -399,6 +435,22 @@ vhs-upscale batch ./input/ ./output/ --parallel 4
 vhs-upscale batch ./input/ ./output/ --resume
 ```
 
+**Watch Folder Automation:**
+```bash
+# Monitor folder and auto-process new videos
+python scripts/watch_folder.py --config watch_config.yaml
+
+# Verbose mode with logging
+python scripts/watch_folder.py --verbose --log-file watch.log
+
+# Example: Auto-process YouTube downloads
+# 1. Download videos to watched folder
+yt-dlp --output "input/youtube/%(title)s.%(ext)s" "https://youtube.com/playlist?list=..."
+
+# 2. Watch folder config automatically processes them
+# See docs/WATCH_FOLDER.md for configuration details
+```
+
 **Preset Testing:**
 ```bash
 # Test all presets on a clip
@@ -416,19 +468,21 @@ vhs-upscale test-presets video.mp4 -o test_results/ --multi-clip --clip-count 5
 
 ### Real-World Examples
 
-**Example 1: Old Family VHS Tape**
+**Example 1: Old Family VHS Tape (NEW: v1.5.0 Features)**
 ```bash
-# Best settings for grainy VHS home videos with dialogue
+# Best settings for grainy VHS home videos with dialogue - using all new AI features
 python -m vhs_upscaler.vhs_upscale \
   -i "family_christmas_1995.mp4" \
   -o "family_christmas_1995_restored.mp4" \
   --preset vhs \
   --engine realesrgan \
   --realesrgan-denoise 0.8 \
-  --audio-enhance voice \
+  --face-restore --face-model codeformer --face-fidelity 0.7 \
+  --audio-enhance deepfilternet \
+  --audio-sr --audiosr-model speech \
   -r 1080
 ```
-*Result: Removes VHS noise, enhances dialogue clarity, upscales to 1080p*
+*Result: AI face restoration, DeepFilterNet audio denoising, AudioSR upsampling to 48kHz, upscales to 1080p*
 
 **Example 2: DVD Movie Backup**
 ```bash
@@ -1242,9 +1296,21 @@ Clean HD          ──▶   4K                     ███░░░░░░
 ### Python Dependencies
 
 ```
+# Core dependencies (required)
 yt-dlp>=2023.0.0    # YouTube downloading
 pyyaml>=6.0         # Configuration
 gradio>=4.0.0       # Web interface
+
+# Optional AI audio features (v1.5.0+)
+deepfilternet>=0.5.0  # AI audio denoising
+audiosr>=0.0.4        # AI audio upsampling
+
+# Optional face restoration alternatives (v1.5.0+)
+codeformer            # Enhanced face restoration
+
+# Optional automation features
+watchdog>=3.0.0       # Watch folder automation
+requests              # Webhook notifications
 ```
 
 ---

@@ -172,8 +172,12 @@ def process_job(job: QueueJob, progress_callback) -> bool:
             lut_strength=getattr(job, 'lut_strength', 1.0),
             # Face restoration options
             face_restore=getattr(job, 'face_restore', False),
+            face_model=getattr(job, 'face_model', 'gfpgan'),
             face_restore_strength=getattr(job, 'face_restore_strength', 0.5),
             face_restore_upscale=getattr(job, 'face_restore_upscale', 2),
+            # AudioSR options
+            audio_sr_enabled=getattr(job, 'audio_sr_enabled', False),
+            audio_sr_model=getattr(job, 'audio_sr_model', 'basic'),
             # Deinterlacing options
             deinterlace_algorithm=getattr(job, 'deinterlace_algorithm', 'yadif'),
             qtgmc_preset=getattr(job, 'qtgmc_preset', None),
@@ -445,8 +449,10 @@ def add_to_queue(input_source: str, preset: str, resolution: int,
                  demucs_shifts: int = 1, lfe_crossover: int = 120,
                  center_mix: float = 0.707, surround_delay: int = 15,
                  lut_file: str = "", lut_strength: float = 1.0,
-                 face_restore: bool = False, face_restore_strength: float = 0.5,
+                 face_restore: bool = False, face_model: str = "gfpgan",
+                 face_restore_strength: float = 0.5,
                  face_restore_upscale: int = 2,
+                 audio_sr_enabled: bool = False, audio_sr_model: str = "basic",
                  deinterlace_algorithm: str = "yadif", qtgmc_preset: str = "medium") -> Tuple[str, str]:
     """Add a video to the processing queue."""
     initialize_queue()
@@ -486,8 +492,11 @@ def add_to_queue(input_source: str, preset: str, resolution: int,
         lut_file=lut_file if lut_file.strip() else None,
         lut_strength=lut_strength,
         face_restore=face_restore,
+        face_model=face_model,
         face_restore_strength=face_restore_strength,
         face_restore_upscale=face_restore_upscale,
+        audio_sr_enabled=audio_sr_enabled,
+        audio_sr_model=audio_sr_model,
         deinterlace_algorithm=deinterlace_algorithm,
         qtgmc_preset=qtgmc_preset if qtgmc_preset != "none" else None
     )
@@ -726,6 +735,126 @@ def set_output_directory(path: str) -> str:
 # =============================================================================
 # Build Gradio Interface
 # =============================================================================
+
+# =============================================================================
+# Quick Fix Preset Configurations
+# =============================================================================
+
+def get_quick_fix_presets():
+    """Returns quick-fix preset configurations that match best practices."""
+    return {
+        "vhs_home": {
+            "name": "VHS Home Movies",
+            "preset": "vhs",
+            "resolution": 1080,
+            "crf": 18,
+            "encoder": "hevc_nvenc",
+            "upscale_engine": "auto",
+            "face_restore": True,
+            "face_model": "gfpgan",
+            "face_restore_strength": 0.5,
+            "audio_enhance": "voice",
+            "audio_upmix": "demucs",
+            "audio_layout": "5.1",
+            "audio_sr_enabled": True,
+            "audio_sr_model": "speech",
+            "deinterlace_algorithm": "yadif",
+            "info": "Optimized for family VHS tapes with face restoration, AudioSR upsampling, and dialogue enhancement"
+        },
+        "vhs_noisy": {
+            "name": "Noisy VHS",
+            "preset": "vhs",
+            "resolution": 1080,
+            "crf": 18,
+            "encoder": "hevc_nvenc",
+            "upscale_engine": "realesrgan",
+            "realesrgan_model": "realesrgan-x4plus",
+            "realesrgan_denoise": 0.8,
+            "face_restore": False,
+            "audio_enhance": "aggressive",
+            "deinterlace_algorithm": "qtgmc",
+            "qtgmc_preset": "medium",
+            "info": "Heavy denoising for damaged/noisy VHS tapes with QTGMC deinterlacing"
+        },
+        "dvd_rip": {
+            "name": "DVD Rip",
+            "preset": "dvd",
+            "resolution": 1080,
+            "crf": 20,
+            "encoder": "hevc_nvenc",
+            "upscale_engine": "auto",
+            "face_restore": False,
+            "audio_enhance": "light",
+            "deinterlace_algorithm": "yadif",
+            "info": "Light processing for DVD sources with minimal denoise"
+        },
+        "youtube_old": {
+            "name": "Old YouTube",
+            "preset": "youtube",
+            "resolution": 1080,
+            "crf": 20,
+            "encoder": "hevc_nvenc",
+            "upscale_engine": "realesrgan",
+            "face_restore": False,
+            "audio_enhance": "moderate",
+            "info": "Deblocking and artifact removal for compressed YouTube videos"
+        },
+        "anime": {
+            "name": "Anime/Animation",
+            "preset": "clean",
+            "resolution": 1080,
+            "crf": 18,
+            "encoder": "hevc_nvenc",
+            "upscale_engine": "realesrgan",
+            "realesrgan_model": "realesr-animevideov3",
+            "face_restore": False,
+            "audio_enhance": "none",
+            "info": "Anime-optimized AI model for sharp lines and vibrant colors"
+        },
+        "webcam": {
+            "name": "Webcam Footage",
+            "preset": "webcam",
+            "resolution": 1080,
+            "crf": 20,
+            "encoder": "hevc_nvenc",
+            "upscale_engine": "auto",
+            "face_restore": False,
+            "audio_enhance": "voice",
+            "info": "Heavy denoise for low-quality webcam footage, no deinterlacing"
+        },
+        "clean": {
+            "name": "Clean Digital",
+            "preset": "clean",
+            "resolution": 1080,
+            "crf": 18,
+            "encoder": "hevc_nvenc",
+            "upscale_engine": "auto",
+            "face_restore": False,
+            "audio_enhance": "none",
+            "info": "Minimal processing for already clean high-quality sources"
+        },
+        "best_quality": {
+            "name": "Best Quality (Slow)",
+            "preset": "vhs",
+            "resolution": 1080,
+            "crf": 15,
+            "quality": 0,
+            "encoder": "libx265",
+            "upscale_engine": "maxine",
+            "face_restore": True,
+            "face_model": "codeformer",
+            "face_restore_strength": 0.7,
+            "audio_enhance": "deepfilternet",
+            "audio_upmix": "demucs",
+            "audio_layout": "7.1",
+            "audio_sr_enabled": True,
+            "audio_sr_model": "speech",
+            "deinterlace_algorithm": "qtgmc",
+            "qtgmc_preset": "slow",
+            "info": "Maximum quality settings - QTGMC deinterlace, Maxine upscale, CodeFormer faces, AudioSR + DeepFilterNet audio, 7.1 surround (very slow)"
+        }
+    }
+
 
 def create_gui() -> gr.Blocks:
     """Create the Gradio interface."""
@@ -998,6 +1127,19 @@ def create_gui() -> gr.Blocks:
                                 info="Target output resolution"
                             )
 
+                        # Quick Fix Buttons
+                        gr.Markdown("### 🎯 Quick Fix Presets")
+                        with gr.Row():
+                            btn_vhs_home = gr.Button("📼 VHS Home Movies", size="sm", variant="secondary")
+                            btn_vhs_noisy = gr.Button("🔊 Noisy VHS", size="sm", variant="secondary")
+                            btn_dvd_rip = gr.Button("💿 DVD Rip", size="sm", variant="secondary")
+                            btn_youtube_old = gr.Button("📺 Old YouTube", size="sm", variant="secondary")
+                        with gr.Row():
+                            btn_anime = gr.Button("🎨 Anime/Animation", size="sm", variant="secondary")
+                            btn_webcam = gr.Button("🎥 Webcam Footage", size="sm", variant="secondary")
+                            btn_clean = gr.Button("✨ Clean Digital", size="sm", variant="secondary")
+                            btn_best_quality = gr.Button("⭐ Best Quality (Slow)", size="sm", variant="primary")
+
                         with gr.Accordion("⚙️ Advanced Options", open=False):
                             with gr.Row():
                                 quality = gr.Radio(
@@ -1099,13 +1241,20 @@ def create_gui() -> gr.Blocks:
 
                             # Face Restoration
                             with gr.Group():
-                                gr.Markdown("**👤 AI Face Restoration** - Enhance faces using GFPGAN (requires additional install)")
+                                gr.Markdown("**👤 AI Face Restoration** - Enhance faces using GFPGAN or CodeFormer (requires additional install)")
                                 with gr.Row():
                                     face_restore = gr.Checkbox(
                                         label="Enable Face Restoration",
                                         value=False,
                                         info="USE for home videos with faces. SKIP for landscapes, animation, or if no faces present."
                                     )
+                                    face_model = gr.Dropdown(
+                                        choices=["gfpgan", "codeformer"],
+                                        value="gfpgan",
+                                        label="Face Model",
+                                        info="USE gfpgan for balance, codeformer for better quality (slower). Both handle VHS/damaged faces."
+                                    )
+                                with gr.Row():
                                     face_restore_strength = gr.Slider(
                                         minimum=0.0, maximum=1.0, value=0.5, step=0.1,
                                         label="Restoration Strength",
@@ -1139,16 +1288,29 @@ def create_gui() -> gr.Blocks:
                             gr.Markdown("*Clean up audio, reduce noise, and optionally create surround sound from stereo*")
                             with gr.Row():
                                 audio_enhance = gr.Dropdown(
-                                    choices=["none", "light", "moderate", "aggressive", "voice", "music"],
+                                    choices=["none", "light", "moderate", "aggressive", "voice", "music", "deepfilternet"],
                                     value="none",
                                     label="Audio Cleanup",
-                                    info="USE: aggressive/voice for VHS (hiss), light for DVD, music for concerts. SKIP (none) for already-clean digital sources."
+                                    info="USE: aggressive/voice for VHS (hiss), deepfilternet for heavy noise (AI, best), music for concerts. SKIP (none) for clean sources."
                                 )
                                 audio_upmix = gr.Dropdown(
                                     choices=["none", "simple", "surround", "prologic", "demucs"],
                                     value="none",
                                     label="Surround Sound Creation",
                                     info="USE demucs for movies (best AI quality), prologic for music. SKIP if source is already surround, mono, or you only have stereo speakers."
+                                )
+                            with gr.Row():
+                                audio_sr_enabled = gr.Checkbox(
+                                    label="Enable AudioSR Upsampling",
+                                    value=False,
+                                    info="USE to enhance low sample rate audio (e.g., VHS 32kHz → 48kHz). Requires AudioSR install. SKIP for already HQ audio."
+                                )
+                                audio_sr_model = gr.Dropdown(
+                                    choices=["basic", "speech", "music"],
+                                    value="basic",
+                                    label="AudioSR Model",
+                                    info="USE speech for dialogue/VHS, music for concerts/soundtracks, basic for general content.",
+                                    visible=False
                                 )
                             with gr.Row():
                                 audio_layout = gr.Dropdown(
@@ -1510,7 +1672,8 @@ def create_gui() -> gr.Blocks:
                                aud_loudness, aud_noise,
                                dem_model, dem_device, dem_shifts,
                                lfe_cross, cent_mix, surr_delay,
-                               lut_path, lut_str, face_rest, face_str, face_up,
+                               lut_path, lut_str, face_rest, face_mdl, face_str, face_up,
+                               aud_sr_enabled, aud_sr_model,
                                deint_algo, qtgmc_pres):
             # Prefer file upload, fall back to URL/path input
             source = file_path if file_path else url_input
@@ -1522,7 +1685,8 @@ def create_gui() -> gr.Blocks:
                 aud_loudness, aud_noise,
                 dem_model, dem_device, dem_shifts,
                 lfe_cross, cent_mix, surr_delay,
-                lut_path, lut_str, face_rest, face_str, face_up,
+                lut_path, lut_str, face_rest, face_mdl, face_str, face_up,
+                aud_sr_enabled, aud_sr_model,
                 deint_algo, qtgmc_pres
             )
 
@@ -1537,7 +1701,8 @@ def create_gui() -> gr.Blocks:
                 audio_target_loudness, audio_noise_floor,
                 demucs_model, demucs_device, demucs_shifts,
                 lfe_crossover, center_mix, surround_delay,
-                lut_file, lut_strength, face_restore, face_restore_strength, face_restore_upscale,
+                lut_file, lut_strength, face_restore, face_model, face_restore_strength, face_restore_upscale,
+                audio_sr_enabled, audio_sr_model,
                 deinterlace_algorithm, qtgmc_preset
             ],
             outputs=[status_msg, queue_display]
@@ -1659,6 +1824,74 @@ def create_gui() -> gr.Blocks:
             inputs=[audio_layout],
             outputs=[surround_options]
         )
+
+        # AudioSR model visibility
+        def update_audiosr_options(enabled):
+            """Show AudioSR model dropdown when AudioSR is enabled."""
+            return gr.update(visible=enabled)
+
+        audio_sr_enabled.change(
+            fn=update_audiosr_options,
+            inputs=[audio_sr_enabled],
+            outputs=[audio_sr_model]
+        )
+
+        # =====================================================================
+        # Quick Fix Preset Click Handlers
+        # =====================================================================
+
+        def apply_quick_fix(preset_key):
+            """Apply a quick-fix preset configuration to all GUI components."""
+            presets = get_quick_fix_presets()
+            config = presets.get(preset_key, {})
+
+            # Return gr.update() for each component to update its value
+            updates = {}
+            updates["preset"] = gr.update(value=config.get("preset", "vhs"))
+            updates["resolution"] = gr.update(value=config.get("resolution", 1080))
+            updates["crf"] = gr.update(value=config.get("crf", 20))
+            updates["quality"] = gr.update(value=config.get("quality", 0))
+            updates["encoder"] = gr.update(value=config.get("encoder", "hevc_nvenc"))
+            updates["upscale_engine"] = gr.update(value=config.get("upscale_engine", "auto"))
+            updates["realesrgan_model"] = gr.update(value=config.get("realesrgan_model", "realesrgan-x4plus"))
+            updates["realesrgan_denoise"] = gr.update(value=config.get("realesrgan_denoise", 0.5))
+            updates["face_restore"] = gr.update(value=config.get("face_restore", False))
+            updates["face_model"] = gr.update(value=config.get("face_model", "gfpgan"))
+            updates["face_restore_strength"] = gr.update(value=config.get("face_restore_strength", 0.5))
+            updates["audio_enhance"] = gr.update(value=config.get("audio_enhance", "none"))
+            updates["audio_upmix"] = gr.update(value=config.get("audio_upmix", "none"))
+            updates["audio_layout"] = gr.update(value=config.get("audio_layout", "original"))
+            updates["audio_sr_enabled"] = gr.update(value=config.get("audio_sr_enabled", False))
+            updates["audio_sr_model"] = gr.update(value=config.get("audio_sr_model", "basic"))
+            updates["deinterlace_algorithm"] = gr.update(value=config.get("deinterlace_algorithm", "yadif"))
+            updates["qtgmc_preset"] = gr.update(value=config.get("qtgmc_preset", "medium"))
+            updates["status_msg"] = gr.update(value=f"✅ Applied: {config.get('info', config.get('name', 'Unknown preset'))}")
+
+            return (
+                updates["preset"], updates["resolution"], updates["crf"], updates["quality"],
+                updates["encoder"], updates["upscale_engine"], updates["realesrgan_model"],
+                updates["realesrgan_denoise"], updates["face_restore"], updates["face_model"],
+                updates["face_restore_strength"], updates["audio_enhance"], updates["audio_upmix"],
+                updates["audio_layout"], updates["audio_sr_enabled"], updates["audio_sr_model"],
+                updates["deinterlace_algorithm"], updates["qtgmc_preset"], updates["status_msg"]
+            )
+
+        # Wire up each quick-fix button
+        output_components = [
+            preset, resolution, crf, quality, encoder, upscale_engine, realesrgan_model,
+            realesrgan_denoise, face_restore, face_model, face_restore_strength, audio_enhance,
+            audio_upmix, audio_layout, audio_sr_enabled, audio_sr_model,
+            deinterlace_algorithm, qtgmc_preset, status_msg
+        ]
+
+        btn_vhs_home.click(fn=lambda: apply_quick_fix("vhs_home"), outputs=output_components)
+        btn_vhs_noisy.click(fn=lambda: apply_quick_fix("vhs_noisy"), outputs=output_components)
+        btn_dvd_rip.click(fn=lambda: apply_quick_fix("dvd_rip"), outputs=output_components)
+        btn_youtube_old.click(fn=lambda: apply_quick_fix("youtube_old"), outputs=output_components)
+        btn_anime.click(fn=lambda: apply_quick_fix("anime"), outputs=output_components)
+        btn_webcam.click(fn=lambda: apply_quick_fix("webcam"), outputs=output_components)
+        btn_clean.click(fn=lambda: apply_quick_fix("clean"), outputs=output_components)
+        btn_best_quality.click(fn=lambda: apply_quick_fix("best_quality"), outputs=output_components)
 
         # Auto-refresh queue and stats every 2 seconds
         def auto_refresh():

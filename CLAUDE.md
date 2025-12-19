@@ -2,13 +2,50 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Working Philosophy
+
+**CRITICAL: Claude should act as a Project Manager and leverage specialized agents for all tasks.**
+
+When working on this project:
+1. **Always use specialized agents** from the Task tool for any non-trivial work
+2. **Delegate intelligently** - match each task to the most appropriate agent type
+3. **Coordinate multiple agents** - launch agents in parallel when tasks are independent
+4. **Plan before executing** - use Plan agents to design approaches before implementation
+5. **Explore thoroughly** - use Explore agents to understand the codebase before making changes
+6. **Review systematically** - use review agents (code-reviewer, security-auditor, etc.) after implementation
+
+**Available Agent Categories:**
+- **Language Specialists**: python-pro, typescript-pro, rust-engineer, etc.
+- **Framework Experts**: react-specialist, nextjs-developer, django-developer, etc.
+- **Domain Experts**: ml-engineer, data-scientist, security-engineer, etc.
+- **Quality Assurance**: code-reviewer, test-automator, security-auditor, etc.
+- **Operations**: devops-engineer, kubernetes-specialist, platform-engineer, etc.
+- **Documentation**: documentation-engineer, technical-writer, api-documenter, etc.
+
+**When to use agents:**
+- Multi-step implementations → Use Plan agent first
+- Code exploration → Use Explore agent
+- Security concerns → Use security-auditor or security-engineer
+- Performance issues → Use performance-engineer
+- Documentation → Use documentation-engineer
+- Testing → Use test-automator
+- Deployment → Use devops-engineer
+
+**Coordination Example:**
+For a new feature, launch agents in parallel:
+- 1 Explore agent to understand existing patterns
+- 1 Plan agent to design the implementation
+- After approval, 1-2 implementation agents
+- 1 test-automator for testing
+- 1 documentation-engineer for docs
+
 ## Project Overview
 
 TerminalAI is an AI-powered video processing suite for upscaling VHS/DVD footage with NVIDIA RTX acceleration, YouTube downloading, audio enhancement, and surround sound upmixing. Built with Python, FFmpeg, and Gradio for a modern web interface.
 
-**Current Version:** 1.4.4
+**Current Version:** 1.5.0
 
-**Production Status:** Production-ready release with comprehensive improvements including bug fixes, security enhancements, CI/CD infrastructure, and complete deployment documentation.
+**Production Status:** Major release with AI audio enhancement (DeepFilterNet, AudioSR), enhanced face restoration (CodeFormer), notification system, and comprehensive documentation. All features tested and production-ready.
 
 ## Key Commands
 
@@ -102,9 +139,12 @@ The application follows a multi-stage pipeline architecture defined in `vhs_upsc
 
 **`AudioProcessor` (audio_processor.py)**
 - Audio enhancement pipeline (noise reduction, EQ, normalization)
+- **DeepFilterNet AI denoising** - Superior speech clarity (v1.5.0)
+- **AudioSR upsampling** - AI-based audio super-resolution to 48kHz (v1.5.0)
 - Surround upmix algorithms (simple, surround, Pro Logic II, Demucs AI)
 - Multiple output formats (AAC, AC3, EAC3, DTS, FLAC)
-- Handles both FFmpeg-based and Demucs AI-based processing
+- Handles both FFmpeg-based and AI-based processing
+- Graceful fallbacks when AI backends unavailable
 
 **`UnifiedProgress` (vhs_upscale.py)**
 - Real-time progress tracking across all pipeline stages
@@ -118,17 +158,45 @@ The application follows a multi-stage pipeline architecture defined in `vhs_upsc
 - Log buffer management (last 100 entries)
 - Thumbnail caching for uploaded videos
 
+**`FaceRestorer` (face_restoration.py)**
+- Dual-backend face restoration (GFPGAN + CodeFormer)
+- **CodeFormer integration** - Best-in-class quality with fidelity control (v1.5.0)
+- Automatic model download and caching
+- Graceful fallback between backends
+
+**`NotificationManager` (notifications.py)**
+- **Webhook notifications** - Discord, Slack, custom endpoints (v1.5.0)
+- **Email notifications** - SMTP-based alerts (v1.5.0)
+- Job completion and error notifications
+- Retry logic with exponential backoff
+
+**`WatchFolderMonitor` (scripts/watch_folder.py)**
+- **File system monitoring** - Automatic video processing (v1.4.5)
+- Multi-folder support with per-folder presets
+- Smart debouncing and lock file protection
+- Automatic retry with configurable delays
+
 ### Module Organization
 
 ```
 vhs_upscaler/
-├── vhs_upscale.py       # Main processing pipeline, VideoUpscaler class
-├── queue_manager.py      # VideoQueue, QueueJob, JobStatus enum
-├── audio_processor.py    # AudioProcessor, audio enhancement
-├── gui.py               # Gradio web interface, AppState
-├── logger.py            # Centralized logging configuration
-├── config.yaml          # Default configuration (presets, paths)
-└── __init__.py          # Package initialization
+├── vhs_upscale.py         # Main processing pipeline, VideoUpscaler class
+├── queue_manager.py        # VideoQueue, QueueJob, JobStatus enum
+├── audio_processor.py      # AudioProcessor, audio enhancement, DeepFilterNet, AudioSR
+├── face_restoration.py     # FaceRestorer, GFPGAN + CodeFormer backends
+├── notifications.py        # NotificationManager, webhooks, email alerts (v1.5.0)
+├── gui.py                 # Gradio web interface, AppState
+├── logger.py              # Centralized logging configuration
+├── config.yaml            # Default configuration (presets, paths)
+└── __init__.py            # Package initialization
+
+scripts/
+└── watch_folder.py        # Watch folder automation system (v1.4.5)
+
+tests/
+├── test_audio_processor_deepfilternet.py  # DeepFilterNet tests (v1.5.0)
+├── test_audio_processor_audiosr.py        # AudioSR tests (v1.5.0)
+└── test_watch_folder.py                   # Watch folder tests (v1.4.5)
 ```
 
 ### Configuration System
@@ -154,10 +222,20 @@ When `--engine auto` is specified, the system selects the best available engine 
 
 Audio processing is modular and optional, controlled by `AudioConfig`:
 
-**Enhancement Modes**: light, moderate, aggressive, voice, music
+**Enhancement Modes**: light, moderate, aggressive, voice, music, **deepfilternet** (v1.5.0)
 - Built with FFmpeg audio filters (highpass, lowpass, compand, dynaudnorm)
 - Voice mode optimized for VHS dialogue clarity
 - Music mode preserves dynamics
+- **DeepFilterNet**: AI-based denoising for superior speech clarity (v1.5.0)
+  - Real-time processing on CPU, 5-10× faster on GPU
+  - Automatic fallback to FFmpeg aggressive mode if unavailable
+
+**AudioSR Upsampling** (v1.5.0):
+- AI-based audio super-resolution to 48kHz
+- Models: basic, speech (VHS/dialogue), music (concerts)
+- GPU acceleration via CUDA
+- Automatic skip if audio already ≥48kHz
+- Graceful fallback to FFmpeg resampling
 
 **Upmix Algorithms**:
 - **simple**: Basic channel mapping (fast, ⭐⭐ quality)
@@ -165,7 +243,17 @@ Audio processing is modular and optional, controlled by `AudioConfig`:
 - **prologic**: Dolby Pro Logic II decode (better, ⭐⭐⭐ quality)
 - **demucs**: AI stem separation (best, ⭐⭐⭐⭐⭐ quality, requires PyTorch)
 
-Demucs processing is isolated in `AudioProcessor._upmix_demucs()` and gracefully falls back if unavailable.
+**Processing Order** (v1.5.0 optimized):
+```
+1. Audio Extraction
+2. Enhancement (DeepFilterNet or FFmpeg)
+3. AudioSR Upsampling (if needed)
+4. Surround Upmix (optional)
+5. Normalization
+6. Encoding
+```
+
+All AI processing includes graceful fallbacks when dependencies are unavailable.
 
 ## Important Implementation Details
 
@@ -205,15 +293,20 @@ HDR output (hdr10, hlg) is handled via FFmpeg filters:
 
 ## Testing Architecture
 
-**Test Structure** (90+ tests):
+**Test Structure** (140+ tests):
 - `test_gui_helpers.py` - GUI utility functions (formatting, status emojis)
 - `test_gui_integration.py` - GUI component integration tests
 - `test_queue_manager.py` - Queue operations, threading, callbacks
+- `test_audio_processor_deepfilternet.py` - DeepFilterNet AI denoising (v1.5.0, 14 tests)
+- `test_audio_processor_audiosr.py` - AudioSR upsampling (v1.5.0, 20+ tests)
+- `test_watch_folder.py` - Watch folder automation (v1.4.5, 20+ tests)
 
 Tests use:
 - `pytest` fixtures for setup/teardown
-- `unittest.mock` for patching subprocess calls
+- `unittest.mock` for patching subprocess calls and AI backends
 - Temporary directories for file operations
+- Feature detection mocking for optional dependencies
+- Graceful fallback validation
 
 ## Preset System
 
@@ -263,8 +356,18 @@ The preset system allows consistent processing profiles while still supporting p
 - NVIDIA Maxine SDK (best AI upscaling on RTX GPUs)
 - Real-ESRGAN ncnn-vulkan (AI upscaling for non-NVIDIA GPUs)
 
-**Optional for Audio:**
+**Optional for Audio (v1.5.0):**
+- **DeepFilterNet** (AI audio denoising, superior speech clarity)
+- **AudioSR** (AI audio upsampling to 48kHz with speech/music models)
 - PyTorch, torchaudio, Demucs (AI audio separation for best surround upmix)
+
+**Optional for Face Restoration (v1.5.0):**
+- **CodeFormer** (best-in-class face restoration, alternative to GFPGAN)
+- GFPGAN (face restoration, good quality)
+
+**Optional for Automation:**
+- **watchdog** (watch folder file system monitoring, v1.4.5)
+- **requests** (webhook notifications, v1.5.0)
 
 The application gracefully handles missing optional dependencies and provides appropriate fallbacks or disables features.
 

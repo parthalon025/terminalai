@@ -15,6 +15,12 @@ from pathlib import Path
 from typing import Optional, List, Callable, Dict
 import traceback
 
+try:
+    from .notifications import Notifier, format_size, format_duration
+    HAS_NOTIFICATIONS = True
+except ImportError:
+    HAS_NOTIFICATIONS = False
+
 
 class JobStatus(Enum):
     """Status of a queue job."""

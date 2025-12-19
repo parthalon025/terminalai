@@ -24,14 +24,14 @@ try:
 
     # Test job creation
     job = QueueJob(
-        job_id="test-001",
-        input_path="/path/to/input.mp4",
+        id="test-001",
+        input_source="/path/to/input.mp4",
         output_path="/path/to/output.mp4",
         preset="vhs",
         resolution=1080
     )
     print(f"✓ QueueJob created successfully")
-    print(f"  Job ID: {job.job_id}")
+    print(f"  Job ID: {job.id}")
     print(f"  Status: {job.status}")
 
     # Test status enum

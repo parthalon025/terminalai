@@ -11,10 +11,14 @@ Complete documentation for TerminalAI video processing suite.
 
 ## User Guides
 
+### Quick Start Guides
+- [YouTube Enhancement Quick Start](QUICKSTART_YOUTUBE.md) - Download and enhance YouTube videos
+- [Audio Enhancement Quick Start](QUICKSTART_AUDIO.md) - Audio restoration and surround upmixing
+- [Deinterlace Quick Start](DEINTERLACE_QUICKSTART.md) - Fast deinterlacing setup
+
 ### Core Features
 - [Deinterlacing Guide](DEINTERLACING.md) - Complete deinterlacing documentation
 - [Deinterlace Integration](DEINTERLACE_INTEGRATION.md) - Integration details
-- [Deinterlace Quick Start](DEINTERLACE_QUICKSTART.md) - Fast setup guide
 - [Face Restoration](FACE_RESTORATION.md) - Face enhancement with GFPGAN/CodeFormer
 - [LUT Guide](LUT_GUIDE.md) - Color grading with LUTs
 

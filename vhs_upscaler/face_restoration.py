@@ -1,18 +1,28 @@
 #!/usr/bin/env python3
 """
-GFPGAN Face Restoration Module
-===============================
+Face Restoration Module
+=======================
 
-AI-powered face restoration using GFPGAN for VHS and low-quality video footage.
+AI-powered face restoration using GFPGAN or CodeFormer for VHS and low-quality video footage.
 
-GFPGAN (Generative Facial Prior GAN) is designed to restore severely degraded faces
-in images and videos. It's particularly effective for:
+Supports two face restoration backends:
+1. **GFPGAN** - Generative Facial Prior GAN (default)
+   - Fast processing
+   - Good general-purpose restoration
+   - Weight control (0.0-1.0)
+
+2. **CodeFormer** - Code-based restoration with fidelity control
+   - Superior quality
+   - Fidelity weight (0.5-0.9) for balance between quality and likeness
+   - Slower but better results
+
+Both are particularly effective for:
 - VHS talking head videos
 - Old home video portraits
 - Low-resolution webcam footage
 - Digitized analog video interviews
 
-This module provides a high-level wrapper around GFPGAN for video processing.
+This module provides a high-level wrapper around both backends for video processing.
 """
 
 import logging
@@ -41,10 +51,10 @@ logger = logging.getLogger(__name__)
 
 class FaceRestorer:
     """
-    GFPGAN-based face restoration for video processing.
+    Multi-backend face restoration for video processing.
 
-    Handles model downloading, frame extraction, face restoration,
-    and video reassembly with audio preservation.
+    Supports GFPGAN and CodeFormer backends with automatic model downloading,
+    frame extraction, face restoration, and video reassembly with audio preservation.
     """
 
     # GFPGAN model URLs (official releases)
@@ -63,32 +73,58 @@ class FaceRestorer:
         },
     }
 
+    # CodeFormer model URLs (official releases)
+    CODEFORMER_MODELS = {
+        "v0.1.0": {
+            "url": "https://github.com/sczhou/CodeFormer/releases/download/v0.1.0/codeformer.pth",
+            "filename": "codeformer.pth",
+            "size_mb": 360,
+            "description": "CodeFormer v0.1.0 - Superior quality with fidelity control"
+        }
+    }
+
     DEFAULT_MODEL = "v1.3"
+    DEFAULT_BACKEND = "gfpgan"
 
     def __init__(
         self,
         model_path: Optional[Path] = None,
         model_version: str = "v1.3",
-        ffmpeg_path: str = "ffmpeg"
+        ffmpeg_path: str = "ffmpeg",
+        backend: str = "gfpgan"
     ):
         """
         Initialize Face Restorer.
 
         Args:
-            model_path: Custom path to GFPGAN model file (.pth)
+            model_path: Custom path to model file (.pth)
                        If None, uses default model directory
-            model_version: GFPGAN version to use ("v1.3" or "v1.4")
+            model_version: Model version to use ("v1.3", "v1.4" for GFPGAN, "v0.1.0" for CodeFormer)
             ffmpeg_path: Path to ffmpeg executable
+            backend: Face restoration backend ("gfpgan" or "codeformer")
         """
         self.ffmpeg_path = ffmpeg_path
         self.model_version = model_version
+        self.backend = backend.lower()
         self.model_path = model_path or self._get_default_model_path()
-        self.has_gfpgan = self._check_gfpgan()
 
-        if self.has_gfpgan:
-            logger.info(f"GFPGAN available: {self.model_path}")
+        # Check backend availability
+        if self.backend == "gfpgan":
+            self.has_backend = self._check_gfpgan()
+            backend_name = "GFPGAN"
+        elif self.backend == "codeformer":
+            self.has_backend = self._check_codeformer()
+            backend_name = "CodeFormer"
         else:
-            logger.warning("GFPGAN not available - face restoration disabled")
+            logger.error(f"Unknown backend: {self.backend}, falling back to GFPGAN")
+            self.backend = "gfpgan"
+            self.has_backend = self._check_gfpgan()
+            backend_name = "GFPGAN"
+
+        if self.has_backend:
+            logger.info(f"{backend_name} available: {self.model_path}")
+        else:
+            logger.warning(f"{backend_name} not available - face restoration disabled")
 
     def _check_gfpgan(self) -> bool:
         """
@@ -116,22 +152,60 @@ class FaceRestorer:
             logger.debug(f"GFPGAN import failed: {e}")
             return False
 
+    def _check_codeformer(self) -> bool:
+        """
+        Check if CodeFormer is available and functional.
+
+        Returns:
+            True if CodeFormer can be imported and used
+        """
+        try:
+            # Try importing CodeFormer dependencies
+            import torch
+            import cv2
+
+            # Try to import CodeFormer if package is installed
+            try:
+                from codeformer import CodeFormer
+            except ImportError:
+                # CodeFormer may not be a package, just check torch availability
+                pass
+
+            # Check if model exists
+            if not self.model_path.exists():
+                logger.warning(
+                    f"CodeFormer model not found at {self.model_path}. "
+                    f"Run with --download-models to download."
+                )
+                return False
+
+            return True
+
+        except ImportError as e:
+            logger.debug(f"CodeFormer dependencies import failed: {e}")
+            return False
+
     def _get_default_model_path(self) -> Path:
         """
-        Get default model path based on version.
+        Get default model path based on backend and version.
 
         Returns:
             Path to model file (may not exist yet)
         """
-        model_dir = Path("models") / "gfpgan"
-        model_dir.mkdir(parents=True, exist_ok=True)
+        if self.backend == "codeformer":
+            model_dir = Path("models") / "codeformer"
+            model_dir.mkdir(parents=True, exist_ok=True)
+            model_info = self.CODEFORMER_MODELS.get(self.model_version, self.CODEFORMER_MODELS["v0.1.0"])
+        else:  # gfpgan
+            model_dir = Path("models") / "gfpgan"
+            model_dir.mkdir(parents=True, exist_ok=True)
+            model_info = self.GFPGAN_MODELS.get(self.model_version, self.GFPGAN_MODELS[self.DEFAULT_MODEL])
 
-        model_info = self.GFPGAN_MODELS.get(self.model_version, self.GFPGAN_MODELS[self.DEFAULT_MODEL])
         return model_dir / model_info["filename"]
 
     def download_model(self, force: bool = False) -> bool:
         """
-        Download GFPGAN model from official GitHub releases.
+        Download model from official GitHub releases (GFPGAN or CodeFormer).
 
         Args:
             force: Force re-download even if model exists
@@ -147,15 +221,17 @@ class FaceRestorer:
             logger.error("requests library not available. Install: pip install requests")
             return False
 
-        model_info = self.GFPGAN_MODELS.get(
-            self.model_version,
-            self.GFPGAN_MODELS[self.DEFAULT_MODEL]
-        )
+        # Select model info based on backend
+        if self.backend == "codeformer":
+            model_info = self.CODEFORMER_MODELS.get(self.model_version, self.CODEFORMER_MODELS["v0.1.0"])
+        else:
+            model_info = self.GFPGAN_MODELS.get(self.model_version, self.GFPGAN_MODELS[self.DEFAULT_MODEL])
 
         url = model_info["url"]
         size_mb = model_info["size_mb"]
 
-        logger.info(f"Downloading GFPGAN {self.model_version} ({size_mb}MB)...")
+        backend_name = "CodeFormer" if self.backend == "codeformer" else "GFPGAN"
+        logger.info(f"Downloading {backend_name} {self.model_version} ({size_mb}MB)...")
         logger.info(f"URL: {url}")
         logger.info(f"Destination: {self.model_path}")
 
@@ -207,16 +283,17 @@ class FaceRestorer:
         output_path: Path,
         upscale: int = 2,
         weight: float = 0.5,
+        fidelity: float = 0.5,
         only_center_face: bool = False,
         aligned: bool = False,
         tile_size: int = 512
     ) -> Path:
         """
-        Process video frames through GFPGAN face restoration.
+        Process video frames through face restoration (GFPGAN or CodeFormer).
 
         Pipeline:
         1. Extract frames from video
-        2. Run GFPGAN on each frame
+        2. Run face restoration on each frame
         3. Reassemble video with restored faces
         4. Remux audio from original
 
@@ -224,8 +301,9 @@ class FaceRestorer:
             input_path: Input video file path
             output_path: Output video file path
             upscale: Upscale factor (1, 2, or 4)
-                    Note: GFPGAN does its own upscaling
-            weight: Face restoration strength (0.0 = original, 1.0 = full restoration)
+                    Note: AI models do their own upscaling
+            weight: Face restoration strength for GFPGAN (0.0 = original, 1.0 = full restoration)
+            fidelity: Fidelity weight for CodeFormer (0.5-0.9, higher = more faithful to original)
             only_center_face: Only restore the largest/center face
             aligned: Whether faces are pre-aligned (False for video)
             tile_size: Tile size for processing (512 or 400, affects VRAM usage)
@@ -234,16 +312,21 @@ class FaceRestorer:
             Path to output video with restored faces
 
         Raises:
-            RuntimeError: If GFPGAN not available or processing fails
+            RuntimeError: If backend not available or processing fails
         """
-        if not self.has_gfpgan:
-            logger.warning("GFPGAN not available, returning original video")
+        if not self.has_backend:
+            backend_name = "CodeFormer" if self.backend == "codeformer" else "GFPGAN"
+            logger.warning(f"{backend_name} not available, returning original video")
             return input_path
 
-        logger.info("Starting GFPGAN face restoration...")
+        backend_name = "CodeFormer" if self.backend == "codeformer" else "GFPGAN"
+        logger.info(f"Starting {backend_name} face restoration...")
         logger.info(f"  Input: {input_path}")
         logger.info(f"  Upscale: {upscale}x")
-        logger.info(f"  Weight: {weight}")
+        if self.backend == "codeformer":
+            logger.info(f"  Fidelity: {fidelity}")
+        else:
+            logger.info(f"  Weight: {weight}")
         logger.info(f"  Only center face: {only_center_face}")
 
         # Create temp directory for frame processing
@@ -263,23 +346,34 @@ class FaceRestorer:
             if total_frames == 0:
                 raise RuntimeError("No frames extracted from video")
 
-            # Run GFPGAN
+            # Run face restoration with selected backend
             restored_dir = temp_path / "restored"
-            logger.info("Running GFPGAN face restoration...")
-            self._process_frames_gfpgan(
-                frames_dir=frames_dir,
-                output_dir=restored_dir,
-                upscale=upscale,
-                weight=weight,
-                only_center_face=only_center_face,
-                aligned=aligned,
-                tile_size=tile_size
-            )
+            if self.backend == "codeformer":
+                logger.info("Running CodeFormer face restoration...")
+                self._process_frames_codeformer(
+                    frames_dir=frames_dir,
+                    output_dir=restored_dir,
+                    upscale=upscale,
+                    fidelity=fidelity,
+                    only_center_face=only_center_face
+                )
+            else:
+                logger.info("Running GFPGAN face restoration...")
+                self._process_frames_gfpgan(
+                    frames_dir=frames_dir,
+                    output_dir=restored_dir,
+                    upscale=upscale,
+                    weight=weight,
+                    only_center_face=only_center_face,
+                    aligned=aligned,
+                    tile_size=tile_size
+                )
 
             # Verify restoration output
             restored_files = sorted(restored_dir.glob("*.png"))
+            backend_name = "CodeFormer" if self.backend == "codeformer" else "GFPGAN"
             if len(restored_files) == 0:
-                raise RuntimeError("GFPGAN produced no output frames")
+                raise RuntimeError(f"{backend_name} produced no output frames")
 
             logger.info(f"Restored {len(restored_files)} frames")
 
@@ -417,6 +511,161 @@ class FaceRestorer:
 
         except Exception as e:
             logger.error(f"GFPGAN processing error: {e}")
+            raise RuntimeError(f"Face restoration failed: {e}")
+
+    def _process_frames_codeformer(
+        self,
+        frames_dir: Path,
+        output_dir: Path,
+        upscale: int,
+        fidelity: float,
+        only_center_face: bool
+    ):
+        """
+        Process frames with CodeFormer.
+
+        Args:
+            frames_dir: Directory containing input frames
+            output_dir: Directory for restored frames
+            upscale: Upscale factor (1, 2, or 4)
+            fidelity: Fidelity weight (0.5-0.9, higher = more faithful to original)
+            only_center_face: Only process center face
+        """
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        try:
+            import torch
+            import cv2
+            import numpy as np
+            from torchvision.transforms.functional import normalize
+
+            # Check for CodeFormer package or load directly
+            try:
+                from codeformer.basicsr.utils import img2tensor, tensor2img
+                from codeformer.facelib.utils.face_restoration_helper import FaceRestoreHelper
+                from codeformer.basicsr.archs.codeformer_arch import CodeFormer as CodeFormerArch
+            except ImportError:
+                # Fallback: Try BasicSR utilities
+                try:
+                    from basicsr.utils import img2tensor, tensor2img
+                    logger.warning("CodeFormer package not found, using BasicSR utilities")
+                    # Need to load CodeFormer model manually
+                    logger.error("CodeFormer architecture not available")
+                    raise RuntimeError("CodeFormer not properly installed")
+                except ImportError:
+                    logger.error("Neither CodeFormer nor BasicSR utilities available")
+                    raise RuntimeError("CodeFormer dependencies not installed")
+
+            # Device setup
+            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+            logger.info(f"Using device: {device}")
+
+            # Initialize CodeFormer model
+            logger.info("Initializing CodeFormer...")
+            net = CodeFormerArch(
+                dim_embd=512,
+                codebook_size=1024,
+                n_head=8,
+                n_layers=9,
+                connect_list=['32', '64', '128', '256']
+            ).to(device)
+
+            # Load checkpoint
+            checkpoint = torch.load(str(self.model_path), map_location=device)
+            if 'params_ema' in checkpoint:
+                net.load_state_dict(checkpoint['params_ema'])
+            elif 'params' in checkpoint:
+                net.load_state_dict(checkpoint['params'])
+            else:
+                net.load_state_dict(checkpoint)
+            net.eval()
+
+            # Initialize face restoration helper
+            face_helper = FaceRestoreHelper(
+                upscale_factor=upscale,
+                face_size=512,
+                crop_ratio=(1, 1),
+                det_model='retinaface_resnet50',
+                save_ext='png',
+                use_parse=True,
+                device=device
+            )
+
+            # Process each frame
+            frame_files = sorted(frames_dir.glob("frame_*.png"))
+
+            for i, frame_path in enumerate(frame_files):
+                if i % 10 == 0:
+                    logger.info(f"Processing frame {i+1}/{len(frame_files)}...")
+
+                # Read frame
+                img = cv2.imread(str(frame_path), cv2.IMREAD_COLOR)
+                if img is None:
+                    logger.warning(f"Could not read frame: {frame_path}")
+                    continue
+
+                # Process with CodeFormer
+                try:
+                    # Detect and align faces
+                    face_helper.clean_all()
+                    face_helper.read_image(img)
+                    face_helper.get_face_landmarks_5(
+                        only_center_face=only_center_face,
+                        resize=640,
+                        eye_dist_threshold=5
+                    )
+                    face_helper.align_warp_face()
+
+                    # Restore each face
+                    for idx, cropped_face in enumerate(face_helper.cropped_faces):
+                        # Prepare input
+                        cropped_face_t = img2tensor(
+                            cropped_face / 255.0,
+                            bgr2rgb=True,
+                            float32=True
+                        )
+                        normalize(
+                            cropped_face_t,
+                            (0.5, 0.5, 0.5),
+                            (0.5, 0.5, 0.5),
+                            inplace=True
+                        )
+                        cropped_face_t = cropped_face_t.unsqueeze(0).to(device)
+
+                        # Inference with fidelity weight
+                        with torch.no_grad():
+                            output = net(cropped_face_t, w=fidelity, adain=True)[0]
+                            restored_face = tensor2img(output, rgb2bgr=True, min_max=(-1, 1))
+
+                        del output
+                        torch.cuda.empty_cache()
+
+                        # Store restored face
+                        face_helper.add_restored_face(restored_face)
+
+                    # Paste faces back to original image
+                    face_helper.get_inverse_affine(None)
+                    restored_img = face_helper.paste_faces_to_input_image()
+
+                    # Save restored frame
+                    output_path = output_dir / frame_path.name
+                    cv2.imwrite(str(output_path), restored_img)
+
+                except Exception as e:
+                    logger.warning(f"Failed to restore frame {frame_path.name}: {e}")
+                    # Copy original frame as fallback
+                    shutil.copy(frame_path, output_dir / frame_path.name)
+
+            logger.info("CodeFormer processing complete")
+
+        except ImportError as e:
+            logger.error(f"CodeFormer dependencies not available: {e}")
+            logger.error("Install: pip install torch opencv-python")
+            logger.error("CodeFormer package: https://github.com/sczhou/CodeFormer")
+            raise RuntimeError("CodeFormer not properly installed")
+
+        except Exception as e:
+            logger.error(f"CodeFormer processing error: {e}")
             raise RuntimeError(f"Face restoration failed: {e}")
 
     def _reassemble_video(

@@ -105,3 +105,33 @@ advanced:
 
   # Log level: DEBUG, INFO, WARNING, ERROR
   log_level: "INFO"
+
+# Notification settings
+# ---------------------
+# Sends alerts when jobs complete or fail via webhook or email
+notifications:
+  enabled: false
+
+  # Webhook notifications (Discord, Slack, or custom)
+  # Get Discord webhook: Server Settings > Integrations > Webhooks > New Webhook
+  # Get Slack webhook: https://api.slack.com/messaging/webhooks
+  webhook:
+    enabled: false
+    url: ""  # Discord/Slack webhook URL
+
+  # Email notifications via SMTP
+  # For Gmail: Enable "App Passwords" in Google Account settings
+  email:
+    enabled: false
+    smtp_server: "smtp.gmail.com"
+    smtp_port: 587
+    smtp_user: ""  # Your email address
+    smtp_password: ""  # Your email password or app password
+    from_email: ""  # From address (usually same as smtp_user)
+    to_email: ""  # Recipient email address
+    use_tls: true
+
+  # What to notify about
+  notify_on_complete: true  # Notify when individual jobs complete
+  notify_on_error: true  # Notify when jobs fail
+  notify_on_batch_complete: true  # Notify when batch processing completes
