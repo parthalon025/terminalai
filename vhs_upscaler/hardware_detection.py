@@ -174,8 +174,9 @@ def detect_nvidia_gpu() -> Optional[HardwareInfo]:
         # Check RTX Video SDK installation
         has_rtx_sdk = _check_rtx_video_sdk_installed()
 
-        # Check CUDA availability via PyTorch
-        has_cuda = _check_pytorch_cuda()
+        # CUDA is available if NVIDIA GPU is detected (confirmed by nvidia-smi)
+        # Don't import PyTorch during detection - let installer handle PyTorch installation
+        has_cuda = True  # nvidia-smi success means CUDA driver is installed
 
         # Get CUDA version from nvidia-smi
         cuda_version = None

@@ -322,66 +322,116 @@ class TerminalAIInstaller:
     def _install_pytorch_windows(self):
         """
         Install PyTorch with CUDA support on Windows.
+        Detects GPU hardware BEFORE downloading to install correct version.
 
         Returns:
             True if successful, False otherwise
         """
-        # Check for NVIDIA GPU
+        # Detect NVIDIA GPU details using nvidia-smi (lightweight, no downloads)
         has_cuda = False
-        cuda_version = "cu121"  # Default to CUDA 12.1
+        cuda_version = None
+        gpu_name = None
+        compute_cap = None
 
         try:
+            # Get GPU name, driver version, and compute capability
             result = subprocess.run(
-                ["nvidia-smi", "--query-gpu=driver_version", "--format=csv,noheader"],
+                ["nvidia-smi", "--query-gpu=name,driver_version,compute_cap", "--format=csv,noheader"],
                 capture_output=True,
                 text=True,
-                check=True
+                check=True,
+                timeout=5
             )
-            driver_version = result.stdout.strip()
-            if driver_version:
-                self.log(f"NVIDIA driver detected: {driver_version}")
-                # Driver 525+ supports CUDA 12.x
-                try:
-                    driver_major = int(driver_version.split('.')[0])
-                    if driver_major >= 525:
-                        cuda_version = "cu121"
-                        has_cuda = True
-                    elif driver_major >= 450:
-                        cuda_version = "cu118"
-                        has_cuda = True
-                except (ValueError, IndexError):
-                    pass
-        except (subprocess.CalledProcessError, FileNotFoundError):
+
+            if result.stdout.strip():
+                parts = [p.strip() for p in result.stdout.strip().split(",")]
+                gpu_name = parts[0] if len(parts) > 0 else None
+                driver_version = parts[1] if len(parts) > 1 else None
+                compute_cap = parts[2] if len(parts) > 2 else None
+
+                self.log(f"Detected GPU: {gpu_name}")
+                self.log(f"Driver: {driver_version}, Compute Capability: {compute_cap}")
+
+                # Determine CUDA version based on Python version and GPU
+                python_version = sys.version_info
+                use_nightly = False
+
+                # RTX 50 series requires PyTorch nightly for compute capability 12.0
+                if gpu_name and "RTX 50" in gpu_name:
+                    use_nightly = True
+                    cuda_version = "cu124"
+                    self.log(f"RTX 50 series detected - installing PyTorch nightly for sm_120 support")
+                elif python_version.minor >= 13:
+                    # Python 3.13+ requires newer PyTorch with cu124
+                    cuda_version = "cu124"
+                    self.log("Python 3.13+ detected - using CUDA 12.4 index")
+                elif python_version.minor == 12:
+                    # Python 3.12 works with cu121 or cu124
+                    cuda_version = "cu121"
+                    self.log("Python 3.12 detected - using CUDA 12.1 index")
+                else:
+                    # Python 3.10-3.11
+                    cuda_version = "cu121"
+                    self.log("Python 3.10/3.11 detected - using CUDA 12.1 index")
+
+                has_cuda = True
+                self.details["use_pytorch_nightly"] = use_nightly
+
+        except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired) as e:
             self.log("No NVIDIA GPU detected - installing CPU-only PyTorch", "WARN")
+            self.log(f"Detection details: {e}", "DEBUG")
 
         # Install PyTorch with appropriate CUDA support
-        if has_cuda:
-            index_url = f"https://download.pytorch.org/whl/{cuda_version}"
-            self.log(f"Installing PyTorch with CUDA {cuda_version} support...")
-        else:
-            index_url = None
-            self.log("Installing CPU-only PyTorch...")
-
         try:
-            packages = ["torch", "torchvision", "torchaudio"]
+            if has_cuda and cuda_version:
+                # Use nightly builds for RTX 50 series (compute capability 12.0)
+                if self.details.get("use_pytorch_nightly", False):
+                    index_url = "https://download.pytorch.org/whl/nightly/cu124"
+                    packages = ["torch", "torchvision", "torchaudio"]
+                    self.log(f"Installing PyTorch NIGHTLY with CUDA {cuda_version} for {gpu_name}...")
+                    self.log("(Nightly required for RTX 50 series sm_120 support)")
+                else:
+                    index_url = f"https://download.pytorch.org/whl/{cuda_version}"
+                    packages = ["torch", "torchvision", "torchaudio"]
+                    self.log(f"Installing PyTorch with CUDA {cuda_version} support for {gpu_name}...")
+            else:
+                index_url = None
+                packages = ["torch", "torchvision", "torchaudio"]
+                self.log("Installing CPU-only PyTorch...")
+
             cmd = [sys.executable, "-m", "pip", "install"] + packages
             if index_url:
                 cmd.extend(["--index-url", index_url])
 
-            subprocess.run(cmd, check=True)
+            subprocess.run(cmd, check=True, timeout=600)
 
             # Verify CUDA availability
             if has_cuda:
-                verify_cmd = [
-                    sys.executable, "-c",
-                    "import torch; print(f'CUDA available: {torch.cuda.is_available()}')"
-                ]
-                result = subprocess.run(verify_cmd, capture_output=True, text=True)
-                self.log(result.stdout.strip())
+                try:
+                    verify_cmd = [
+                        sys.executable, "-c",
+                        "import torch; print(f'CUDA available: {torch.cuda.is_available()}'); "
+                        "print(f'Device: {torch.cuda.get_device_name(0) if torch.cuda.is_available() else \"N/A\"}')"
+                    ]
+                    result = subprocess.run(verify_cmd, capture_output=True, text=True, timeout=10)
+                    self.log(result.stdout.strip())
+
+                    if "CUDA available: False" in result.stdout:
+                        self.warnings.append(
+                            "PyTorch installed but CUDA not available. "
+                            "This may be due to driver/CUDA version mismatch."
+                        )
+                except Exception as e:
+                    self.log(f"CUDA verification warning: {e}", "WARN")
 
             return True
         except subprocess.CalledProcessError as e:
             self.log(f"PyTorch installation failed: {e}", "ERROR")
+            self.errors.append(f"PyTorch installation failed: {e}")
+            return False
+        except subprocess.TimeoutExpired:
+            self.log("PyTorch installation timed out", "ERROR")
+            self.errors.append("PyTorch installation timed out after 10 minutes")
             return False
 
     def check_ffmpeg(self):
