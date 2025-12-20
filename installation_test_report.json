@@ -1,0 +1,72 @@
+{
+  "test_timestamp": "2025-12-19",
+  "python_version": "3.13.5",
+  "tests": {
+    "package_installed": {
+      "status": "PASS",
+      "version": "1.5.1",
+      "location": "d:\\ssd\\ai_tools\\terminalai"
+    },
+    "core_imports": {
+      "status": "PASS",
+      "passed": 6,
+      "total": 6
+    },
+    "exports": {
+      "status": "FAIL",
+      "missing": [],
+      "extra": [
+        "DeinterlaceMethod",
+        "HAS_PRESETS",
+        "AudioChannelLayout",
+        "get_optimal_config",
+        "HAS_AUDIO_PROCESSOR",
+        "get_preset_from_analysis",
+        "AudioFormat",
+        "NotificationManager",
+        "get_recommended_settings_from_analysis",
+        "FaceRestorer",
+        "HardwareInfo",
+        "DeinterlaceConfig",
+        "AudioEnhanceMode",
+        "HAS_HARDWARE_DETECTION",
+        "AudioConfig",
+        "HAS_FACE_RESTORATION",
+        "detect_hardware",
+        "HAS_NOTIFICATIONS",
+        "AudioProcessor",
+        "UpmixMode",
+        "HAS_DEINTERLACE"
+      ]
+    },
+    "version": {
+      "status": "PASS",
+      "version": "1.5.1"
+    },
+    "entry_points": {
+      "status": "PASS",
+      "found": [
+        "terminalai-gui",
+        "terminalai-setup-rtx",
+        "vhs-upscale"
+      ]
+    },
+    "graceful_degradation": {
+      "status": "PASS",
+      "results": {
+        "deepfilternet": "gracefully_degraded",
+        "audiosr": "gracefully_degraded",
+        "gfpgan": "gracefully_degraded",
+        "basicsr": "gracefully_degraded",
+        "demucs": "available",
+        "realesrgan": "gracefully_degraded",
+        "vapoursynth": "gracefully_degraded"
+      }
+    },
+    "python_compatibility": {
+      "status": "PASS",
+      "version": "3.13"
+    }
+  },
+  "overall_status": "FAIL"
+}

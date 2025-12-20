@@ -1,0 +1,236 @@
+{
+  "system_info": {
+    "platform": "Windows-11-10.0.26200-SP0",
+    "system": "Windows",
+    "machine": "AMD64",
+    "processor": "AMD64 Family 26 Model 68 Stepping 0, AuthenticAMD",
+    "python_version": "3.13.5",
+    "python_implementation": "CPython"
+  },
+  "components": {
+    "Python": {
+      "name": "Python",
+      "status": "available",
+      "version": "3.13.5",
+      "details": {
+        "implementation": "CPython",
+        "compiler": "MSC v.1943 64 bit (AMD64)",
+        "platform": "Windows-11-10.0.26200-SP0"
+      },
+      "error_message": null,
+      "suggestions": [],
+      "performance_notes": []
+    },
+    "FFmpeg": {
+      "name": "FFmpeg",
+      "status": "available",
+      "version": "8.0-full_build-www.gyan.dev",
+      "details": {
+        "version": "8.0-full_build-www.gyan.dev",
+        "available_encoders": {
+          "h264_nvenc": "NVIDIA H.264 hardware encoder",
+          "hevc_nvenc": "NVIDIA H.265 hardware encoder",
+          "libx264": "x264 software H.264 encoder",
+          "libx265": "x265 software H.265 encoder",
+          "av1_nvenc": "NVIDIA AV1 hardware encoder",
+          "libsvtav1": "SVT-AV1 software encoder"
+        },
+        "missing_encoders": {},
+        "available_filters": {
+          "yadif": "Deinterlacing",
+          "hqdn3d": "Denoise",
+          "scale_cuda": "CUDA scaling"
+        }
+      },
+      "error_message": null,
+      "suggestions": [],
+      "performance_notes": [
+        "NVIDIA hardware encoding available (fast, efficient)"
+      ]
+    },
+    "GPU": {
+      "name": "GPU",
+      "status": "available",
+      "version": "591.59",
+      "details": {
+        "nvidia_gpus": [
+          {
+            "name": "NVIDIA GeForce RTX 5080",
+            "memory": "16303 MiB",
+            "driver_version": "591.59"
+          }
+        ],
+        "gpu_count": 1
+      },
+      "error_message": null,
+      "suggestions": [],
+      "performance_notes": [
+        "Found 1 NVIDIA GPU(s)",
+        "Optimal configuration for AI processing",
+        "NVENC hardware encoding available"
+      ]
+    },
+    "PyTorch": {
+      "name": "PyTorch",
+      "status": "available",
+      "version": "2.11.0.dev20251219+cu128",
+      "details": {
+        "version": "2.11.0.dev20251219+cu128",
+        "cuda_available": true,
+        "cuda_version": "12.8",
+        "cudnn_version": 91002,
+        "gpu_count": 1,
+        "gpu_devices": [
+          "NVIDIA GeForce RTX 5080"
+        ],
+        "current_device": 0,
+        "performance_test": {
+          "matrix_size": "1000x1000",
+          "iterations": 10,
+          "total_time_ms": 0.84,
+          "avg_time_ms": 0.08
+        }
+      },
+      "error_message": null,
+      "suggestions": [],
+      "performance_notes": [
+        "GPU acceleration available on 1 device(s)"
+      ]
+    },
+    "VapourSynth": {
+      "name": "VapourSynth",
+      "status": "unavailable",
+      "version": null,
+      "details": {},
+      "error_message": "No module named 'vapoursynth'",
+      "suggestions": [
+        "Install VapourSynth runtime: https://github.com/vapoursynth/vapoursynth/releases",
+        "Install Python bindings: pip install vapoursynth",
+        "Install QTGMC: pip install havsfunc",
+        "Required for: Advanced deinterlacing (QTGMC)"
+      ],
+      "performance_notes": []
+    },
+    "GFPGAN": {
+      "name": "GFPGAN",
+      "status": "unavailable",
+      "version": null,
+      "details": {},
+      "error_message": "No module named 'gfpgan'",
+      "suggestions": [
+        "Install GFPGAN: pip install gfpgan",
+        "Install dependencies: pip install basicsr opencv-python",
+        "Required for: Face restoration (good quality, fast)"
+      ],
+      "performance_notes": []
+    },
+    "CodeFormer": {
+      "name": "CodeFormer",
+      "status": "available",
+      "version": "v0.1.0",
+      "details": {
+        "torch_available": true,
+        "opencv_available": true,
+        "opencv_version": "4.12.0",
+        "codeformer_package": false,
+        "model_directory": "models\\codeformer",
+        "models_found": [
+          "codeformer.pth"
+        ]
+      },
+      "error_message": null,
+      "suggestions": [
+        "CodeFormer package not installed (using built-in implementation)"
+      ],
+      "performance_notes": [
+        "GPU acceleration available - optimal for CodeFormer"
+      ]
+    },
+    "DeepFilterNet": {
+      "name": "DeepFilterNet",
+      "status": "unavailable",
+      "version": null,
+      "details": {},
+      "error_message": "No module named 'df'",
+      "suggestions": [
+        "Install DeepFilterNet: pip install deepfilternet",
+        "Requires PyTorch: pip install torch",
+        "Provides superior AI-based audio denoising for speech"
+      ],
+      "performance_notes": []
+    },
+    "AudioSR": {
+      "name": "AudioSR",
+      "status": "unavailable",
+      "version": null,
+      "details": {
+        "torch_available": true,
+        "audiosr_available": false
+      },
+      "error_message": null,
+      "suggestions": [
+        "Install AudioSR: pip install audiosr",
+        "Requires PyTorch: pip install torch",
+        "Provides AI-based audio upsampling to 48kHz"
+      ],
+      "performance_notes": [
+        "GPU acceleration available - recommended for AudioSR"
+      ]
+    },
+    "Demucs": {
+      "name": "Demucs",
+      "status": "available",
+      "version": "4.0.1",
+      "details": {
+        "torch_available": true,
+        "torchaudio_available": true,
+        "torchaudio_version": "2.10.0.dev20251219+cu128",
+        "demucs_available": true,
+        "available_models": [
+          "htdemucs",
+          "htdemucs_ft",
+          "mdx_extra"
+        ]
+      },
+      "error_message": null,
+      "suggestions": [
+        "Models will be downloaded on first use"
+      ],
+      "performance_notes": [
+        "GPU acceleration available - essential for Demucs",
+        "Demucs is very slow on CPU (not recommended)"
+      ]
+    }
+  },
+  "feature_availability": {
+    "basic_video_processing": true,
+    "gpu_acceleration": true,
+    "hardware_encoding": true,
+    "ai_upscaling": true,
+    "advanced_deinterlacing": false,
+    "face_restoration": true,
+    "ai_audio_denoising": false,
+    "ai_audio_upsampling": false,
+    "ai_surround_upmix": true
+  },
+  "warnings": [
+    "VapourSynth: Install VapourSynth runtime: https://github.com/vapoursynth/vapoursynth/releases",
+    "VapourSynth: Install Python bindings: pip install vapoursynth",
+    "VapourSynth: Install QTGMC: pip install havsfunc",
+    "VapourSynth: Required for: Advanced deinterlacing (QTGMC)",
+    "GFPGAN: Install GFPGAN: pip install gfpgan",
+    "GFPGAN: Install dependencies: pip install basicsr opencv-python",
+    "GFPGAN: Required for: Face restoration (good quality, fast)",
+    "DeepFilterNet: Install DeepFilterNet: pip install deepfilternet",
+    "DeepFilterNet: Requires PyTorch: pip install torch",
+    "DeepFilterNet: Provides superior AI-based audio denoising for speech",
+    "AudioSR: Install AudioSR: pip install audiosr",
+    "AudioSR: Requires PyTorch: pip install torch",
+    "AudioSR: Provides AI-based audio upsampling to 48kHz"
+  ],
+  "errors": [],
+  "recommendations": [
+    "Install VapourSynth for QTGMC deinterlacing (best quality for VHS)",
+    "Install DeepFilterNet for superior AI audio denoising"
+  ]
+}

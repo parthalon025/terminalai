@@ -861,22 +861,22 @@ class GPUVerifier(ComponentVerifier):
         nvidia_available = False
         try:
             result = subprocess.run(
-                ["nvidia-smi", "--query-gpu=name,memory.total,driver_version,cuda_version",
+                ["nvidia-smi", "--query-gpu=name,memory.total,driver_version",
                  "--format=csv,noheader"],
                 capture_output=True,
                 text=True,
-                check=True
+                check=True,
+                timeout=5
             )
             gpu_lines = result.stdout.strip().split("\n")
             nvidia_gpus = []
             for line in gpu_lines:
                 parts = [p.strip() for p in line.split(",")]
-                if len(parts) >= 4:
+                if len(parts) >= 3:
                     nvidia_gpus.append({
                         "name": parts[0],
                         "memory": parts[1],
-                        "driver_version": parts[2],
-                        "cuda_version": parts[3]
+                        "driver_version": parts[2]
                     })
 
             if nvidia_gpus:
@@ -885,7 +885,7 @@ class GPUVerifier(ComponentVerifier):
                 details["gpu_count"] = len(nvidia_gpus)
                 performance_notes.append(f"Found {len(nvidia_gpus)} NVIDIA GPU(s)")
 
-        except (subprocess.CalledProcessError, FileNotFoundError):
+        except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
             details["nvidia_gpus"] = []
 
         # Check AMD GPU (basic detection on Windows)

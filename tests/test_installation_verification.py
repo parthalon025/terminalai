@@ -199,7 +199,7 @@ class TestGPUVerifier(unittest.TestCase):
     def test_nvidia_gpu_detected(self, mock_run):
         """Test NVIDIA GPU detection."""
         mock_result = Mock()
-        mock_result.stdout = "NVIDIA GeForce RTX 3080, 10240 MiB, 535.98, 12.2"
+        mock_result.stdout = "NVIDIA GeForce RTX 3080, 10240 MiB, 535.98"
         mock_result.returncode = 0
         mock_run.return_value = mock_result
 
@@ -209,6 +209,11 @@ class TestGPUVerifier(unittest.TestCase):
         self.assertEqual(result.name, "GPU")
         self.assertEqual(result.status, ComponentStatus.AVAILABLE)
         self.assertIn("nvidia_gpus", result.details)
+        # Verify correct parsing of 3-field format (name, memory, driver_version)
+        self.assertEqual(len(result.details["nvidia_gpus"]), 1)
+        self.assertEqual(result.details["nvidia_gpus"][0]["name"], "NVIDIA GeForce RTX 3080")
+        self.assertEqual(result.details["nvidia_gpus"][0]["memory"], "10240 MiB")
+        self.assertEqual(result.details["nvidia_gpus"][0]["driver_version"], "535.98")
 
     @patch('subprocess.run')
     def test_no_gpu(self, mock_run):

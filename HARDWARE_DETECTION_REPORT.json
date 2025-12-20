@@ -1,0 +1,376 @@
+{
+  "generated_at": "2025-12-19T13:27:16.656689",
+  "real_hardware": {
+    "vendor": "nvidia",
+    "tier": "rtx_50",
+    "name": "NVIDIA GeForce RTX 5080",
+    "vram_gb": 15.9208984375,
+    "driver_version": "591.59",
+    "cuda_version": null,
+    "compute_capability": "12.0",
+    "has_nvenc": true,
+    "has_rtx_video_sdk": false,
+    "has_cuda": true,
+    "has_vulkan": true,
+    "gpu_count": 1,
+    "supports_ai_upscaling": true,
+    "supports_hardware_encoding": true,
+    "is_rtx_capable": true
+  },
+  "real_configuration": {
+    "upscale_engine": "realesrgan",
+    "encoder": "hevc_nvenc",
+    "quality": "best",
+    "face_restore": true,
+    "audio_upmix": "demucs",
+    "realesrgan_model": "realesrgan-x4plus",
+    "explanation": "Using RTX 50 series for maximum quality. NVIDIA GeForce RTX 5080 detected with 16GB VRAM.",
+    "warnings": [
+      "RTX Video SDK not installed. Using Real-ESRGAN instead. Install RTX Video SDK for best quality: terminalai-setup-rtx"
+    ]
+  },
+  "test_scenarios": [
+    {
+      "name": "RTX 5090 32GB",
+      "category": "Premium Tier",
+      "hardware": {
+        "vendor": "nvidia",
+        "tier": "rtx_50",
+        "name": "NVIDIA GeForce RTX 5090",
+        "vram_gb": 32.0,
+        "has_nvenc": true,
+        "has_rtx_video_sdk": true,
+        "has_cuda": true
+      },
+      "configuration": {
+        "upscale_engine": "rtxvideo",
+        "encoder": "hevc_nvenc",
+        "quality": "best",
+        "face_restore": true,
+        "audio_upmix": "demucs",
+        "realesrgan_model": "realesrgan-x4plus",
+        "explanation": "Using RTX 50 series for maximum quality. NVIDIA GeForce RTX 5090 detected with 32GB VRAM.",
+        "warnings": []
+      }
+    },
+    {
+      "name": "RTX 5080 16GB",
+      "category": "Premium Tier",
+      "hardware": {
+        "vendor": "nvidia",
+        "tier": "rtx_50",
+        "name": "NVIDIA GeForce RTX 5080",
+        "vram_gb": 16.0,
+        "has_nvenc": true,
+        "has_rtx_video_sdk": true,
+        "has_cuda": true
+      },
+      "configuration": {
+        "upscale_engine": "rtxvideo",
+        "encoder": "hevc_nvenc",
+        "quality": "best",
+        "face_restore": true,
+        "audio_upmix": "demucs",
+        "realesrgan_model": "realesrgan-x4plus",
+        "explanation": "Using RTX 50 series for maximum quality. NVIDIA GeForce RTX 5080 detected with 16GB VRAM.",
+        "warnings": []
+      }
+    },
+    {
+      "name": "RTX 4090 24GB",
+      "category": "High Tier",
+      "hardware": {
+        "vendor": "nvidia",
+        "tier": "rtx_40",
+        "name": "NVIDIA GeForce RTX 4090",
+        "vram_gb": 24.0,
+        "has_nvenc": true,
+        "has_rtx_video_sdk": true,
+        "has_cuda": true
+      },
+      "configuration": {
+        "upscale_engine": "rtxvideo",
+        "encoder": "hevc_nvenc",
+        "quality": "best",
+        "face_restore": true,
+        "audio_upmix": "demucs",
+        "realesrgan_model": "realesrgan-x4plus",
+        "explanation": "Using RTX 40 series for maximum quality. NVIDIA GeForce RTX 4090 detected with 24GB VRAM.",
+        "warnings": []
+      }
+    },
+    {
+      "name": "RTX 4080 16GB",
+      "category": "High Tier",
+      "hardware": {
+        "vendor": "nvidia",
+        "tier": "rtx_40",
+        "name": "NVIDIA GeForce RTX 4080",
+        "vram_gb": 16.0,
+        "has_nvenc": true,
+        "has_rtx_video_sdk": true,
+        "has_cuda": true
+      },
+      "configuration": {
+        "upscale_engine": "rtxvideo",
+        "encoder": "hevc_nvenc",
+        "quality": "best",
+        "face_restore": true,
+        "audio_upmix": "demucs",
+        "realesrgan_model": "realesrgan-x4plus",
+        "explanation": "Using RTX 40 series for maximum quality. NVIDIA GeForce RTX 4080 detected with 16GB VRAM.",
+        "warnings": []
+      }
+    },
+    {
+      "name": "RTX 3090 24GB",
+      "category": "High Tier",
+      "hardware": {
+        "vendor": "nvidia",
+        "tier": "rtx_30",
+        "name": "NVIDIA GeForce RTX 3090",
+        "vram_gb": 24.0,
+        "has_nvenc": true,
+        "has_rtx_video_sdk": true,
+        "has_cuda": true
+      },
+      "configuration": {
+        "upscale_engine": "rtxvideo",
+        "encoder": "hevc_nvenc",
+        "quality": "best",
+        "face_restore": true,
+        "audio_upmix": "demucs",
+        "realesrgan_model": "realesrgan-x4plus",
+        "explanation": "Using RTX 30 series for excellent quality. NVIDIA GeForce RTX 3090 with 24GB VRAM.",
+        "warnings": []
+      }
+    },
+    {
+      "name": "RTX 3060 12GB (No SDK)",
+      "category": "Mid-High Tier",
+      "hardware": {
+        "vendor": "nvidia",
+        "tier": "rtx_30",
+        "name": "NVIDIA GeForce RTX 3060",
+        "vram_gb": 12.0,
+        "has_nvenc": true,
+        "has_rtx_video_sdk": false,
+        "has_cuda": true
+      },
+      "configuration": {
+        "upscale_engine": "realesrgan",
+        "encoder": "hevc_nvenc",
+        "quality": "best",
+        "face_restore": true,
+        "audio_upmix": "demucs",
+        "realesrgan_model": "realesrgan-x4plus",
+        "explanation": "Using RTX 30 series for excellent quality. NVIDIA GeForce RTX 3060 with 12GB VRAM.",
+        "warnings": [
+          "RTX Video SDK not installed. Install for best quality: terminalai-setup-rtx"
+        ]
+      }
+    },
+    {
+      "name": "RTX 3050 4GB (Low VRAM)",
+      "category": "Mid Tier",
+      "hardware": {
+        "vendor": "nvidia",
+        "tier": "rtx_30",
+        "name": "NVIDIA GeForce RTX 3050",
+        "vram_gb": 4.0,
+        "has_nvenc": true,
+        "has_rtx_video_sdk": true,
+        "has_cuda": true
+      },
+      "configuration": {
+        "upscale_engine": "rtxvideo",
+        "encoder": "hevc_nvenc",
+        "quality": "best",
+        "face_restore": false,
+        "audio_upmix": "surround",
+        "realesrgan_model": "realesrgan-x4plus",
+        "explanation": "Using RTX 30 series for excellent quality. NVIDIA GeForce RTX 3050 with 4GB VRAM.",
+        "warnings": [
+          "Limited VRAM - face restoration disabled to prevent out-of-memory errors"
+        ]
+      }
+    },
+    {
+      "name": "GTX 1660 Ti 6GB",
+      "category": "Mid Tier",
+      "hardware": {
+        "vendor": "nvidia",
+        "tier": "gtx_16",
+        "name": "NVIDIA GeForce GTX 1660 Ti",
+        "vram_gb": 6.0,
+        "has_nvenc": true,
+        "has_rtx_video_sdk": false,
+        "has_cuda": true
+      },
+      "configuration": {
+        "upscale_engine": "realesrgan",
+        "encoder": "h264_nvenc",
+        "quality": "balanced",
+        "face_restore": false,
+        "audio_upmix": "surround",
+        "realesrgan_model": "realesrgan-x4plus",
+        "explanation": "Using GTX 16 series with GPU encoding. NVIDIA GeForce GTX 1660 Ti with 6GB VRAM.",
+        "warnings": [
+          "GTX 16 series doesn't support RTX Video SDK. Using Real-ESRGAN for AI upscaling."
+        ]
+      }
+    },
+    {
+      "name": "GTX 1070 8GB",
+      "category": "Mid Tier",
+      "hardware": {
+        "vendor": "nvidia",
+        "tier": "gtx_10",
+        "name": "NVIDIA GeForce GTX 1070",
+        "vram_gb": 8.0,
+        "has_nvenc": true,
+        "has_rtx_video_sdk": false,
+        "has_cuda": true
+      },
+      "configuration": {
+        "upscale_engine": "realesrgan",
+        "encoder": "h264_nvenc",
+        "quality": "balanced",
+        "face_restore": false,
+        "audio_upmix": "simple",
+        "realesrgan_model": "realesrgan-x4plus",
+        "explanation": "Using GTX 10 series with GPU encoding. NVIDIA GeForce GTX 1070 with 8GB VRAM.",
+        "warnings": [
+          "GTX 10 series has limited AI processing power. Face restoration disabled for better performance."
+        ]
+      }
+    },
+    {
+      "name": "AMD RX 7900 XTX 24GB",
+      "category": "High Tier (AMD)",
+      "hardware": {
+        "vendor": "amd",
+        "tier": "amd_rdna3",
+        "name": "AMD Radeon RX 7900 XTX",
+        "vram_gb": 24.0,
+        "has_nvenc": false,
+        "has_rtx_video_sdk": false,
+        "has_cuda": false
+      },
+      "configuration": {
+        "upscale_engine": "realesrgan",
+        "encoder": "libx265",
+        "quality": "balanced",
+        "face_restore": false,
+        "audio_upmix": "surround",
+        "realesrgan_model": "realesrgan-x4plus",
+        "explanation": "Using AMD RDNA3 with Real-ESRGAN (Vulkan). AMD Radeon RX 7900 XTX.",
+        "warnings": [
+          "AMD GPU detected. Using Vulkan-based Real-ESRGAN. Some CUDA-only features unavailable."
+        ]
+      }
+    },
+    {
+      "name": "AMD RX 6800 16GB",
+      "category": "Mid-High Tier (AMD)",
+      "hardware": {
+        "vendor": "amd",
+        "tier": "amd_rdna2",
+        "name": "AMD Radeon RX 6800",
+        "vram_gb": 16.0,
+        "has_nvenc": false,
+        "has_rtx_video_sdk": false,
+        "has_cuda": false
+      },
+      "configuration": {
+        "upscale_engine": "realesrgan",
+        "encoder": "libx265",
+        "quality": "balanced",
+        "face_restore": false,
+        "audio_upmix": "simple",
+        "realesrgan_model": "realesrgan-x4plus",
+        "explanation": "Using AMD RDNA2 with Real-ESRGAN (Vulkan). AMD Radeon RX 6800.",
+        "warnings": [
+          "AMD GPU detected. Real-ESRGAN available via Vulkan. CUDA features unavailable."
+        ]
+      }
+    },
+    {
+      "name": "Intel Arc A770 16GB",
+      "category": "Mid Tier (Intel)",
+      "hardware": {
+        "vendor": "intel",
+        "tier": "intel_arc",
+        "name": "Intel Arc A770",
+        "vram_gb": 16.0,
+        "has_nvenc": false,
+        "has_rtx_video_sdk": false,
+        "has_cuda": false
+      },
+      "configuration": {
+        "upscale_engine": "realesrgan",
+        "encoder": "libx265",
+        "quality": "balanced",
+        "face_restore": false,
+        "audio_upmix": "simple",
+        "realesrgan_model": "realesrgan-x4plus",
+        "explanation": "Using Intel Arc with Real-ESRGAN (Vulkan). Intel Arc A770.",
+        "warnings": [
+          "Intel Arc GPU detected. Using Vulkan-based acceleration."
+        ]
+      }
+    },
+    {
+      "name": "Intel UHD Graphics 770",
+      "category": "Entry Tier (Intel)",
+      "hardware": {
+        "vendor": "intel",
+        "tier": "intel_integrated",
+        "name": "Intel(R) UHD Graphics 770",
+        "vram_gb": 2.0,
+        "has_nvenc": false,
+        "has_rtx_video_sdk": false,
+        "has_cuda": false
+      },
+      "configuration": {
+        "upscale_engine": "ffmpeg",
+        "encoder": "libx265",
+        "quality": "good",
+        "face_restore": false,
+        "audio_upmix": "simple",
+        "realesrgan_model": "realesrgan-x4plus",
+        "explanation": "Using Intel integrated GPU with CPU encoding. Intel(R) UHD Graphics 770.",
+        "warnings": [
+          "Intel integrated GPU has limited performance. Processing will be slow."
+        ]
+      }
+    },
+    {
+      "name": "CPU Only",
+      "category": "CPU Tier",
+      "hardware": {
+        "vendor": "cpu",
+        "tier": "cpu_only",
+        "name": "CPU",
+        "vram_gb": 0.0,
+        "has_nvenc": false,
+        "has_rtx_video_sdk": false,
+        "has_cuda": false
+      },
+      "configuration": {
+        "upscale_engine": "ffmpeg",
+        "encoder": "libx265",
+        "quality": "good",
+        "face_restore": false,
+        "audio_upmix": "simple",
+        "realesrgan_model": "realesrgan-x4plus",
+        "explanation": "No GPU detected. Using CPU-only mode (very slow).",
+        "warnings": [
+          "No GPU detected. Processing will be VERY slow (10-50x slower).",
+          "Consider using a system with GPU for practical use.",
+          "AI features (upscaling, face restoration) unavailable."
+        ]
+      }
+    }
+  ]
+}
