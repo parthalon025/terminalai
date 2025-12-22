@@ -68,7 +68,7 @@ dependencies = [
     # AI Processing (PyTorch) - Required for audio and face restoration
     "torch>=2.0.0",
     "torchaudio>=2.0.0",
-    "numpy>=1.24.0,<2.0",  # Critical: Must be <2.0 for AI package compatibility
+    "numpy>=1.24.0,<3.0",  # Critical: Must be <2.0 for AI package compatibility
 
     # Video Processing - Required for all features
     "opencv-python>=4.8.0",
