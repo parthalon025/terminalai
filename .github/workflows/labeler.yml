@@ -49,7 +49,7 @@ jobs:
     steps:
       - name: Label bug reports
         if: contains(github.event.issue.title, '[BUG]')
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             github.rest.issues.addLabels({
@@ -61,7 +61,7 @@ jobs:
 
       - name: Label feature requests
         if: contains(github.event.issue.title, '[FEATURE]')
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             github.rest.issues.addLabels({
@@ -73,7 +73,7 @@ jobs:
 
       - name: Label documentation issues
         if: contains(github.event.issue.body, 'documentation') || contains(github.event.issue.title, '[DOCS]')
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             github.rest.issues.addLabels({
