@@ -17,7 +17,7 @@
 #
 # Verified Compatible Versions:
 # - torch>=2.0.0 (2.2.2+ for Python 3.12+)
-# - numpy>=1.24.0,<2.0 (AI packages not compatible with 2.x)
+# - numpy>=1.24.0,<3.0 (AI packages not compatible with 2.x)
 # - gradio>=4.0.0 (6.x fully supported)
 
 # ===================
@@ -32,7 +32,7 @@ gradio>=4.0.0                 # Modern web interface
 # ===================
 torch>=2.0.0                  # PyTorch for AI models (2.2.2+ for Python 3.12+)
 torchaudio>=2.0.0             # Audio processing
-numpy>=1.24.0,<2.0            # Numerical operations (must be <2.0 for AI compatibility)
+numpy>=1.24.0,<3.0            # Numerical operations (must be <2.0 for AI compatibility)
 
 # ===================
 # Video Processing
